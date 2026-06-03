@@ -1,0 +1,8 @@
+node_modules/
+.angular/
+.cache/
+dist/
+build/
+*.log
+coverage/
+.env

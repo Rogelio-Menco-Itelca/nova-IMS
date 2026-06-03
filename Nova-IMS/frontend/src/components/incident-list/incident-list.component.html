@@ -1,0 +1,614 @@
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+    <h2 class="text-2xl font-bold text-white">Gestión de Incidentes</h2>
+    <button (click)="toggleRegistrationForm()"
+      class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd"
+          d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+          clip-rule="evenodd" />
+      </svg>
+      <span>{{ showNewIncidentTab() ? 'Cancelar Registro' : 'Registrar Incidente' }}</span>
+    </button>
+  </div>
+
+  <!-- Registration/Details Form Container with Tabs -->
+  @if (activeTabId()) {
+  <div class="bg-gray-800 rounded-lg shadow-lg animate-fadeIn">
+    <!-- Tabs Navigation -->
+    <div class="flex border-b border-gray-700">
+      @if (showNewIncidentTab()) {
+      <button (click)="setActiveTab('new')"
+        [class]="activeTabId() === 'new' ? 'border-indigo-500 text-indigo-400 bg-gray-700/50' : 'border-transparent text-gray-400 hover:bg-gray-700 hover:border-gray-500'"
+        class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200">
+        <span>Nuevo Incidente</span>
+        <span (click)="closeNewIncidentTab($event)"
+          class="text-gray-500 hover:text-white rounded-full hover:bg-gray-600 p-0.5" title="Cerrar Pestaña">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </span>
+      </button>
+      }
+      @for(tab of openIncidentTabs(); track tab.id) {
+      <button (click)="setActiveTab(tab.id)"
+        [class]="activeTabId() === tab.id ? 'border-indigo-500 text-indigo-400 bg-gray-700/50' : 'border-transparent text-gray-400 hover:bg-gray-700 hover:border-gray-500'"
+        class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200">
+        <span>{{ tab.id }}</span>
+        <span (click)="closeIncidentTab(tab.id, $event)"
+          class="text-gray-500 hover:text-white rounded-full hover:bg-gray-600 p-0.5" title="Cerrar Pestaña">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </span>
+      </button>
+      }
+    </div>
+
+    <!-- Form Content -->
+    <div class="p-6">
+      <form [formGroup]="incidentForm" (ngSubmit)="activeTabId() === 'new' ? registerIncident() : updateIncident()">
+        <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-3">
+          <h3 class="text-xl font-bold text-white">{{ activeTabId() === 'new' ? 'Registrar Nuevo Incidente' : 'Detalles
+            del Incidente: ' + activeTabId() }}</h3>
+          @if (activeTabId() !== 'new') {
+          <div class="text-xs text-gray-500 font-mono">Creado: {{ activeIncident()?.timestamp }}</div>
+          }
+        </div>
+
+        <div class="space-y-6">
+          <!-- Protocolo de Respuesta (Pestaña Colapsable) -->
+          @if (recommendedProtocol(); as protocol) {
+          <div
+            class="overflow-hidden rounded-xl border-l-4 border-l-indigo-500 bg-gray-900/40 shadow-2xl animate-slideIn mb-8">
+            <!-- Tab/Header -->
+            <div
+              class="bg-indigo-500/10 p-1 px-4 flex items-center justify-between border-b border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors"
+              (click)="isProtocolVisible.set(!isProtocolVisible())">
+              <div class="flex items-center gap-3 py-2">
+                <span class="relative flex h-3 w-3">
+                  <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                </span>
+                <h4 class="text-xs font-black text-indigo-300 uppercase tracking-widest">Protocolo Operativo Activo</h4>
+              </div>
+              <div class="flex items-center gap-3">
+                <span
+                  class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                  {{ protocol.incidentTypeName }}
+                </span>
+                <svg xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 text-indigo-400 transition-transform duration-300"
+                  [class.rotate-180]="!isProtocolVisible()" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Content Area -->
+            @if (isProtocolVisible()) {
+            <div class="p-6 bg-gradient-to-r from-indigo-900/20 to-transparent animate-fadeIn">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 class="text-xl font-bold text-white mb-1">{{ protocol.name }}</h3>
+                  <p class="text-sm text-indigo-300/60 italic font-medium">Siga estrictamente los pasos a continuación.
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                @for(step of protocol.steps; track step) {
+                <div
+                  class="group flex items-center p-3 rounded-lg bg-gray-900/50 border border-gray-800 hover:border-indigo-500/50 hover:bg-indigo-900/20 transition-all duration-300">
+                  <div class="flex-shrink-0 mr-4">
+                    <div
+                      class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-black border border-indigo-500/30 group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-300">
+                      {{ $index + 1 }}
+                    </div>
+                  </div>
+                  <div class="text-gray-200 font-medium text-sm lg:text-base group-hover:text-white transition-colors">
+                    {{ step }}
+                  </div>
+                </div>
+                }
+              </div>
+            </div>
+            }
+          </div>
+          }
+
+          <!-- Sección 1: Identificación y Clasificación -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label for="event_id"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_evento (Tipo)</label>
+              <select id="event_id" formControlName="event_id"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                required>
+                <option value="" disabled>Seleccione Tipo de Evento</option>
+                @for(incidentType of incidentTypes(); track incidentType.id) { <option [value]="incidentType.name">{{
+                  incidentType.name }}</option> }
+              </select>
+            </div>
+            <div>
+              <label for="priority_id"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_prioridad</label>
+              <select id="priority_id" formControlName="priority_id"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                required>
+                <option value="" disabled>Seleccione Prioridad</option>
+                @for(priority of priorities; track priority){ <option [value]="priority">{{ priority }}</option> }
+              </select>
+            </div>
+            <div>
+              <label for="status"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Estado</label>
+              <select id="status" formControlName="status"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                required>
+                @for(status of statuses; track status){ <option [value]="status">{{ status }}</option> }
+              </select>
+            </div>
+          </div>
+
+          <!-- Sección 2: Origen y Contacto -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label for="origin"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Origen</label>
+              <input id="origin" type="text" formControlName="origin" placeholder="Ej: Llamada 911, Botón Pánico"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                required>
+            </div>
+            <div>
+              <label for="phone"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Teléfono llamada</label>
+              <input id="phone" type="text" formControlName="phone" placeholder="Número del llamante"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                required>
+            </div>
+          </div>
+
+          <!-- Sección 3: Ubicación del Incidente (depto → municipio → dirección → punto en mapa) -->
+          <section class="rounded-lg border border-gray-700/60 bg-gray-800/25 p-4 sm:p-5 space-y-5">
+            <div>
+              <h4 class="text-sm font-semibold text-white">Ubicación del Incidente</h4>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Departamento</label>
+                <select formControlName="departmentId" (change)="onIncidentDepartmentChange()"
+                  class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                  <option [ngValue]="null" disabled>Seleccione departamento</option>
+                  @for (dept of departments(); track dept.id) {
+                  <option [ngValue]="dept.id">{{ dept.name }}</option>
+                  }
+                </select>
+                @if (incidentForm.get('departmentId')?.touched && incidentForm.get('departmentId')?.invalid) {
+                <p class="text-red-400 text-[11px] mt-1">Indique el departamento donde ocurre el incidente.</p>
+                }
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Municipio / ciudad</label>
+                <select formControlName="municipalityId"
+                  [disabled]="!incidentForm.get('departmentId')?.value"
+                  class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                  <option [ngValue]="null" disabled>Seleccione municipio</option>
+                  @for (mun of incidentMunicipalities(); track mun.id) {
+                  <option [ngValue]="mun.id">{{ mun.name }}</option>
+                  }
+                </select>
+                @if (incidentForm.get('municipalityId')?.touched && incidentForm.get('municipalityId')?.invalid) {
+                <p class="text-red-400 text-[11px] mt-1">Indique el municipio donde ocurre el incidente.</p>
+                }
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <div class="space-y-4 order-2 lg:order-1">
+                <div>
+                  <label for="location"
+                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dirección o referencia</label>
+                  <div class="relative">
+                    <input id="location" type="text" formControlName="location"
+                      placeholder="Calle, carrera, barrio, punto de referencia..."
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
+                      required>
+                    <svg class="absolute left-3 top-3 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label for="lat"
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Latitud</label>
+                    <input id="lat" type="number" step="any" formControlName="lat"
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      required>
+                  </div>
+                  <div>
+                    <label for="lng"
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Longitud</label>
+                    <input id="lng" type="number" step="any" formControlName="lng"
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      required>
+                  </div>
+                </div>
+
+                @if (incidentForm.get('locationPhoneNumber')?.value; as locPhone) {
+                <div class="p-3 bg-blue-900/10 border border-blue-900/30 rounded-md">
+                  <span class="block text-[10px] font-bold text-blue-500 uppercase mb-1">Ubicación por SMS/WhatsApp</span>
+                  <span class="text-xs text-blue-200">{{ locPhone }}</span>
+                </div>
+                } @else {
+                }
+              </div>
+
+              <div class="order-1 lg:order-2 space-y-2">
+                <span class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Punto en mapa</span>
+                <div id="map"
+                  class="w-full h-[240px] sm:h-[280px] lg:h-full min-h-[240px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden">
+                  <div class="absolute inset-0 flex items-center justify-center text-gray-600 pointer-events-none">
+                    Map View
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Sección 4: Comentarios del incidente (agregar + historial) -->
+          <div class="space-y-3">
+            <div>
+              <label for="agregarComentario"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agregar
+                comentario</label>
+              <textarea id="agregarComentario" formControlName="agregarComentario" rows="4"
+                [placeholder]="activeTabId() === 'new' ? 'Descripción del incidente, hechos reportados, notas...' : 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...'"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"></textarea>
+              @if (activeTabId() === 'new' && incidentForm.get('agregarComentario')?.touched && !incidentForm.get('agregarComentario')?.value?.trim()) {
+              <p class="text-red-400 text-[11px] mt-1">Escriba el primer comentario del incidente.</p>
+              }
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Historial de
+                comentarios</label>
+              <div class="rounded-lg border border-gray-700 bg-gray-900/60 overflow-hidden min-h-[140px]">
+                <div class="max-h-52 overflow-y-auto p-3 space-y-2">
+                  @if (commentsHistory().length === 0) {
+                  <p class="text-sm text-gray-500 italic">Sin comentarios registrados.</p>
+                  } @else {
+                  @for (entry of commentsHistory(); track $index) {
+                  <div class="bg-gray-800/50 border border-gray-700/60 rounded-md p-2.5 text-sm">
+                    <div class="text-[11px] text-indigo-300/90 mb-1">{{ formatNoteHeader(entry) }}</div>
+                    <p class="text-gray-200 whitespace-pre-wrap">{{ entry.text }}</p>
+                  </div>
+                  }
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Involucrados (Compacto) -->
+          <div class="pt-4 mt-4 border-t border-gray-700">
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="text-lg font-semibold text-white">Personas Involucradas</h4>
+              <button type="button" (click)="addPerson()" [disabled]="involvedPeople.length >= 4"
+                class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z">
+                  </path>
+                </svg>
+                Añadir
+              </button>
+            </div>
+            <div formArrayName="involvedPeople" class="space-y-4">
+              @if (involvedPeople.length === 0) {
+              <p class="text-sm text-gray-500 italic">Si la cédula está registrada en el sistema, los datos del ciudadano aparecerán automáticamente.</p>
+              }
+              @for (personGroup of involvedPeople.controls; track $index) {
+              <div [formGroupName]="$index"
+                class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn">
+                <button type="button" (click)="removePerson($index)"
+                  class="absolute top-2 right-2 text-gray-400 hover:text-red-400 text-2xl font-bold leading-none"
+                  title="Eliminar Persona">&times;</button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Nombre completo</label>
+                    <input formControlName="name" type="text" placeholder="Nombre y apellidos"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol</label>
+                    <select formControlName="role"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                      <option value="" disabled>Seleccione rol</option>
+                      @for (role of personRoles; track role) {
+                      <option [value]="role">{{ role }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Tipo de documento</label>
+                    <select formControlName="documentType"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                      <option value="" disabled>Seleccione tipo</option>
+                      @for (doc of documentTypeOptions; track doc) {
+                      <option [value]="doc">{{ doc }}</option>
+                      }
+                    </select>
+                    @if (personGroup.get('documentType')?.touched && personGroup.get('documentType')?.invalid) {
+                    <p class="text-red-400 text-[11px] mt-1">Seleccione el tipo de documento.</p>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Número de documento</label>
+                    <input formControlName="documentId" type="text" placeholder="Número"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Género</label>
+                    <select formControlName="gender"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                      <option value="" disabled>Seleccione género</option>
+                      @for (g of genderOptions; track g) {
+                      <option [value]="g">{{ g }}</option>
+                      }
+                    </select>
+                    @if (personGroup.get('gender')?.touched && personGroup.get('gender')?.invalid) {
+                    <p class="text-red-400 text-[11px] mt-1">Seleccione el género.</p>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto / Teléfono</label>
+                    <input formControlName="contact" type="text" placeholder="Teléfono"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Dirección de residencia</label>
+                    <input formControlName="address" type="text" placeholder="Opcional — domicilio"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1" title="Vestimenta, edad aparente, señas, comportamiento">Detalles adicionales</label>
+                    <textarea formControlName="details" rows="2"
+                      placeholder="Ej.: chaqueta azul, aprox. 35 años…"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"></textarea>
+                  </div>
+                </div>
+              </div>
+              }
+            </div>
+          </div>
+          <div class="pt-4 mt-4 border-t border-gray-700">
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="text-lg font-semibold text-white">Vehículos Involucrados</h4>
+              <button type="button" (click)="addVehicle()" [disabled]="involvedVehicles.length >= 4"
+                class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M10 2a.75.75 0 01.67.44l.416 1.247A1.75 1.75 0 0012.38 5.5h.04A1.75 1.75 0 0014 3.75V3a.75.75 0 01.75-.75h.5A.75.75 0 0116 3v.75a1.75 1.75 0 001.573 1.708l1.248.415A.75.75 0 0119.25 7.5v5a.75.75 0 01-1.07.707l-1.248-.415A1.75 1.75 0 0014.36 14.5h-.04A1.75 1.75 0 0013 16.25V17a.75.75 0 01-.75.75h-.5a.75.75 0 01-.75-.75v-.75a1.75 1.75 0 00-1.573-1.708l-1.248-.415A.75.75 0 017.75 12.5v-5A.75.75 0 018.82 6.793l1.248-.415A1.75 1.75 0 0011.64 4.5h.04A1.75 1.75 0 0013 2.75V2a.75.75 0 01.75-.75h.5A.75.75 0 0115 2v.75a1.75 1.75 0 001.573 1.708l1.248.415A.75.75 0 0118.25 6.5v.982a.75.75 0 01-1.29.518l-1.55-2.7A.75.75 0 0014.66 4.5H5.34a.75.75 0 00-.65.399l-1.55 2.7A.75.75 0 011.85 6.5V11a1 1 0 001 1h.5a.75.75 0 010 1.5H2a1 1 0 00-1 1v1a1 1 0 001 1h1a.75.75 0 010 1.5H2a2 2 0 00-2 2v1h18v-1a2 2 0 00-2-2h-1a.75.75 0 010-1.5h1a1 1 0 001-1v-1a1 1 0 00-1-1h-.5a.75.75 0 010-1.5h.5a1 1 0 001-1V7.482a.75.75 0 01.07-1.707zM5 14.5a1 1 0 100-2 1 1 0 000 2zM15 14.5a1 1 0 100-2 1 1 0 000 2z"
+                    clip-rule="evenodd"></path>
+                </svg>
+                Añadir
+              </button>
+            </div>
+            <div formArrayName="involvedVehicles" class="space-y-4">
+              @for (vehicleGroup of involvedVehicles.controls; track $index) {
+              <div [formGroupName]="$index"
+                class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn">
+                <button type="button" (click)="removeVehicle($index)"
+                  class="absolute top-2 right-2 text-gray-400 hover:text-red-400 text-2xl font-bold leading-none"
+                  title="Eliminar Vehículo">&times;</button>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Placa</label>
+                    <input formControlName="plate" type="text" placeholder="ABC123"
+                      (input)="onVehiclePlateInput($index)"
+                      (keydown.enter)="$event.preventDefault(); normalizeAndLookupVehicle($index)"
+                      (blur)="normalizeAndLookupVehicle($index)"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    @if (vehicleGroup.get('plate')?.touched && vehicleGroup.get('plate')?.invalid) {
+                    <p class="text-red-400 text-[11px] mt-1">
+                      Ingrese una placa válida (5-8 caracteres, solo letras/números o guion).
+                    </p>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol</label>
+                    <select formControlName="role"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                      <option value="" disabled>Seleccione rol</option>
+                      @for (role of vehicleRoles; track role) {
+                      <option [value]="role">{{ role }}</option>
+                      }
+                    </select>
+                    @if (vehicleGroup.get('role')?.touched && vehicleGroup.get('role')?.invalid) {
+                    <p class="text-red-400 text-[11px] mt-1">Seleccione el rol del vehículo en este incidente.</p>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Marca</label>
+                    <input formControlName="make" type="text" placeholder="Ej: Chevrolet"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Modelo/Línea</label>
+                    <input formControlName="model" type="text" placeholder="Ej: Aveo"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Color</label>
+                    <input formControlName="color" type="text" placeholder="Rojo"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div class="md:col-span-3">
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Detalles Adicionales</label>
+                    <textarea formControlName="details" rows="2" placeholder="Daños, señas particulares, etc."
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                  </div>
+                </div>
+              </div>
+              }
+            </div>
+          </div>
+
+          <!-- Incident History Section -->
+          @if (activeTabId() !== 'new') {
+          <div class="pt-4 mt-4 border-t border-gray-700">
+            <h4 class="text-lg font-semibold text-white mb-4">Historial de Cambios</h4>
+            @if (incidentAuditLogs().length === 0) {
+            <p class="text-sm text-gray-500 italic">
+              Aún no hay cambios registrados para este incidente. Al guardar modificaciones, aparecerán aquí.
+            </p>
+            } @else {
+            <div class="space-y-3">
+              @for (log of incidentAuditLogs(); track log.id) {
+              <div class="bg-gray-700/30 border border-gray-700 rounded-lg p-3 text-sm">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex items-center gap-2">
+                    <div
+                      class="w-6 h-6 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 text-[10px] font-bold">
+                      {{ log.user.substring(0, 2).toUpperCase() }}
+                    </div>
+                    <span class="font-medium text-gray-200">{{ log.user }}</span>
+                  </div>
+                  <span class="text-xs text-gray-500">{{ formatLogTime(log.timestamp) }}</span>
+                </div>
+                <div class="text-indigo-400 font-medium mb-1">{{ log.action }}</div>
+                <div class="text-gray-400 italic mb-2">{{ log.changes }}</div>
+
+                @if (log.details && log.details.length > 0) {
+                <div class="mt-2 space-y-1.5 bg-black/20 rounded p-2 border border-gray-700/50">
+                  @for (detail of log.details; track detail.field) {
+                  <div class="text-[11px] grid grid-cols-[70px_1fr] gap-2">
+                    <span class="font-semibold text-gray-500 uppercase tracking-wider">{{ detail.field }}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="px-1 py-0.5 rounded bg-red-900/10 text-red-400/60 line-through">{{ detail.old ||
+                        '(vacío)' }}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-gray-600" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                      <span class="px-1 py-0.5 rounded bg-green-900/10 text-green-400">{{ detail.new }}</span>
+                    </div>
+                  </div>
+                  }
+                </div>
+                }
+              </div>
+              }
+            </div>
+            }
+          </div>
+          }
+
+        </div>
+
+        <div class="flex justify-end items-center gap-3 pt-6 border-t border-gray-700 mt-6">
+          @if (activeTabId() !== 'new' && activeIncident(); as incident) {
+          <button type="button" (click)="sendSingleIncidentByEmail(incident)"
+            class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+            title="El incidente debe estar guardado en el servidor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+            </svg>
+            <span>Enviar por Email</span>
+          </button>
+          }
+
+          @if (activeTabId() === 'new') {
+          <button type="submit"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Guardar
+            Incidente</button>
+          } @else {
+          <button type="submit"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Actualizar
+            Incidente</button>
+          }
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- Filters and Incident List -->
+  <div class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4">
+    <div class="p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+      <input (input)="onFilterText($event)" type="text" placeholder="Buscar por ID, tipo, ubicación..."
+        class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-1/2 lg:w-1/3">
+      <select (change)="onFilterStatus($event)"
+        class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-auto">
+        <option value="">Todos los Estados</option>
+        @for(status of statuses; track status) { <option [value]="status">{{ status }}</option> }
+      </select>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left text-gray-300">
+        <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
+          <tr>
+            <th scope="col" class="px-4 py-3">ID</th>
+            <th scope="col" class="px-4 py-3">Tipo</th>
+            <th scope="col" class="px-4 py-3">Prioridad</th>
+            <th scope="col" class="px-4 py-3">Estado</th>
+            <th scope="col" class="px-4 py-3">Fecha/Hora</th>
+            <th scope="col" class="px-4 py-3">Operador</th>
+            <th scope="col" class="px-4 py-3">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (incident of filteredIncidents(); track incident.id) {
+          <tr class="border-b border-gray-700 hover:bg-gray-700/50">
+            <td class="px-4 py-3 font-medium text-white whitespace-nowrap">{{ incident.id }}</td>
+            <td class="px-4 py-3">{{ incident.type }}</td>
+            <td class="px-4 py-3"><span [class]="'font-semibold ' + getPriorityColor(incident.priority)">{{
+                incident.priority }}</span></td>
+            <td class="px-4 py-3"><span
+                [class]="'text-xs font-medium px-2.5 py-1 rounded-full ' + getStatusColor(incident.status)">{{
+                incident.status }}</span></td>
+            <td class="px-4 py-3">{{ incident.timestamp }}</td>
+            <td class="px-4 py-3">{{ incident.operator }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-3">
+                <button (click)="openIncidentTab(incident)"
+                  class="font-medium text-indigo-400 hover:text-indigo-300 whitespace-nowrap">Ver</button>
+                <button (click)="sendSingleIncidentByEmail(incident); $event.stopPropagation()"
+                  class="text-gray-400 hover:text-indigo-400" title="Enviar por Email">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          } @empty {
+          <tr class="border-b border-gray-700">
+            <td colspan="7" class="text-center py-8 text-gray-400">No se encontraron incidentes.</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+@if (emailModalIncident(); as emailIncident) {
+<app-incident-email-modal [incident]="emailIncident" (closed)="closeIncidentEmailModal()" />
+}
