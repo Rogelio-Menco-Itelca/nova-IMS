@@ -1,52 +1,28 @@
 const { pool } = require('../config/db');
 
-function normalize(s) {
-  return s
+async function generateUniqueUsername(fullName) {
+  const base = String(fullName || 'user')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 12) || 'user';
 
-function suggestUsername(fullName) {
-  if (!fullName) return '';
-
-  const words = fullName.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '';
-
-  const firstInitial = normalize(words[0]).charAt(0);
-  if (!firstInitial) return '';
-
-  let surname = '';
-
-  if (words.length === 2) {
-    surname = normalize(words[1]);
-  } else if (words.length >= 3) {
-    surname = normalize(words[words.length - 2]);
+  let candidate = base;
+  let n = 1;
+  while (await exists(candidate)) {
+    candidate = `${base}${n}`;
+    n += 1;
   }
-
-  return (firstInitial + surname).slice(0, 20);
+  return candidate;
 }
 
-async function generateUniqueUsername(fullName) {
-  const base = suggestUsername(fullName);
-  if (!base) throw new Error('No se pudo generar username');
-
+async function exists(username) {
   const [rows] = await pool.query(
-    `SELECT username FROM users WHERE username LIKE ?`,
-    [`${base}%`]
+    `SELECT ID_Usuario FROM usuarios WHERE LOWER(ID_Usuario) = LOWER(?) LIMIT 1`,
+    [username],
   );
-
-  const taken = new Set(rows.map(r => r.username));
-
-  if (!taken.has(base)) return base;
-
-  for (let i = 2; i < 1000; i++) {
-    const candidate = `${base}${i}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-
-  throw new Error('No se pudo generar username único');
+  return rows.length > 0;
 }
 
-module.exports = { suggestUsername, generateUniqueUsername };
+module.exports = { generateUniqueUsername };

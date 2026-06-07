@@ -1,16 +1,10 @@
 /**
  * Autenticación híbrida: directorio LDAP primero, MySQL local como respaldo.
  *
- * - Usuario solo en LDAP → entra sin fila en `users` (rol/agencia por .env).
- * - Usuario en LDAP + MySQL → rol/agencia desde MySQL.
- * - Usuario solo en MySQL (local) → bcrypt (creado en Administración).
- *
  * @module services/auth.service
  */
 
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/db");
 const HttpError = require("../utils/HttpError");
 const ldapConfig = require("../config/ldap");
 const ldapService = require("./ldap.service");
@@ -18,6 +12,9 @@ const {
   isDirectorySessionId,
   DIRECTORY_USER_PREFIX,
 } = require("../utils/jwtUser");
+const giUsers = require("../db/gestionincidentes/users");
+const giAgencies = require("../db/gestionincidentes/agencies");
+const loginLogs = require("../db/gestionincidentes/loginLogs");
 
 const INVALID_MSG = "Credenciales incorrectas. Por favor, intente de nuevo.";
 
@@ -30,37 +27,24 @@ function normalizeAuthSource(value) {
 }
 
 async function findDbUser(username, agencyCode) {
-  const [rows] = await pool.query(
-    `SELECT u.id, u.username, u.name, u.email, u.password_hash, u.status,
-            u.auth_source, u.must_change_password,
-            u.role_id, r.name AS role_name,
-            a.id AS agency_id, a.code AS agency_code, a.name AS agency_name
-       FROM users u
-       JOIN roles r    ON r.id = u.role_id
-       JOIN agencies a ON a.id = u.agency_id
-      WHERE u.username = ? AND a.code = ?`,
-    [username, agencyCode],
-  );
-  return rows[0] || null;
+  return giUsers.findUserByLogin(username, agencyCode);
 }
 
 async function buildDirectorySession(username, agencyCode, ldapProfile) {
-  const [agencyRows] = await pool.query(
-    `SELECT id, code, name FROM agencies WHERE code = ? LIMIT 1`,
-    [agencyCode],
-  );
-  if (!agencyRows.length) {
+  const agency = await giAgencies.resolveAgency(agencyCode);
+  if (!agency) {
     throw new HttpError(401, INVALID_MSG);
   }
 
   const roleId = ldapConfig.defaultRoleId;
+  const { pool } = require("../config/db");
   const [roleRows] = await pool.query(
-    `SELECT name FROM roles WHERE id = ? LIMIT 1`,
+    `SELECT Rol AS name FROM roles WHERE ID_Rol = ? LIMIT 1`,
     [roleId],
   );
 
   return {
-    id: `${DIRECTORY_USER_PREFIX}${username}`, // sub JWT; no es FK a users
+    id: `${DIRECTORY_USER_PREFIX}${username}`,
     username,
     name: ldapProfile.displayName || ldapProfile.cn || username,
     email: ldapProfile.mail || `${username}@ims.local`,
@@ -68,27 +52,56 @@ async function buildDirectorySession(username, agencyCode, ldapProfile) {
     must_change_password: 0,
     role_id: roleId,
     role_name: roleRows[0]?.name || "Operador / Despachador",
-    agency_id: agencyRows[0].id,
-    agency_code: agencyRows[0].code,
-    agency_name: agencyRows[0].name,
+    agency_id: agency.id,
+    agency_code: agency.code,
+    agency_name: agency.name,
   };
 }
 
 function assertActive(user) {
-  if (user.status !== "Activo") {
+  const status = String(user.status || "Activo");
+  if (status.toLowerCase() !== "activo") {
     throw new HttpError(403, "Usuario inactivo. Contacte al administrador.");
   }
 }
 
-function buildTokenResponse(user) {
+async function recordFailedLogin(user, agencyCode, description, rememberUser = false) {
+  if (!user?.id || !user?.role_id) return;
+  await loginLogs.safeLog(() =>
+    loginLogs.insertLoginRecord({
+      action: "Inicio de sesión",
+      description,
+      userId: user.id,
+      agencyCode: user.agency_code || agencyCode,
+      roleId: user.role_id,
+      rememberUser,
+      status: "Fallido",
+    }),
+  );
+}
+
+async function recordSuccessfulLogin(user, meta = {}) {
+  if (!user?.id || !user?.role_id || isDirectoryOnlyId(user.id)) return;
+  await loginLogs.safeLog(() =>
+    loginLogs.insertLoginRecord({
+      action: "Inicio de sesión",
+      description: meta.description || "Inicio de sesión exitoso",
+      userId: user.id,
+      agencyCode: user.agency_code || meta.agencyCode,
+      roleId: user.role_id,
+      rememberUser: !!meta.rememberUser,
+      status: "Exitoso",
+    }),
+  );
+}
+
+function buildTokenResponse(user, loginMeta = {}) {
   const authSource = normalizeAuthSource(user.auth_source);
   const mustChangePassword =
     authSource === "ldap" ? false : !!user.must_change_password;
 
   if (!isDirectoryOnlyId(user.id)) {
-    pool
-      .query("UPDATE users SET last_login = NOW() WHERE id = ?", [user.id])
-      .catch(() => {});
+    giUsers.updateLastLogin().catch(() => {});
   }
 
   const payload = {
@@ -117,26 +130,28 @@ function buildTokenResponse(user) {
       role: user.role_name,
       role_id: user.role_id,
       agency: user.agency_code,
+      agencyName: user.agency_name || null,
       authSource,
     },
   };
 }
 
-async function verifyLocalPassword(user, password) {
+async function verifyLocalPassword(user, password, agencyCode, rememberUser = false) {
   if (!user.password_hash) {
+    await recordFailedLogin(user, agencyCode, "Usuario sin contraseña local", rememberUser);
     throw new HttpError(401, INVALID_MSG);
   }
-  const ok = await bcrypt.compare(password, user.password_hash);
+  const ok = await giUsers.verifyPassword(user.password_hash, password);
   if (!ok) {
+    await recordFailedLogin(user, agencyCode, "Contraseña incorrecta", rememberUser);
     throw new HttpError(401, INVALID_MSG);
   }
 }
 
-/**
- * @param {{ agencia: string, usuario: string, password: string }} credentials
- */
-async function login(credentials) {
-  const { agencia, usuario, password } = credentials;
+async function login(credentials, options = {}) {
+  const { agencia, usuario, password, rememberMe } = credentials;
+  const rememberUser = !!rememberMe;
+  const logSuccess = options.logSuccess !== false;
   if (!usuario || !password || !agencia) {
     throw new HttpError(400, "agencia, usuario y password son requeridos");
   }
@@ -146,7 +161,21 @@ async function login(credentials) {
 
   if (directoryResult.ok) {
     if (dbUser) {
-      assertActive(dbUser);
+      try {
+        assertActive(dbUser);
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 403) {
+          await recordFailedLogin(dbUser, agencia, err.message, rememberUser);
+        }
+        throw err;
+      }
+      if (logSuccess) {
+        await recordSuccessfulLogin(dbUser, {
+          agencyCode: agencia,
+          rememberUser,
+          description: "Inicio de sesión LDAP exitoso",
+        });
+      }
       return buildTokenResponse({ ...dbUser, auth_source: "ldap" });
     }
     const session = await buildDirectorySession(
@@ -165,18 +194,39 @@ async function login(credentials) {
     throw new HttpError(401, INVALID_MSG);
   }
 
-  assertActive(dbUser);
+  try {
+    assertActive(dbUser);
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 403) {
+      await recordFailedLogin(dbUser, agencia, err.message, rememberUser);
+    }
+    throw err;
+  }
 
   if (normalizeAuthSource(dbUser.auth_source) === "ldap") {
+    await recordFailedLogin(
+      dbUser,
+      agencia,
+      "Usuario LDAP debe autenticarse por directorio",
+      rememberUser,
+    );
     throw new HttpError(401, INVALID_MSG);
   }
 
-  await verifyLocalPassword(dbUser, password);
+  await verifyLocalPassword(dbUser, password, agencia, rememberUser);
+  if (logSuccess) {
+    await recordSuccessfulLogin(dbUser, {
+      agencyCode: agencia,
+      rememberUser,
+      description: "Inicio de sesión exitoso",
+    });
+  }
   return buildTokenResponse(dbUser);
 }
 
 async function getProfile(jwtUser) {
   if (isDirectoryOnlyId(jwtUser.sub)) {
+    const agency = await giAgencies.resolveAgency(jwtUser.agency_code);
     return {
       id: jwtUser.sub,
       name: jwtUser.name,
@@ -184,32 +234,25 @@ async function getProfile(jwtUser) {
       role: jwtUser.role_name,
       role_id: jwtUser.role_id,
       agency: jwtUser.agency_code,
+      agencyName: agency?.name || null,
       authSource: normalizeAuthSource(jwtUser.auth_source || "ldap"),
     };
   }
 
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.auth_source, u.role_id, r.name AS role_name, a.code AS agency
-       FROM users u
-       JOIN roles r    ON r.id = u.role_id
-       JOIN agencies a ON a.id = u.agency_id
-      WHERE u.id = ?`,
-    [jwtUser.sub],
-  );
-  if (!rows.length) {
+  const u = await giUsers.findUserById(jwtUser.sub, jwtUser.agency_code);
+  if (!u) {
     throw new HttpError(404, "Usuario no encontrado");
   }
-  const u = rows[0];
+  const agency = await giAgencies.resolveAgency(u.agency_code);
   return {
     id: u.id,
     name: u.name,
     email: u.email,
     role: u.role_name,
     role_id: u.role_id,
-    agency: u.agency,
-    authSource: normalizeAuthSource(
-      u.auth_source || jwtUser.auth_source || "local",
-    ),
+    agency: u.agency_code,
+    agencyName: u.agency_name || agency?.name || null,
+    authSource: normalizeAuthSource(u.auth_source || jwtUser.auth_source || "local"),
   };
 }
 
@@ -225,15 +268,11 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
     throw new HttpError(400, "Contraseña actual y nueva son requeridas");
   }
 
-  const [rows] = await pool.query(
-    `SELECT password_hash, auth_source FROM users WHERE id = ?`,
-    [jwtUser.sub],
-  );
-  if (!rows.length) {
+  const user = await giUsers.findUserById(jwtUser.sub, jwtUser.agency_code);
+  if (!user) {
     throw new HttpError(404, "Usuario no encontrado");
   }
 
-  const user = rows[0];
   if (normalizeAuthSource(user.auth_source) === "ldap") {
     throw new HttpError(
       400,
@@ -241,7 +280,7 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
     );
   }
 
-  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  const ok = await giUsers.verifyPassword(user.password_hash, currentPassword);
   if (!ok) {
     throw new HttpError(401, "La contraseña actual es incorrecta");
   }
@@ -252,17 +291,15 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
     throw new HttpError(400, check.errors.join(" "));
   }
 
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await pool.query(
-    `UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?`,
-    [newHash, jwtUser.sub],
-  );
+  await giUsers.updatePasswordHash(user.id, user.agency_code, newPassword);
 
-  return { message: "Contraseña actualizada correctamente" };
+  return { message: "Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña." };
 }
 
 module.exports = {
   login,
   getProfile,
   changePassword,
+  recordFailedLogin,
+  recordSuccessfulLogin,
 };

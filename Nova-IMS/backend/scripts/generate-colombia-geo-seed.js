@@ -1,5 +1,5 @@
 /**
- * Genera sql/08_colombia_geo_seed.sql desde fuente pública DIVIPOLA (JSON).
+ * Genera sql/03_seed_geo.sql desde fuente pública DIVIPOLA (JSON).
  * Uso: node scripts/generate-colombia-geo-seed.js
  */
 const fs = require("fs");
@@ -8,7 +8,7 @@ const https = require("https");
 
 const SOURCE_URL =
   "https://raw.githubusercontent.com/marcovega/colombia-json/master/colombia.json";
-const OUT = path.join(__dirname, "..", "sql", "08_colombia_geo_seed.sql");
+const OUT = path.join(__dirname, "..", "sql", "03_seed_geo.sql");
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {

@@ -1,42 +1,47 @@
-const { pool } = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
+const { requireAgencyCode } = require('../utils/requestAgency');
+const giAgencies = require('../db/gestionincidentes/agencies');
+const giGeo = require('../db/gestionincidentes/geo');
+const giRoles = require('../db/gestionincidentes/roles');
+const giIncidentCatalog = require('../db/gestionincidentes/incidentCatalog');
 
-// GET /api/agencies
 exports.agencies = asyncHandler(async (req, res) => {
-  const [rows] = await pool.query(`SELECT id, code, name FROM agencies ORDER BY id`);
-  res.json(rows);
+  res.json(await giAgencies.listAgencies());
 });
 
-// GET /api/roles/list  -> lista simple
 exports.rolesSimple = asyncHandler(async (req, res) => {
-  const [rows] = await pool.query(`SELECT id, name FROM roles ORDER BY id`);
-  res.json(rows);
+  const agency = requireAgencyCode(req, 'Query agency es requerido (código IDAgencias)');
+  res.json(await giRoles.listRolesSimple(agency));
 });
 
-// GET /api/departments
 exports.departments = asyncHandler(async (req, res) => {
-  const [rows] = await pool.query(
-    `SELECT id, dane_code AS daneCode, name
-       FROM departments
-      ORDER BY name`,
-  );
-  res.json(rows);
+  const agency = requireAgencyCode(req, 'Query agency es requerido (código IDAgencias)');
+  res.json(await giGeo.listDepartments(agency));
 });
 
-// GET /api/municipalities?departmentId=1
 exports.municipalities = asyncHandler(async (req, res) => {
   const departmentId = Number(req.query.departmentId);
   if (!Number.isFinite(departmentId) || departmentId <= 0) {
     return res.status(400).json({
-      error: { message: "Query departmentId es requerido (número)" },
+      error: { message: 'Query departmentId es requerido (número)' },
     });
   }
-  const [rows] = await pool.query(
-    `SELECT id, department_id AS departmentId, dane_code AS daneCode, name
-       FROM municipalities
-      WHERE department_id = ?
-      ORDER BY name`,
-    [departmentId],
-  );
-  res.json(rows);
+  const agency = requireAgencyCode(req, 'Query agency es requerido (código IDAgencias)');
+  res.json(await giGeo.listMunicipalities(departmentId, agency));
+});
+
+exports.placeRoles = asyncHandler(async (req, res) => {
+  const agency = requireAgencyCode(req, 'Query agency es requerido');
+  const giPlaces = require('../db/gestionincidentes/places');
+  res.json(await giPlaces.listPlaceRoles(agency));
+});
+
+exports.origins = asyncHandler(async (req, res) => {
+  const agency = requireAgencyCode(req, 'Query agency es requerido');
+  res.json(await giIncidentCatalog.listOrigins(agency));
+});
+
+exports.incidentStatuses = asyncHandler(async (req, res) => {
+  const agency = requireAgencyCode(req, 'Query agency es requerido');
+  res.json(await giIncidentCatalog.listIncidentStatuses(agency));
 });

@@ -24,6 +24,9 @@ router.get ('/agencies',             catCtrl.agencies);
 router.get ('/roles/list',           catCtrl.rolesSimple);
 router.get ('/departments',          catCtrl.departments);
 router.get ('/municipalities',       catCtrl.municipalities);
+router.get ('/place-roles',          catCtrl.placeRoles);
+router.get ('/origins',              catCtrl.origins);
+router.get ('/incident-statuses',   catCtrl.incidentStatuses);
 
 // A partir de aquí, requiere JWT
 router.use(authRequired);
@@ -46,6 +49,9 @@ router.get   ('/people',         peopleCtrl.list);
 router.post  ('/people',         peopleCtrl.create);
 router.put   ('/people/:id',     peopleCtrl.update);
 router.delete('/people/:id',     peopleCtrl.remove);
+router.get   ('/person-roles',   peopleCtrl.personRoles);
+router.get   ('/genders',        peopleCtrl.genders);
+router.get   ('/document-types', peopleCtrl.documentTypes);
 
 // Lookup por teléfono
 router.get('/telephony/lookup/:phone', peopleCtrl.lookupByPhone);

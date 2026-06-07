@@ -9,7 +9,6 @@ const { pool, testConnection } = require("./config/db");
 const routes = require("./routes");
 const errorHandler = require("./middleware/errorHandler");
 const socket = require("./realtime/socket");
-const telephonyRoutes = require("./routes/telephony.routes");
 
 const app = express();
 const server = http.createServer(app);
@@ -33,8 +32,6 @@ app.use("/location", locationRoutes);
 
 // ---------- API ----------
 app.use("/api", routes);
-// ---------- Telephony ----------
-app.use("/api/telephony", telephonyRoutes);
 
 // ---------- Notificaciones ----------
 app.use("/api/notifications", notificationsRoutes);
@@ -50,6 +47,7 @@ socket.init(server, process.env.CORS_ORIGIN || "*");
 
 // ---------- Boot ----------
 const PORT = Number(process.env.PORT || 3000);
+const { getPublicUrlAsync } = require("./utils/publicUrl");
 
 async function bootstrap() {
   try {
@@ -62,24 +60,7 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // Auto-seed opcional de cuentas locales (ver sql/seed_users.js)
-  if (process.env.AUTO_SEED_USERS === "true") {
-    try {
-      const [u] = await pool.query("SELECT COUNT(*) AS n FROM users");
-      if (!u[0].n) {
-        console.log(
-          "[BOOT] No hay usuarios en la DB → ejecutando seed local opcional...",
-        );
-        const { seed } = require("./sql/seed_users");
-        await seed();
-      }
-    } catch (err) {
-      console.warn(
-        "[BOOT] Aviso: no se pudo auto-sembrar usuarios:",
-        err.message,
-      );
-    }
-  }
+  const publicUrl = await getPublicUrlAsync();
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`╔════════════════════════════════════════════════════╗`);
@@ -89,6 +70,10 @@ async function bootstrap() {
       `║  Socket: ws://localhost:${PORT}/socket.io${" ".repeat(13)}║`,
     );
     console.log(`║  CORS  : ${(process.env.CORS_ORIGIN || "*").padEnd(41)}║`);
+    console.log(`║  PUBLIC: ${publicUrl.padEnd(41)}║`);
+    if (publicUrl.includes("localhost")) {
+      console.log("║  ⚠ WhatsApp: ejecute ngrok http 3000              ║");
+    }
     console.log(`╚════════════════════════════════════════════════════╝`);
   });
 }

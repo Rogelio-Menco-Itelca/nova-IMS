@@ -7,7 +7,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const ldapConfig = require("../config/ldap");
 const ldapService = require("../services/ldap.service");
-const { pool } = require("../config/db");
+const giUsers = require("../db/gestionincidentes/users");
 
 async function main() {
   const uid = process.argv[2];
@@ -33,20 +33,22 @@ async function main() {
   console.log("LDAP OK:", auth.profile);
 
   const agency = ldapConfig.defaultAgencyCode;
-  const [rows] = await pool.query(
-    `SELECT u.username, u.auth_source, a.code AS agency
-       FROM users u
-       JOIN agencies a ON a.id = u.agency_id
-      WHERE u.username = ? AND a.code = ?`,
-    [uid, agency],
-  );
+  const dbUser = await giUsers.findUserByLogin(uid, agency);
 
-  if (rows.length) {
-    console.log("MySQL (opcional, personaliza rol):", rows[0]);
+  if (dbUser) {
+    console.log("MySQL (opcional, personaliza rol):", {
+      id: dbUser.id,
+      agency: dbUser.agency_code,
+      role: dbUser.role_name,
+      auth_source: dbUser.auth_source,
+    });
   } else {
-    console.log(`Sin fila en MySQL → login con rol ${ldapConfig.defaultRoleId}, agencia ${agency}`);
+    console.log(
+      `Sin fila en usuarios → login con rol ${ldapConfig.defaultRoleId}, agencia ${agency}`,
+    );
   }
 
+  const { pool } = require("../config/db");
   await pool.end();
 }
 

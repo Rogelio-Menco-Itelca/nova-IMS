@@ -18,14 +18,20 @@ const store = new Map();
  * Si ya existía uno, lo sobreescribe.
  * @returns {string} El código de 6 dígitos
  */
-function generate(userId) {
+function generate(userId, options = {}) {
   const code = String(Math.floor(100000 + Math.random() * 900000));
+  const prev = store.get(userId);
   store.set(userId, {
     code,
     expiresAt: Date.now() + OTP_EXPIRY_MS,
     attempts: 0,
+    loginRegistroId: options.loginRegistroId ?? prev?.loginRegistroId ?? null,
   });
   return code;
+}
+
+function getLoginRegistroId(userId) {
+  return store.get(userId)?.loginRegistroId ?? null;
 }
 
 /**
@@ -69,4 +75,4 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000);
 
-module.exports = { generate, verify };
+module.exports = { generate, verify, getLoginRegistroId };

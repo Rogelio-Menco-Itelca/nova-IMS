@@ -18,9 +18,18 @@ API REST + Socket.IO + MySQL para el sistema de gestión de incidentes.
 ```bash
 cp .env.example .env       # edita con tus credenciales MySQL
 npm install
-npm run db:migrate         # aplica cambios incrementales sin borrar datos
 npm run dev                # http://localhost:3000
 ```
+
+Importa la base **`gestionincidentes`** desde `backend/sql/` (extraído de `Dump20260607.sql`):
+
+```bash
+npm run db:import        # esquema + catálogos + geo
+# o
+npm run db:import:full   # dump completo
+```
+
+Ver `sql/README.md` para detalle de archivos.
 
 ---
 
@@ -30,10 +39,7 @@ npm run dev                # http://localhost:3000
 |------------------------|-----------------------------------------------------|
 | `npm run dev`          | Arranca con nodemon (hot reload)                    |
 | `npm start`            | Arranca en modo producción                          |
-| `npm run db:migrate`   | Aplica migraciones incrementales (no destructivo)    |
-| `npm run db:init`      | Bloqueado por seguridad (evita borrado accidental)   |
-| `npm run db:reset`     | Recreate total de BD (destructivo)                   |
-| `npm run db:seed-users`| Siembra cuentas locales opcionales (lista vacía por defecto) |
+| `npm run ldap:test`    | Prueba login contra LDAP                            |
 
 ---
 
@@ -50,9 +56,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=tu_password
-DB_NAME=ims_db
-
-AUTO_SEED_USERS=false
+DB_NAME=gestionincidentes
 
 LDAP_ENABLED=false
 LDAP_URL=ldap://localhost:389
@@ -79,28 +83,13 @@ Diagnóstico: `GET /api/auth/ldap-health` · `npm run ldap:test -- rmenco pass12
 
 ## 🗄️ Base de datos
 
-### Opción A — migración incremental (recomendada)
+El esquema y catálogos están en **`backend/sql/`** (origen: `Dump20260607.sql`).
+
 ```bash
-npm run db:migrate
+npm run db:import
 ```
 
-### Reset total (solo cuando sea intencional)
-```bash
-npm run db:reset
-```
-
-### Opción B — desde MySQL Workbench (inicialización desde cero)
-1. Abre `sql/01_schema.sql` → **Execute All** (crea la BD `ims_db` y 15 tablas)
-2. Abre `sql/02_seed.sql` → **Execute All** (carga catálogos)
-3. Con LDAP activo (`LDAP_ENABLED=true`), inicia sesión con un `uid` del directorio (agencia `CENTRAL`)
-
-### Tablas (15)
-
-- `agencies`, `roles`, `modules`, `role_permissions`
-- `users`, `people`
-- `incident_types`, `response_protocols`, `protocol_steps`
-- `incidents`, `incident_people`, `incident_vehicles`
-- `audit_logs`, `admin_logs`, `notification_emails`, `location_requests`
+Ver `sql/README.md` para la política del proyecto respecto a MySQL.
 
 ---
 
@@ -174,9 +163,11 @@ backend/
 ├── routes/index.js                    # Cableado de rutas
 ├── sql/
 │   ├── 01_schema.sql
-│   ├── 02_seed.sql
-│   ├── init-db.js
-│   └── seed_users.js
+│   ├── 02_seed_catalogs.sql
+│   ├── 03_seed_geo.sql
+│   ├── gestionincidentes_dump.sql
+│   ├── import-db.js
+│   └── README.md
 ├── utils/
 │   ├── asyncHandler.js
 │   ├── HttpError.js

@@ -28,32 +28,111 @@ function init() {
   });
 }
 
-async function sendWelcomeEmail({ to, name, username, password }) {
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatPersonName(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+async function sendWelcomeEmail({
+  to,
+  name,
+  username,
+  password,
+  agencyName,
+  agencyCode,
+  role,
+  telefono,
+}) {
   init();
 
   console.log('📧 Intentando enviar correo a:', to);
 
- const text = `
-Estimado/a ${name},
+  const displayName = formatPersonName(name);
+  const agencyLabel =
+    agencyName && agencyCode
+      ? `${agencyName} (${agencyCode})`
+      : agencyName || agencyCode || '—';
+  const appUrl = process.env.APP_URL || 'http://localhost:4200';
+  const phoneLine = telefono ? `\nTeléfono registrado: ${telefono.trim()}` : '';
+
+  const text = `
+Estimado/a ${displayName},
 
 Le informamos que su cuenta ha sido creada exitosamente en el sistema IMS NOVA.
 
-Detalles de acceso:
+Datos de su cuenta:
+  Nombre: ${displayName}
+  Correo: ${to}
+  Agencia asignada: ${agencyLabel}
+  Rol: ${role || '—'}${phoneLine}
 
-Usuario: ${username}
-Contraseña temporal: ${password}
+Detalles de acceso al sistema:
+  Usuario: ${username}
+  Contraseña temporal: ${password}
+
+Al iniciar sesión deberá seleccionar la agencia "${agencyCode || agencyName}" y el rol "${role || '—'}".
 
 IMPORTANTE:
 Por motivos de seguridad, deberá cambiar su contraseña en su primer inicio de sesión.
 
 Acceso al sistema:
-${process.env.APP_URL}
+${appUrl}
 
 Si usted no reconoce esta acción, comuníquese con el administrador.
 
 Atentamente,
 Equipo IMS NOVA
-`;
+`.trim();
+
+  const html = `
+<div style="background:#f9fafb;padding:32px;font-family:Segoe UI,Arial,sans-serif;color:#111827;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;">Bienvenido/a a IMS NOVA</h2>
+    <p style="margin:0 0 20px;color:#6b7280;">Estimado/a <strong>${escapeHtml(displayName)}</strong>, su cuenta ha sido creada exitosamente.</p>
+
+    <h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">Datos de su cuenta</h3>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:20px;font-size:14px;">
+      <tr><td style="padding:8px 0;color:#6b7280;width:140px;">Nombre</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(displayName)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;">Correo</td><td style="padding:8px 0;">${escapeHtml(to)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;">Agencia</td><td style="padding:8px 0;font-weight:600;">${escapeHtml(agencyLabel)}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;">Rol</td><td style="padding:8px 0;">${escapeHtml(role || '—')}</td></tr>
+      ${telefono ? `<tr><td style="padding:8px 0;color:#6b7280;">Teléfono</td><td style="padding:8px 0;">${escapeHtml(telefono.trim())}</td></tr>` : ''}
+    </table>
+
+    <h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">Credenciales de acceso</h3>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:20px;font-size:14px;background:#f8fafc;border-radius:8px;">
+      <tr><td style="padding:10px 12px;color:#6b7280;width:140px;">Usuario</td><td style="padding:10px 12px;font-family:monospace;font-weight:700;">${escapeHtml(username)}</td></tr>
+      <tr><td style="padding:10px 12px;color:#6b7280;">Contraseña temporal</td><td style="padding:10px 12px;font-family:monospace;font-weight:700;">${escapeHtml(password)}</td></tr>
+    </table>
+
+    <p style="margin:0 0 16px;font-size:13px;color:#4b5563;background:#eef2ff;border-left:4px solid #4f46e5;padding:12px 14px;border-radius:0 6px 6px 0;">
+      Al iniciar sesión seleccione la agencia <strong>${escapeHtml(agencyCode || agencyName || '—')}</strong>
+      y el rol <strong>${escapeHtml(role || '—')}</strong>.
+    </p>
+
+    <p style="margin:0 0 16px;font-size:13px;color:#b45309;background:#fffbeb;border:1px solid #fcd34d;padding:12px 14px;border-radius:6px;">
+      <strong>Importante:</strong> por seguridad deberá cambiar su contraseña en el primer inicio de sesión.
+    </p>
+
+    <p style="margin:0 0 8px;font-size:14px;">Acceso al sistema:</p>
+    <p style="margin:0 0 20px;"><a href="${escapeHtml(appUrl)}" style="color:#4f46e5;font-weight:600;">${escapeHtml(appUrl)}</a></p>
+
+    <p style="margin:0;font-size:12px;color:#9ca3af;">Si no reconoce esta acción, contacte al administrador.<br>Equipo IMS NOVA</p>
+  </div>
+</div>`.trim();
 
   if (!transporter) {
     console.log('📧 EMAIL (modo consola)');
@@ -65,8 +144,9 @@ Equipo IMS NOVA
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to,
-      subject: 'Credenciales IMS NOVA',
+      subject: 'Credenciales IMS NOVA — Cuenta creada',
       text,
+      html,
     });
 
     console.log('✅ Correo enviado a', to);
@@ -74,15 +154,6 @@ Equipo IMS NOVA
   } catch (err) {
     console.error('❌ Error enviando email:', err.message);
   }
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function formatDateTime(value) {
@@ -253,7 +324,7 @@ function incidentSummaryRows(incident) {
   }
 
   // Fecha de cierre inferida del historial (futuro: columna closed_at en incidents)
-  if (incident.status === 'Cerrado') {
+  if (incident.status === 'Cerrado' || incident.status === 'Cerrado con solución') {
     rows.push([
       'Fecha/Hora de cierre (estimada)',
       incident.closedAt ? formatDateTime(incident.closedAt) : '—',
