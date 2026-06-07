@@ -4,6 +4,7 @@ const path = require('path');
 const socket = require('../realtime/socket');
 const giLocation = require('../db/gestionincidentes/location');
 const { reverseGeocode } = require('../services/geocode.service');
+const logger = require('../utils/logger');
 
 router.get('/share', (req, res) => {
   res.sendFile(path.join(__dirname, '../views/location-share.html'));
@@ -30,11 +31,11 @@ router.post('/submit', async (req, res) => {
       address: address || row?.direccion || null,
       timestamp: Date.now(),
     };
-    console.log('📡 EMITIENDO SOCKET:', payload);
+    logger.debug('[LOCATION] Socket location:received', payload);
     socket.get().emit('location:received', payload);
     res.json({ ok: true, address });
   } catch (err) {
-    console.error('[LOCATION] Error:', err.message);
+    logger.error('[LOCATION] Error:', err.message);
     res.status(500).json({ error: 'Error interno' });
   }
 });

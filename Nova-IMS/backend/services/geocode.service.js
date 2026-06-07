@@ -2,6 +2,8 @@
  * Geocodificación inversa (lat/lng → dirección) para ubicacion.direccion
  */
 
+const logger = require("../utils/logger");
+
 function truncateAddress(text, max = 100) {
   const value = String(text || "").trim();
   if (!value) return null;
@@ -51,7 +53,7 @@ async function reverseGeocode(lat, lng) {
       const address = await reverseGeocodeGoogle(latNum, lngNum, apiKey);
       if (address) return address;
     } catch (err) {
-      console.warn("[geocode] Google:", err.message);
+      logger.warn("[geocode] Google:", err.message);
     }
   }
 
@@ -59,7 +61,7 @@ async function reverseGeocode(lat, lng) {
     const address = await reverseGeocodeNominatim(latNum, lngNum);
     if (address) return address;
   } catch (err) {
-    console.warn("[geocode] Nominatim:", err.message);
+    logger.warn("[geocode] Nominatim:", err.message);
   }
 
   return truncateAddress(`${latNum.toFixed(6)}, ${lngNum.toFixed(6)}`);

@@ -57,18 +57,18 @@
         <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Filtros</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" [formGroup]="filters">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Desde</label>
-            <input type="date" formControlName="from"
+            <label for="report-filter-from" class="text-xs text-gray-400">Desde</label>
+            <input id="report-filter-from" type="date" formControlName="from"
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Hasta</label>
-            <input type="date" formControlName="to"
+            <label for="report-filter-to" class="text-xs text-gray-400">Hasta</label>
+            <input id="report-filter-to" type="date" formControlName="to"
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Estado</label>
-            <select formControlName="status"
+            <label for="report-filter-status" class="text-xs text-gray-400">Estado</label>
+            <select id="report-filter-status" formControlName="status"
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="">Todos</option>
               <option>Nuevo</option><option>Asignado</option><option>En camino</option>
@@ -76,16 +76,16 @@
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Prioridad</label>
-            <select formControlName="priority"
+            <label for="report-filter-priority" class="text-xs text-gray-400">Prioridad</label>
+            <select id="report-filter-priority" formControlName="priority"
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="">Todas</option>
               <option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option>
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Operador</label>
-            <input type="text" formControlName="operator" placeholder="Nombre..."
+            <label for="report-filter-operator" class="text-xs text-gray-400">Operador</label>
+            <input id="report-filter-operator" type="text" formControlName="operator" placeholder="Nombre..."
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
           </div>
           <div class="flex flex-col gap-1 justify-end">
@@ -312,9 +312,8 @@
         <iframe
           [src]="pbiSafeUrl()!"
           title="PBI IMS NOVA"
-          frameborder="0"
-          allowfullscreen
-          class="w-full h-full">
+          allow="fullscreen"
+          class="w-full h-full border-0">
         </iframe>
       }
     </div>

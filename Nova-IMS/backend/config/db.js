@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -18,7 +19,7 @@ async function testConnection() {
   const conn = await pool.getConnection();
   try {
     await conn.ping();
-    console.log(`[DB] Conectado a MySQL → ${process.env.DB_NAME}@${process.env.DB_HOST}`);
+    logger.info(`[DB] Conectado a MySQL → ${process.env.DB_NAME}@${process.env.DB_HOST}`);
   } finally {
     conn.release();
   }

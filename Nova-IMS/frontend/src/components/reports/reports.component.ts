@@ -5,6 +5,8 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ReportsService, ReportSummary } from '../../services/reports.service';
+import { environment } from '../../environments/environment';
+import { trustedPowerBiEmbedUrl } from '../../utils/trusted-embed-urls';
 
 type Tab = 'analytics' | 'pbi';
 
@@ -24,8 +26,7 @@ export class ReportsComponent implements OnInit {
   activeTab = signal<Tab>('analytics');
 
   // ---------- Power BI ----------
-  private readonly DEFAULT_PBI_URL = 'https://app.powerbi.com/reportEmbed?reportId=aeee2cb9-c712-43fe-a1de-951b83b311d4&autoAuth=true&ctid=7523edfc-25ac-4863-9fb0-bb3e9448ed87&actionBarEnabled=true&reportCopilotInEmbed=true';
-  pbiSafeUrl    = signal<SafeResourceUrl | null>(null);
+  pbiSafeUrl = signal<SafeResourceUrl | null>(null);
 
   // ---------- analítica ----------
   isLoading = signal(true);
@@ -52,8 +53,9 @@ export class ReportsComponent implements OnInit {
 
   ngOnInit() {
     this.load();
-    // URL de PBI fija — no modificable por el usuario
-    this.pbiSafeUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.DEFAULT_PBI_URL));
+    this.pbiSafeUrl.set(
+      trustedPowerBiEmbedUrl(this.sanitizer, environment.powerBiEmbedUrl),
+    );
   }
 
   setTab(tab: Tab): void { this.activeTab.set(tab); }
@@ -117,7 +119,7 @@ export class ReportsComponent implements OnInit {
       headers.join(','),
       ...rows.map(r => [
         r.id, r.type, r.priority, r.status, r.origin, r.phone,
-        `"${(r.location||'').replace(/"/g,'""')}"`,
+        `"${(r.location || '').replaceAll('"', '""')}"`,
         r.operator, r.timestamp?.slice(0,19) ?? '', r.updatedAt?.slice(0,19) ?? '',
       ].join(',')),
     ];

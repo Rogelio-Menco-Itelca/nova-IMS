@@ -1,4 +1,5 @@
 const asyncHandler = require("../utils/asyncHandler");
+const logger = require("../utils/logger");
 const authService = require("../services/auth.service");
 const ldapConfig = require("../config/ldap");
 const ldapService = require("../services/ldap.service");
@@ -28,7 +29,17 @@ async function startOtpFlow(user, rememberUser, resend = false) {
     otpService.getLoginRegistroId(user.id) ||
     (await loginLogs.findPendingRegistro(user.id, user.agency_code));
 
-  if (!registroId) {
+  if (registroId) {
+    await loginLogs.safeLog(() =>
+      loginLogs.updateLoginStatus(
+        registroId,
+        "Pendiente",
+        resend
+          ? "Reenvío de código OTP solicitado"
+          : "Contraseña validada, pendiente verificación 2FA",
+      ),
+    );
+  } else {
     registroId = await loginLogs.safeLog(() =>
       loginLogs.insertLoginRecord({
         action: "Inicio de sesión",
@@ -40,23 +51,13 @@ async function startOtpFlow(user, rememberUser, resend = false) {
         status: "Pendiente",
       }),
     );
-  } else {
-    await loginLogs.safeLog(() =>
-      loginLogs.updateLoginStatus(
-        registroId,
-        "Pendiente",
-        resend
-          ? "Reenvío de código OTP solicitado"
-          : "Contraseña validada, pendiente verificación 2FA",
-      ),
-    );
   }
 
   const code = otpService.generate(user.id, { loginRegistroId: registroId });
   try {
     await sendOtpEmail({ to: user.email, name: user.name, code });
   } catch (err) {
-    console.error("[2FA] Error enviando OTP:", err.message);
+    logger.error("[2FA] Error enviando OTP:", err.message);
   }
 
   await loginLogs.safeLog(() =>

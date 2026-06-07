@@ -35,7 +35,6 @@ import {
   ColombiaDepartment,
   ColombiaMunicipality,
   CatalogOption,
-  isHiddenByDefaultInIncidentList,
   isVisibleInActiveViews,
   incidentMatchesCatalogStatus,
 } from "../../models/incident.model";
@@ -56,6 +55,13 @@ import { PersonService } from "../../services/person.service";
 import { ColombiaGeoService } from "../../services/colombia-geo.service";
 import { HttpClient } from "@angular/common/http";
 import { IncidentEmailModalComponent } from "../incident-email-modal/incident-email-modal.component";
+import {
+  createMapPin,
+  createPlaceAutocomplete,
+  isGoogleMapsLoaded,
+  MapPin,
+  PlaceAutocompleteControl,
+} from "../../utils/google-maps-legacy";
 import {
   appendIncidentNote,
   formatNoteForDisplay,
@@ -174,9 +180,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   // Google Maps
   private map: google.maps.Map | null = null;
-  private marker: google.maps.Marker | null = null;
+  private marker: MapPin | null = null;
   private geocoder: google.maps.Geocoder | null = null;
-  private autocomplete: google.maps.places.Autocomplete | null = null;
+  private autocomplete: PlaceAutocompleteControl | null = null;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -222,7 +228,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     lng: [null as number | null, Validators.required],
     agregarComentario: [""],
     type: [""],
-    priority: ["Media" as IncidentPriority],
+    priority: ["Media" satisfies IncidentPriority],
     locationPhoneNumber: [{ value: "", disabled: true }],
     involvedPeople: this.fb.array([]),
     involvedPlaces: this.fb.array([]),
@@ -290,16 +296,21 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   /** SMS/WhatsApp: teléfono del enlace de ubicación; si no, N/A en vitácora. */
   private resolveLocationPhoneForSave(raw: unknown): string {
-    const v = String(raw ?? "").trim();
+    const v = typeof raw === "string" ? raw.trim() : "";
     return v || "N/A";
   }
 
   private toLocalPhone(phone: string): string {
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replaceAll(/\D/g, "");
     if (digits.startsWith("57") && digits.length > 10) {
       return digits.slice(2);
     }
     return digits;
+  }
+
+  private async ensureGeocoderReady(): Promise<void> {
+    await this.waitForGoogleMaps();
+    this.geocoder ??= new google.maps.Geocoder();
   }
 
   private async applyReceivedLocation(
@@ -328,9 +339,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       locationPhoneCtrl?.disable({ emitEvent: false });
       this.lookupPersonByPhone(locationData.phoneNumber);
     }
-    this.incidentForm.patchValue({ location: "" }, { emitEvent: false });
     await this.syncMapToCoords(lat, lng);
-    if (!locationData.address) {
+    await this.ensureGeocoderReady();
+    const addressFromServer = locationData.address?.trim();
+    if (addressFromServer) {
+      this.incidentForm.patchValue(
+        { location: addressFromServer },
+        { emitEvent: false },
+      );
+    } else {
       this.reverseGeocodeFromGps(locationData.lat, locationData.lng);
     }
     this.cdr.detectChanges();
@@ -366,12 +383,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private waitForGoogleMaps(): Promise<void> {
     return new Promise((resolve) => {
-      if (typeof google !== "undefined" && google.maps) {
+      if (isGoogleMapsLoaded()) {
         resolve();
         return;
       }
       const interval = setInterval(() => {
-        if (typeof google !== "undefined" && google.maps) {
+        if (isGoogleMapsLoaded()) {
           clearInterval(interval);
           resolve();
         }
@@ -381,6 +398,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private async initMap(lat?: number, lng?: number) {
     await this.waitForGoogleMaps();
+    await this.ensureGeocoderReady();
 
     const mapEl = document.getElementById("map");
     if (!mapEl || this.map) return;
@@ -389,8 +407,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const formLng = this.incidentForm.get("lng")?.value;
     const centerLat = lat ?? formLat ?? 4.60971;
     const centerLng = lng ?? formLng ?? -74.08175;
-
-    this.geocoder = new google.maps.Geocoder();
 
     this.map = new google.maps.Map(mapEl, {
       center: { lat: centerLat, lng: centerLng },
@@ -401,28 +417,30 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       streetViewControl: false,
     });
 
-    this.marker = new google.maps.Marker({
+    this.marker = createMapPin({
       map: this.map,
       position: { lat: centerLat, lng: centerLng },
       draggable: true,
       title: "Ubicación del incidente",
     });
 
-    // Click en el
-    this.map!.addListener("click", (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng || !this.marker) return;
-      (this.marker as any).setPosition(e.latLng);
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
+    const map = this.map;
+    const marker = this.marker;
+    if (!map || !marker) return;
+
+    map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return;
+      marker.setPosition(e.latLng);
+      const clickLat = e.latLng.lat();
+      const clickLng = e.latLng.lng();
       this.ngZone.run(() => {
-        this.updateFormCoords(lat, lng);
-        this.reverseGeocode(lat, lng);
+        this.updateFormCoords(clickLat, clickLng);
+        this.reverseGeocode(clickLat, clickLng);
       });
     });
 
-    // Drag del marcador
-    this.marker!.addListener("dragend", (e: any) => {
-      const pos = (this.marker as any).getPosition();
+    marker.addListener("dragend", () => {
+      const pos = marker.getPosition();
       if (!pos) return;
       this.ngZone.run(() => {
         this.updateFormCoords(pos.lat(), pos.lng());
@@ -445,7 +463,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (this.marker) {
       this.marker.setPosition({ lat, lng });
     } else {
-      this.marker = new google.maps.Marker({
+      this.marker = createMapPin({
         map: this.map,
         position: { lat, lng },
         draggable: true,
@@ -455,17 +473,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private initAutocomplete() {
-    const locationInput = document.getElementById(
-      "location",
-    ) as HTMLInputElement;
-    if (!locationInput) return;
+    const locationInput = document.getElementById("location");
+    if (!(locationInput instanceof HTMLInputElement)) return;
 
-    this.autocomplete = new google.maps.places.Autocomplete(locationInput, {
-      componentRestrictions: { country: "co" }, // Restricción a Colombia
+    this.autocomplete = createPlaceAutocomplete(locationInput, {
+      componentRestrictions: { country: "co" },
       fields: ["geometry", "formatted_address"],
     });
 
-    this.autocomplete!.addListener("place_changed", () => {
+    this.autocomplete.addListener("place_changed", () => {
       const place = this.autocomplete!.getPlace();
       if (!place.geometry?.location) return;
 
@@ -497,9 +513,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private async ensureGeocoder(): Promise<google.maps.Geocoder | null> {
     await this.waitForGoogleMaps();
-    if (!this.geocoder) {
-      this.geocoder = new google.maps.Geocoder();
-    }
+    this.geocoder ??= new google.maps.Geocoder();
     return this.geocoder;
   }
 
@@ -563,35 +577,37 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private runReverseGeocode(lat: number, lng: number, fromGpsRequest: boolean) {
-    if (!this.geocoder) return;
+    void this.ensureGeocoderReady().then(() => {
+      if (!this.geocoder) return;
 
-    this.geocoder.geocode(
-      { location: { lat, lng } },
-      (results: any, status: any) => {
-        this.ngZone.run(() => {
-          if (status === "OK" && results?.[0]) {
-            const address = results[0].formatted_address;
-            if (fromGpsRequest) {
-              this.incidentForm.patchValue(
-                { location: address },
-                { emitEvent: false },
-              );
-            } else {
-              const current = String(
-                this.incidentForm.get("location")?.value || "",
-              ).trim();
-              if (!current) {
+      this.geocoder.geocode(
+        { location: { lat, lng } },
+        (results: any, status: any) => {
+          this.ngZone.run(() => {
+            if (status === "OK" && results?.[0]) {
+              const address = results[0].formatted_address;
+              if (fromGpsRequest) {
                 this.incidentForm.patchValue(
                   { location: address },
                   { emitEvent: false },
                 );
+              } else {
+                const current = String(
+                  this.incidentForm.get("location")?.value || "",
+                ).trim();
+                if (!current) {
+                  this.incidentForm.patchValue(
+                    { location: address },
+                    { emitEvent: false },
+                  );
+                }
               }
+              this.cdr.markForCheck();
             }
-            this.cdr.markForCheck();
-          }
-        });
-      },
-    );
+          });
+        },
+      );
+    });
   }
 
   private destroyMap() {
@@ -725,7 +741,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       primerApellido: [split.primerApellido ?? ""],
       segundoApellido: [split.segundoApellido ?? ""],
       roleId: [p?.roleId ?? null],
-      documentType: [(p?.documentType ?? "") as string],
+      documentType: [p?.documentType ?? ""],
       documentId: [p?.documentId ?? ""],
       genderId: [p?.genderId ?? null],
       contact: [p?.contact ?? p?.phone ?? ""],
@@ -924,7 +940,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   formatPlaceRoleLabel(name: string): string {
-    return String(name || "").replace(/_/g, " ");
+    return String(name || "").replaceAll("_", " ");
   }
 
   private buildPlaceGroup(p?: Partial<InvolvedPlace>): FormGroup {
@@ -1273,7 +1289,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             {
               priority_id: selectedType.defaultPriority,
               type: selectedType.name,
-              priority: selectedType.defaultPriority as IncidentPriority,
+              priority: selectedType.defaultPriority,
             },
             { emitEvent: false },
           );
@@ -1401,7 +1417,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
   }
 
-  private describeFormErrors(): string {
+  private collectTopLevelFormErrors(): string[] {
     const labels: Record<string, string> = {
       event_id: "Tipo de evento",
       priority_id: "Prioridad",
@@ -1416,14 +1432,22 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     for (const [key, label] of Object.entries(labels)) {
       if (this.incidentForm.get(key)?.invalid) missing.push(label);
     }
+    return missing;
+  }
+
+  private collectInvolvedPeopleErrors(): string[] {
     for (const g of this.involvedPeople.controls) {
       const group = g as FormGroup;
       if (!this.isPersonRowPartiallyFilled(group)) continue;
       if (!this.isPersonRowSaveable(group)) {
-        missing.push("Persona involucrada (primer nombre, primer apellido y rol)");
-        break;
+        return ["Persona involucrada (primer nombre, primer apellido y rol)"];
       }
     }
+    return [];
+  }
+
+  private collectInvolvedPlacesErrors(): string[] {
+    const missing: string[] = [];
     for (const g of this.involvedPlaces.controls) {
       const name = String(g.get("name")?.value || "").trim();
       const address = String(g.get("address")?.value || "").trim();
@@ -1434,6 +1458,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         missing.push("Rol/tipo del lugar involucrado");
       }
     }
+    return missing;
+  }
+
+  private collectInvolvedVehiclesErrors(): string[] {
+    const missing: string[] = [];
     for (const g of this.involvedVehicles.controls) {
       const group = g as FormGroup;
       if (!this.isVehicleRowFilled(group)) continue;
@@ -1447,6 +1476,16 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         );
       }
     }
+    return missing;
+  }
+
+  private describeFormErrors(): string {
+    const missing = [
+      ...this.collectTopLevelFormErrors(),
+      ...this.collectInvolvedPeopleErrors(),
+      ...this.collectInvolvedPlacesErrors(),
+      ...this.collectInvolvedVehiclesErrors(),
+    ];
     const unique = [...new Set(missing)];
     return unique.length
       ? `Complete: ${unique.join(", ")}.`

@@ -9,7 +9,7 @@ import {
   CatalogOption,
   DocumentTypeOption,
 } from '../../models/incident.model';
-import { Operator, OperatorFormPayload, IncidentType, ResponseProtocol, RolePermission, AdminActionLog } from '../../models/admin.model';
+import { Operator, OperatorFormPayload, IncidentType, ResponseProtocol } from '../../models/admin.model';
 import { ConfigurationService } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';

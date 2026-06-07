@@ -54,7 +54,10 @@ const USER_KEY = "ims_currentUser";
 const MUST_CHANGE_KEY = "ims_mustChangePassword";
 
 function normalizeAuthSource(value: unknown): AuthSource {
-  return String(value || "local").toLowerCase() === "ldap" ? "ldap" : "local";
+  if (typeof value !== "string") {
+    return "local";
+  }
+  return value.toLowerCase() === "ldap" ? "ldap" : "local";
 }
 
 function authSourceFromToken(token: string): AuthSource | null {

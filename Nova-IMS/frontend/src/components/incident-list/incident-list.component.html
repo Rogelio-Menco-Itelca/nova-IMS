@@ -235,8 +235,9 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Departamento</label>
-                    <select formControlName="departmentId"
+                    <label for="departmentId"
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Departamento</label>
+                    <select id="departmentId" formControlName="departmentId"
                       class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
                       <option [ngValue]="null">Seleccione departamento…</option>
                       @for (dept of departments(); track dept.id) {
@@ -245,8 +246,9 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Municipio / ciudad</label>
-                    <select formControlName="municipalityId"
+                    <label for="municipalityId"
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Municipio / ciudad</label>
+                    <select id="municipalityId" formControlName="municipalityId"
                       [disabled]="!incidentForm.get('departmentId')?.value"
                       class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
                       <option [ngValue]="null">
@@ -302,9 +304,11 @@
             </div>
             @if (activeTabId() !== 'new') {
             <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Historial de
-                comentarios</label>
-              <div class="rounded-lg border border-gray-700/80 bg-gray-900/40 overflow-hidden">
+              <h5 id="comments-history-heading"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Historial de
+                comentarios</h5>
+              <section class="rounded-lg border border-gray-700/80 bg-gray-900/40 overflow-hidden"
+                aria-labelledby="comments-history-heading">
                 <div class="max-h-56 overflow-y-auto divide-y divide-gray-700/60">
                   @if (commentsHistory().length === 0) {
                   <p class="text-sm text-gray-500 italic p-4">Sin comentarios registrados.</p>
@@ -320,7 +324,7 @@
                   }
                   }
                 </div>
-              </div>
+              </section>
             </div>
             }
           </div>
@@ -351,28 +355,33 @@
                   title="Eliminar persona">&times;</button>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Primer nombre <span class="text-red-400">*</span></label>
-                    <input formControlName="primerNombre" type="text" placeholder="Ej.: Ana"
+                    <label [attr.for]="'person-' + $index + '-primerNombre'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Primer nombre <span class="text-red-400">*</span></label>
+                    <input [id]="'person-' + $index + '-primerNombre'" formControlName="primerNombre" type="text" placeholder="Ej.: Ana"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Segundo nombre</label>
-                    <input formControlName="segundoNombre" type="text" placeholder="Opcional"
+                    <label [attr.for]="'person-' + $index + '-segundoNombre'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Segundo nombre</label>
+                    <input [id]="'person-' + $index + '-segundoNombre'" formControlName="segundoNombre" type="text" placeholder="Opcional"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Primer apellido <span class="text-red-400">*</span></label>
-                    <input formControlName="primerApellido" type="text" placeholder="Ej.: Rodríguez"
+                    <label [attr.for]="'person-' + $index + '-primerApellido'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Primer apellido <span class="text-red-400">*</span></label>
+                    <input [id]="'person-' + $index + '-primerApellido'" formControlName="primerApellido" type="text" placeholder="Ej.: Rodríguez"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Segundo apellido</label>
-                    <input formControlName="segundoApellido" type="text" placeholder="Opcional"
+                    <label [attr.for]="'person-' + $index + '-segundoApellido'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Segundo apellido</label>
+                    <input [id]="'person-' + $index + '-segundoApellido'" formControlName="segundoApellido" type="text" placeholder="Opcional"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
-                    <select formControlName="roleId"
+                    <label [attr.for]="'person-' + $index + '-roleId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
+                    <select [id]="'person-' + $index + '-roleId'" formControlName="roleId"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                       <option [ngValue]="null" disabled>Seleccione rol</option>
                       @for (role of personRoles(); track role.id) {
@@ -381,8 +390,9 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Tipo de documento</label>
-                    <select formControlName="documentType"
+                    <label [attr.for]="'person-' + $index + '-documentType'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Tipo de documento</label>
+                    <select [id]="'person-' + $index + '-documentType'" formControlName="documentType"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                       <option value="">Seleccione tipo</option>
                       @for (doc of documentTypes(); track doc.code) {
@@ -391,13 +401,15 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Número de documento</label>
-                    <input formControlName="documentId" type="text" placeholder="Número"
+                    <label [attr.for]="'person-' + $index + '-documentId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Número de documento</label>
+                    <input [id]="'person-' + $index + '-documentId'" formControlName="documentId" type="text" placeholder="Número"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Género</label>
-                    <select formControlName="genderId"
+                    <label [attr.for]="'person-' + $index + '-genderId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Género</label>
+                    <select [id]="'person-' + $index + '-genderId'" formControlName="genderId"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                       <option [ngValue]="null">Seleccione género</option>
                       @for (g of genders(); track g.id) {
@@ -406,13 +418,15 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto / teléfono</label>
-                    <input formControlName="contact" type="text" placeholder="Teléfono"
+                    <label [attr.for]="'person-' + $index + '-contact'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Contacto / teléfono</label>
+                    <input [id]="'person-' + $index + '-contact'" formControlName="contact" type="text" placeholder="Teléfono"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del solicitante</label>
-                    <textarea formControlName="comentarios" rows="2"
+                    <label [attr.for]="'person-' + $index + '-comentarios'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Comentarios del solicitante</label>
+                    <textarea [id]="'person-' + $index + '-comentarios'" formControlName="comentarios" rows="2"
                       placeholder="Notas sobre el solicitante (opcional)"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"></textarea>
                   </div>
@@ -446,18 +460,21 @@
                   title="Eliminar lugar">&times;</button>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Nombre del lugar <span class="text-red-400">*</span></label>
-                    <input formControlName="name" type="text" placeholder="Ej: Casa magistrado"
+                    <label [attr.for]="'place-' + $index + '-name'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Nombre del lugar <span class="text-red-400">*</span></label>
+                    <input [id]="'place-' + $index + '-name'" formControlName="name" type="text" placeholder="Ej: Casa magistrado"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Dirección <span class="text-red-400">*</span></label>
-                    <input formControlName="address" type="text" placeholder="Calle, carrera, barrio…"
+                    <label [attr.for]="'place-' + $index + '-address'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Dirección <span class="text-red-400">*</span></label>
+                    <input [id]="'place-' + $index + '-address'" formControlName="address" type="text" placeholder="Calle, carrera, barrio…"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Departamento</label>
-                    <select formControlName="departmentId"
+                    <label [attr.for]="'place-' + $index + '-departmentId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Departamento</label>
+                    <select [id]="'place-' + $index + '-departmentId'" formControlName="departmentId"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                       <option [ngValue]="null">Seleccione departamento…</option>
                       @for (dept of departments(); track dept.id) {
@@ -466,8 +483,9 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Municipio</label>
-                    <select formControlName="municipalityId"
+                    <label [attr.for]="'place-' + $index + '-municipalityId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Municipio</label>
+                    <select [id]="'place-' + $index + '-municipalityId'" formControlName="municipalityId"
                       [disabled]="!placeGroup.get('departmentId')?.value"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50">
                       <option [ngValue]="null">
@@ -486,8 +504,9 @@
                     }
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol / tipo de lugar <span class="text-red-400">*</span></label>
-                    <select formControlName="roleId"
+                    <label [attr.for]="'place-' + $index + '-roleId'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Rol / tipo de lugar <span class="text-red-400">*</span></label>
+                    <select [id]="'place-' + $index + '-roleId'" formControlName="roleId"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                       <option [ngValue]="null" disabled>Seleccione rol…</option>
                       @for (role of placeRoles(); track role.id) {
@@ -496,13 +515,15 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto</label>
-                    <input formControlName="contact" type="text" placeholder="Teléfono o referencia"
+                    <label [attr.for]="'place-' + $index + '-contact'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Contacto</label>
+                    <input [id]="'place-' + $index + '-contact'" formControlName="contact" type="text" placeholder="Teléfono o referencia"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del lugar</label>
-                    <textarea formControlName="comments" rows="2"
+                    <label [attr.for]="'place-' + $index + '-comments'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Comentarios del lugar</label>
+                    <textarea [id]="'place-' + $index + '-comments'" formControlName="comments" rows="2"
                       placeholder="Observaciones sobre el lugar…"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 resize-y min-h-[2.5rem]"></textarea>
                   </div>
@@ -533,8 +554,9 @@
                   title="Eliminar Vehículo">&times;</button>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Placa <span class="text-gray-500 font-normal">(opcional)</span></label>
-                    <input formControlName="plate" type="text" placeholder="ABC123 (opcional)"
+                    <label [attr.for]="'vehicle-' + $index + '-plate'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Placa <span class="text-gray-500 font-normal">(opcional)</span></label>
+                    <input [id]="'vehicle-' + $index + '-plate'" formControlName="plate" type="text" placeholder="ABC123 (opcional)"
                       (input)="onVehiclePlateInput($index)"
                       (keydown.enter)="$event.preventDefault(); normalizeAndLookupVehicle($index)"
                       (blur)="normalizeAndLookupVehicle($index)"
@@ -546,8 +568,9 @@
                     }
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
-                    <select formControlName="role"
+                    <label [attr.for]="'vehicle-' + $index + '-role'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
+                    <select [id]="'vehicle-' + $index + '-role'" formControlName="role"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                       <option value="" disabled>Seleccione rol</option>
                       @for (role of vehicleRoles; track role) {
@@ -559,23 +582,27 @@
                     }
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Marca</label>
-                    <input formControlName="make" type="text" placeholder="Ej: Chevrolet"
+                    <label [attr.for]="'vehicle-' + $index + '-make'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Marca</label>
+                    <input [id]="'vehicle-' + $index + '-make'" formControlName="make" type="text" placeholder="Ej: Chevrolet"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div class="md:col-span-2">
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Modelo/Línea</label>
-                    <input formControlName="model" type="text" placeholder="Ej: Aveo"
+                    <label [attr.for]="'vehicle-' + $index + '-model'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Modelo/Línea</label>
+                    <input [id]="'vehicle-' + $index + '-model'" formControlName="model" type="text" placeholder="Ej: Aveo"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Color</label>
-                    <input formControlName="color" type="text" placeholder="Rojo"
+                    <label [attr.for]="'vehicle-' + $index + '-color'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Color</label>
+                    <input [id]="'vehicle-' + $index + '-color'" formControlName="color" type="text" placeholder="Rojo"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div class="md:col-span-3">
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del vehículo <span class="text-gray-500 font-normal">(opcional)</span></label>
-                    <textarea formControlName="details" rows="2" placeholder="Daños, señas particulares, etc. (opcional)"
+                    <label [attr.for]="'vehicle-' + $index + '-details'"
+                      class="block text-xs font-medium text-gray-400 mb-1">Comentarios del vehículo <span class="text-gray-500 font-normal">(opcional)</span></label>
+                    <textarea [id]="'vehicle-' + $index + '-details'" formControlName="details" rows="2" placeholder="Daños, señas particulares, etc. (opcional)"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                   </div>
                 </div>

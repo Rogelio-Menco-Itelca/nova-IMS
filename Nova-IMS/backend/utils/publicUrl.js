@@ -10,6 +10,7 @@
  */
 
 const http = require("http");
+const logger = require("./logger");
 
 function isLoopbackHost(hostname) {
   const h = String(hostname || "").toLowerCase();
@@ -91,7 +92,7 @@ async function resolvePublicUrl() {
   const discovered = await discoverNgrokPublicUrl();
   if (discovered) {
     cachedResolvedPublicUrl = discovered;
-    console.log(`[PUBLIC_URL] Túnel ngrok detectado: ${discovered}`);
+    logger.info(`[PUBLIC_URL] Túnel ngrok detectado: ${discovered}`);
     return discovered;
   }
 

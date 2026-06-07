@@ -27,7 +27,6 @@ import {
   DASHBOARD_ACTIVE_STATUSES,
   PersonRole,
   VehicleRole,
-  InvolvedPerson,
   InvolvedVehicle,
   Person,
   DocumentType,
@@ -48,6 +47,13 @@ import { LocationRequestService } from "../../services/location-request.service"
 import { IncidentService } from "../../services/incident.service";
 import { PersonService } from "../../services/person.service";
 import { IncidentEmailModalComponent } from "../incident-email-modal/incident-email-modal.component";
+import {
+  createMapPin,
+  createPlaceAutocomplete,
+  isGoogleMapsLoaded,
+  MapPin,
+  PlaceAutocompleteControl,
+} from "../../utils/google-maps-legacy";
 
 declare var google: any;
 
@@ -57,6 +63,35 @@ const priorityOrder: Record<IncidentPriority, number> = {
   Media: 2,
   Baja: 1,
 };
+
+function isDocumentType(value: string): value is DocumentType {
+  return (DOCUMENT_TYPE_OPTIONS as readonly string[]).includes(value);
+}
+
+function coerceIncidentPriority(
+  value: string | null | undefined,
+): IncidentPriority {
+  if (
+    value === "Baja" ||
+    value === "Media" ||
+    value === "Alta" ||
+    value === "Crítica"
+  ) {
+    return value;
+  }
+  return "Media";
+}
+
+function isInvolvedVehicle(value: unknown): value is InvolvedVehicle {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as InvolvedVehicle;
+  return typeof v.plate === "string" && typeof v.role === "string";
+}
+
+function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isInvolvedVehicle);
+}
 
 const statusOrder: Record<string, number> = {
   Nuevo: 7,
@@ -102,15 +137,15 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     const id = String(documentId || "").trim();
     if (!id) return "";
     if (/[A-Za-z]/.test(id)) return "Pasaporte";
-    const digits = id.replace(/\D/g, "");
+    const digits = id.replaceAll(/\D/g, "");
     if (digits.length >= 6 && digits.length <= 11) return "Cédula de Ciudadanía";
     return "";
   }
 
   private resolveDocumentTypeFromPerson(person: Person): DocumentType | "" {
     const raw = String(person.documentType || "").trim();
-    if (raw && DOCUMENT_TYPE_OPTIONS.includes(raw as DocumentType)) {
-      return raw as DocumentType;
+    if (raw && isDocumentType(raw)) {
+      return raw;
     }
     return this.inferDocumentType(person.documentId);
   }
@@ -136,14 +171,13 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   // Google Maps
   private map: google.maps.Map | null = null;
-  private marker: google.maps.Marker | null = null;
+  private marker: MapPin | null = null;
 
   private dashboardMap: google.maps.Map | null = null;
-  private dashboardMarker: google.maps.Marker | null = null;
   private dashboardMarkers = new Map<
     string,
     {
-      marker: google.maps.Marker;
+      marker: MapPin;
       infoWindow: google.maps.InfoWindow;
     }
   >();
@@ -151,7 +185,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   private dashboardMapClickListener: google.maps.MapsEventListener | null = null;
 
   private geocoder: google.maps.Geocoder | null = null;
-  private autocomplete: google.maps.places.Autocomplete | null = null;
+  private autocomplete: PlaceAutocompleteControl | null = null;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -193,7 +227,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     details: ["", Validators.required],
     comments: [""],
     type: [""],
-    priority: ["Media" as IncidentPriority],
+    priority: ["Media" satisfies IncidentPriority],
     locationPhoneNumber: [{ value: "", disabled: true }],
     involvedPeople: this.fb.array([]),
     involvedVehicles: this.fb.array([]),
@@ -250,23 +284,8 @@ export class IncidentsComponent implements OnInit, OnDestroy {
           this.resetFormForNewIncident();
         }
 
-        setTimeout(() => {
-          const lat = this.incidentForm.get("lat")?.value || 4.645368;
-          const lng = this.incidentForm.get("lng")?.value || -74.1131;
-          this.initMap(lat, lng).then(() => {
-            if (savedState?.lat && savedState?.lng) {
-              setTimeout(
-                () => this.reverseGeocode(savedState.lat, savedState.lng),
-                300,
-              );
-            }
-          });
-        }, 350);
+        this.scheduleNewIncidentMapInit(savedState);
       } else if (tabId) {
-        console.log("TAB ACTIVO:", tabId);
-        console.log("MAP:", this.map);
-        console.log("MARKER:", this.marker);
-        console.log("INCIDENTES:", this.incidents());
         const incident = this.openIncidentTabs().find(
           (inc) => inc.id === tabId,
         );
@@ -284,6 +303,23 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       if (!this.dashboardMap) return;
       this.renderDashboardIncidents();
     });
+  }
+
+  private scheduleNewIncidentMapInit(
+    savedState: ReturnType<typeof this.incidentForm.getRawValue> | null,
+  ): void {
+    setTimeout(() => {
+      const lat = this.incidentForm.get("lat")?.value || 4.645368;
+      const lng = this.incidentForm.get("lng")?.value || -74.1131;
+      void this.initMap(lat, lng).then(() => {
+        if (savedState?.lat != null && savedState?.lng != null) {
+          setTimeout(
+            () => this.reverseGeocode(savedState.lat, savedState.lng),
+            300,
+          );
+        }
+      });
+    }, 350);
   }
 
   private moveMapToLocation(lat: number, lng: number) {
@@ -322,12 +358,12 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   private waitForGoogleMaps(): Promise<void> {
     return new Promise((resolve) => {
-      if (typeof google !== "undefined" && google.maps) {
+      if (isGoogleMapsLoaded()) {
         resolve();
         return;
       }
       const interval = setInterval(() => {
-        if (typeof google !== "undefined" && google.maps) {
+        if (isGoogleMapsLoaded()) {
           clearInterval(interval);
           resolve();
         }
@@ -355,26 +391,30 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       streetViewControl: false,
     });
 
-    this.marker = new google.maps.Marker({
+    this.marker = createMapPin({
       map: this.map,
       position: { lat, lng },
       draggable: true,
       title: "Ubicación del incidente",
     });
 
-    this.map!.addListener("click", (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng || !this.marker) return;
-      this.marker.setPosition(e.latLng);
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
+    const map = this.map;
+    const marker = this.marker;
+    if (!map || !marker) return;
+
+    map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return;
+      marker.setPosition(e.latLng);
+      const clickLat = e.latLng.lat();
+      const clickLng = e.latLng.lng();
       this.ngZone.run(() => {
-        this.updateFormCoords(lat, lng);
-        this.reverseGeocode(lat, lng);
+        this.updateFormCoords(clickLat, clickLng);
+        this.reverseGeocode(clickLat, clickLng);
       });
     });
 
-    this.marker!.addListener("dragend", () => {
-      const pos = this.marker?.getPosition();
+    marker.addListener("dragend", () => {
+      const pos = marker.getPosition();
       if (!pos) return;
       this.ngZone.run(() => {
         this.updateFormCoords(pos.lat(), pos.lng());
@@ -635,10 +675,10 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   private escapeHtml(text: string): string {
     return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
   private buildInfoWindowContent(incident: Incident): string {
@@ -685,27 +725,35 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     if (this.resolvingCoordIds.has(incident.id)) return;
 
     this.resolvingCoordIds.add(incident.id);
-    this.waitForGoogleMaps().then(() => {
-      if (!this.geocoder) this.geocoder = new google.maps.Geocoder();
-      this.geocoder!.geocode(
+    void this.waitForGoogleMaps().then(() => {
+      this.geocoder ??= new google.maps.Geocoder();
+      this.geocoder.geocode(
         { address, componentRestrictions: { country: "co" } },
-        (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
-          this.ngZone.run(() => {
-            this.resolvingCoordIds.delete(incident.id);
-            if (status === "OK" && results?.[0]?.geometry?.location) {
-              const lat = results[0].geometry.location.lat();
-              const lng = results[0].geometry.location.lng();
-              this.resolvedCoords.update((m) => ({
-                ...m,
-                [incident.id]: { lat, lng },
-              }));
-              this.renderDashboardIncidents();
-            }
-            this.cdr.markForCheck();
-          });
+        (results, status) => {
+          this.ngZone.run(() =>
+            this.applyCoordsGeocodeResult(incident, results, status),
+          );
         },
       );
     });
+  }
+
+  private applyCoordsGeocodeResult(
+    incident: Incident,
+    results: google.maps.GeocoderResult[] | null,
+    status: string,
+  ): void {
+    this.resolvingCoordIds.delete(incident.id);
+    if (status === "OK" && results?.[0]?.geometry?.location) {
+      const lat = results[0].geometry.location.lat();
+      const lng = results[0].geometry.location.lng();
+      this.resolvedCoords.update((m) => ({
+        ...m,
+        [incident.id]: { lat, lng },
+      }));
+      this.renderDashboardIncidents();
+    }
+    this.cdr.markForCheck();
   }
 
   private resolveAddressForIncident(incident: Incident): void {
@@ -722,35 +770,40 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     if (this.resolvingAddressIds.has(incident.id)) return;
 
     this.resolvingAddressIds.add(incident.id);
-    this.waitForGoogleMaps().then(() => {
-      if (!this.geocoder) this.geocoder = new google.maps.Geocoder();
+    void this.waitForGoogleMaps().then(() => {
+      this.geocoder ??= new google.maps.Geocoder();
       const pos = this.getIncidentPosition(incident);
       if (!pos) return;
-      this.geocoder!.geocode(
-        { location: pos },
-        (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
-          this.ngZone.run(() => {
-            this.resolvingAddressIds.delete(incident.id);
-            if (status === "OK" && results?.[0]?.formatted_address) {
-              this.resolvedAddresses.update((m) => ({
-                ...m,
-                [incident.id]: results[0].formatted_address,
-              }));
-              const markerData = this.dashboardMarkers.get(incident.id);
-              if (markerData) {
-                markerData.infoWindow.setContent(
-                  this.buildInfoWindowContent(incident),
-                );
-              }
-              if (this.selectedDashboardIncidentId() === incident.id) {
-                this.refreshSelectedInfoWindow(incident);
-              }
-            }
-            this.cdr.markForCheck();
-          });
-        },
-      );
+      this.geocoder.geocode({ location: pos }, (results, status) => {
+        this.ngZone.run(() =>
+          this.applyAddressGeocodeResult(incident, results, status),
+        );
+      });
     });
+  }
+
+  private applyAddressGeocodeResult(
+    incident: Incident,
+    results: google.maps.GeocoderResult[] | null,
+    status: string,
+  ): void {
+    this.resolvingAddressIds.delete(incident.id);
+    if (status === "OK" && results?.[0]?.formatted_address) {
+      this.resolvedAddresses.update((m) => ({
+        ...m,
+        [incident.id]: results[0].formatted_address,
+      }));
+      const markerData = this.dashboardMarkers.get(incident.id);
+      if (markerData) {
+        markerData.infoWindow.setContent(
+          this.buildInfoWindowContent(incident),
+        );
+      }
+      if (this.selectedDashboardIncidentId() === incident.id) {
+        this.refreshSelectedInfoWindow(incident);
+      }
+    }
+    this.cdr.markForCheck();
   }
 
   private refreshSelectedInfoWindow(incident: Incident): void {
@@ -788,7 +841,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
       const isSelected = selectedId === incident.id;
 
-      const marker = new google.maps.Marker({
+      const marker = createMapPin({
         map: this.dashboardMap,
         position,
         title: `${incident.id} — ${incident.type}`,
@@ -917,17 +970,15 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   private initAutocomplete() {
-    const locationInput = document.getElementById(
-      "location",
-    ) as HTMLInputElement;
-    if (!locationInput) return;
+    const locationInput = document.getElementById("location");
+    if (!(locationInput instanceof HTMLInputElement)) return;
 
-    this.autocomplete = new google.maps.places.Autocomplete(locationInput, {
+    this.autocomplete = createPlaceAutocomplete(locationInput, {
       componentRestrictions: { country: "co" },
       fields: ["geometry", "formatted_address"],
     });
 
-    this.autocomplete!.addListener("place_changed", () => {
+    this.autocomplete.addListener("place_changed", () => {
       const place = this.autocomplete!.getPlace();
       if (!place.geometry?.location) return;
       const lat = place.geometry.location.lat();
@@ -937,7 +988,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
         this.incidentForm.patchValue({ location: place.formatted_address });
         this.map?.setCenter({ lat, lng });
         this.map?.setZoom(17);
-        if (this.marker) (this.marker as any).setPosition({ lat, lng });
+        this.marker?.setPosition({ lat, lng });
       });
     });
   }
@@ -950,13 +1001,11 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   private reverseGeocode(lat: number, lng: number) {
-    if (!this.geocoder) {
-      if (typeof google === "undefined") return;
-      this.geocoder = new google.maps.Geocoder();
-    }
-    this.geocoder!.geocode(
+    if (globalThis.google === undefined) return;
+    this.geocoder ??= new google.maps.Geocoder();
+    this.geocoder.geocode(
       { location: { lat, lng } },
-      (results: any, status: any) => {
+      (results, status) => {
         this.ngZone.run(() => {
           if (status === "OK" && results?.[0]) {
             this.incidentForm.patchValue({
@@ -1034,8 +1083,8 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     if (!control) return;
     const cleaned = String(control.value || "")
       .toUpperCase()
-      .replace(/\s+/g, "")
-      .replace(/[^A-Z0-9-]/g, "");
+      .replaceAll(/\s+/g, "")
+      .replaceAll(/[^A-Z0-9-]/g, "");
     control.setValue(cleaned, { emitEvent: false });
     control.markAsTouched();
   }
@@ -1130,7 +1179,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
             {
               priority_id: selectedType.defaultPriority,
               type: selectedType.name,
-              priority: selectedType.defaultPriority as IncidentPriority,
+              priority: selectedType.defaultPriority,
             },
             { emitEvent: false },
           );
@@ -1142,7 +1191,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   private normalizePhone(phone: string): string {
-    return phone.replace(/\D/g, "");
+    return phone.replaceAll(/\D/g, "");
   }
 
   private setupPhoneLookup(): void {
@@ -1170,7 +1219,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   private applyPersonLookupResult(person: Person | null): void {
     if (!person) return;
 
-    const phone = this.incidentForm.get("phone")?.value as string;
+    const phone = String(this.incidentForm.get("phone")?.value ?? "");
     const notifyKey = `${this.normalizePhone(phone)}:${person.id}`;
     if (!this.personLookupNotified.has(notifyKey)) {
       this.personLookupNotified.add(notifyKey);
@@ -1287,7 +1336,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
         dateStyle: "short",
         timeStyle: "short",
       }),
-      status: (formValue.status || "Nuevo") as IncidentStatus,
+      status: formValue.status ?? "Nuevo",
       event_id: formValue.event_id ?? "",
       priority_id: formValue.priority_id ?? "",
       origin: formValue.origin ?? "",
@@ -1298,12 +1347,14 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       details: formValue.details ?? "",
       comments: formValue.comments ?? "",
       type: formValue.event_id ?? "",
-      priority: (formValue.priority_id ?? "Media") as IncidentPriority,
+      priority: coerceIncidentPriority(
+        formValue.priority ?? formValue.priority_id,
+      ),
       operator: "N/A",
       ani: formValue.phone ?? "N/A",
       locationPhoneNumber: formValue.locationPhoneNumber ?? "",
-      involvedPeople: (formValue.involvedPeople ?? []) as InvolvedPerson[],
-      involvedVehicles: (formValue.involvedVehicles ?? []) as InvolvedVehicle[],
+      involvedPeople: formValue.involvedPeople ?? [],
+      involvedVehicles: coerceInvolvedVehicles(formValue.involvedVehicles),
     };
     this.incidentService.addIncident(newIncident);
 
@@ -1325,7 +1376,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     const incidentId = this.activeIncident()!.id;
     const finalData: Incident = {
       ...this.activeIncident()!,
-      status: (updatedData.status || "Nuevo") as IncidentStatus,
+      status: updatedData.status ?? "Nuevo",
       event_id: updatedData.event_id ?? "",
       priority_id: updatedData.priority_id ?? "",
       origin: updatedData.origin ?? "",
@@ -1336,10 +1387,11 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       details: updatedData.details ?? "",
       comments: updatedData.comments ?? "",
       type: updatedData.event_id ?? "",
-      priority: (updatedData.priority_id ?? "Media") as IncidentPriority,
-      involvedPeople: (updatedData.involvedPeople ?? []) as InvolvedPerson[],
-      involvedVehicles: (updatedData.involvedVehicles ??
-        []) as InvolvedVehicle[],
+      priority: coerceIncidentPriority(
+        updatedData.priority ?? updatedData.priority_id,
+      ),
+      involvedPeople: updatedData.involvedPeople ?? [],
+      involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
     };
     this.incidentService.updateIncident(finalData, () => {
       void this.configService.getAuditLogs();

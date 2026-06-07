@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const logger = require('../utils/logger');
 const {
   formatLatestNoteForEmail,
   formatLatestNoteHtml,
@@ -7,13 +8,13 @@ const {
 let transporter;
 
 function init() {
-  console.log('SMTP_HOST:', process.env.SMTP_HOST);
-  console.log('SMTP_USER:', process.env.SMTP_USER);
+  logger.debug('SMTP_HOST:', process.env.SMTP_HOST);
+  logger.debug('SMTP_USER:', process.env.SMTP_USER);
 
   if (transporter) return;
 
   if (!process.env.SMTP_HOST) {
-    console.warn('[MAIL] modo consola (sin SMTP)');
+    logger.warn('[MAIL] modo consola (sin SMTP)');
     return;
   }
 
@@ -58,7 +59,7 @@ async function sendWelcomeEmail({
 }) {
   init();
 
-  console.log('📧 Intentando enviar correo a:', to);
+  logger.info('📧 Intentando enviar correo a:', to);
 
   const displayName = formatPersonName(name);
   const agencyLabel =
@@ -135,8 +136,8 @@ Equipo IMS NOVA
 </div>`.trim();
 
   if (!transporter) {
-    console.log('📧 EMAIL (modo consola)');
-    console.log(text);
+    logger.info('📧 EMAIL (modo consola)');
+    logger.info(text);
     return;
   }
 
@@ -149,10 +150,10 @@ Equipo IMS NOVA
       html,
     });
 
-    console.log('✅ Correo enviado a', to);
+    logger.info('✅ Correo enviado a', to);
 
   } catch (err) {
-    console.error('❌ Error enviando email:', err.message);
+    logger.error('❌ Error enviando email:', err.message);
   }
 }
 
@@ -465,10 +466,10 @@ async function sendIncidentNotification({ to, incident }) {
   const html = formatIncidentBodyHtml(incident);
 
   if (!transporter) {
-    console.log('📧 EMAIL incidente (modo consola)');
-    console.log('Para:', recipients.join(', '));
-    console.log('Asunto:', subject);
-    console.log(text);
+    logger.info('📧 EMAIL incidente (modo consola)');
+    logger.info('Para:', recipients.join(', '));
+    logger.info('Asunto:', subject);
+    logger.info(text);
     return { mode: 'console', recipients };
   }
 
@@ -505,7 +506,7 @@ async function sendOtpEmail({ to, name, code }) {
 </div>`.trim();
 
   if (!transporter) {
-    console.log('\n📧 OTP (modo consola) → Para:', to, '| Código:', code);
+    logger.info('\n📧 OTP (modo consola) → Para:', to, '| Código:', code);
     return;
   }
 

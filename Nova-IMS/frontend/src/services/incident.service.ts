@@ -29,8 +29,8 @@ export class IncidentService {
   private dedupeIncidents(list: Incident[]): Incident[] {
     const byId = new Map<string, Incident>();
     const pickCoord = (a: number | null | undefined, b: number | null | undefined) => {
-      const na = a != null ? Number(a) : NaN;
-      const nb = b != null ? Number(b) : NaN;
+      const na = a == null ? Number.NaN : Number(a);
+      const nb = b == null ? Number.NaN : Number(b);
       const ok = (n: number) => Number.isFinite(n) && Math.abs(n) > 0.0001;
       if (ok(na)) return na;
       if (ok(nb)) return nb;

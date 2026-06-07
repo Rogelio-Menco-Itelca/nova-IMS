@@ -145,12 +145,14 @@
         <form [formGroup]="otpForm" (ngSubmit)="submitOtp()">
           <div class="flex justify-center gap-3 mb-6" (paste)="onOtpPaste($event)">
             @for (idx of [0,1,2,3,4,5]; track idx) {
+              <label [attr.for]="'otp-' + idx" class="sr-only">Dígito {{ idx + 1 }} del código</label>
               <input
                 [id]="'otp-' + idx"
                 [formControlName]="'d' + idx"
                 type="text"
                 inputmode="numeric"
                 maxlength="1"
+                [attr.aria-label]="'Dígito ' + (idx + 1) + ' del código'"
                 (input)="onOtpInput($event, idx)"
                 (keydown)="onOtpKeydown($event, idx)"
                 class="w-11 h-14 text-center text-xl font-bold text-white bg-slate-700 border-2 border-slate-600 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors caret-transparent"

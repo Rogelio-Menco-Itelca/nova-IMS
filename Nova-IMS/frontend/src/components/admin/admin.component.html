@@ -1019,20 +1019,20 @@
       </div>
       <div class="p-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Nombre del Tipo de Incidente</label>
-          <input formControlName="name" type="text"
+          <label for="incident-type-name" class="block text-sm font-medium text-gray-300 mb-1">Nombre del Tipo de Incidente</label>
+          <input id="incident-type-name" formControlName="name" type="text"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Prioridad por Defecto</label>
-          <select formControlName="defaultPriority"
+          <label for="incident-type-priority" class="block text-sm font-medium text-gray-300 mb-1">Prioridad por Defecto</label>
+          <select id="incident-type-priority" formControlName="defaultPriority"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2">
             @for(p of priorities; track p) { <option [value]="p">{{p}}</option> }
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Descripción</label>
-          <textarea formControlName="description" rows="3"
+          <label for="incident-type-description" class="block text-sm font-medium text-gray-300 mb-1">Descripción</label>
+          <textarea id="incident-type-description" formControlName="description" rows="3"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2"></textarea>
         </div>
       </div>
@@ -1059,8 +1059,8 @@
     </div>
     <div class="p-6 space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-1">Nombre del Rol</label>
-        <input [value]="newRoleName()" (input)="newRoleName.set($any($event.target).value)" type="text"
+        <label for="new-role-name" class="block text-sm font-medium text-gray-300 mb-1">Nombre del Rol</label>
+        <input id="new-role-name" [value]="newRoleName()" (input)="newRoleName.set($any($event.target).value)" type="text"
           placeholder="Ej: Auditor Externo"
           class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500 focus:border-indigo-500">
       </div>
@@ -1090,23 +1090,24 @@
       </div>
       <div class="p-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Nombre del Protocolo</label>
-          <input formControlName="name" type="text"
+          <label for="protocol-name" class="block text-sm font-medium text-gray-300 mb-1">Nombre del Protocolo</label>
+          <input id="protocol-name" formControlName="name" type="text"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Para Tipo de Incidente</label>
-          <select formControlName="incidentTypeName"
+          <label for="protocol-incident-type" class="block text-sm font-medium text-gray-300 mb-1">Para Tipo de Incidente</label>
+          <select id="protocol-incident-type" formControlName="incidentTypeName"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2">
             <option value="" disabled>Seleccione un tipo</option>
             @for(type of incidentTypes(); track type.id) { <option [value]="type.name">{{type.name}}</option> }
           </select>
         </div>
-        <div formArrayName="steps">
-          <label class="block text-sm font-medium text-gray-300 mb-1">Pasos del Protocolo</label>
+        <fieldset formArrayName="steps" class="border-0 p-0 m-0">
+          <legend class="block text-sm font-medium text-gray-300 mb-1">Pasos del Protocolo</legend>
           @for(step of steps.controls; track $index) {
           <div class="flex items-center gap-2 mb-2">
-            <input [formControlName]="$index" type="text"
+            <label [attr.for]="'protocol-step-' + $index" class="sr-only">Paso {{ $index + 1 }}</label>
+            <input [id]="'protocol-step-' + $index" [formControlName]="$index" type="text"
               class="flex-grow bg-gray-700 border border-gray-600 text-white rounded-md p-2">
             <button type="button" (click)="removeStep($index)" [disabled]="steps.length <= 1"
               class="text-red-400 hover:text-red-300 disabled:opacity-50">&times;</button>
@@ -1114,7 +1115,7 @@
           }
           <button type="button" (click)="addStep()" class="text-sm text-indigo-400 hover:text-indigo-300 mt-2">Añadir
             paso</button>
-        </div>
+        </fieldset>
       </div>
       <div class="border-t border-gray-700 p-4 flex justify-end gap-3">
         <button type="button" (click)="closeResponseProtocolForm()"
@@ -1141,43 +1142,43 @@
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">
+            <label for="admin-person-primerNombre" class="block text-sm font-medium text-gray-300 mb-1">
               Primer nombre <span class="text-red-400">*</span>
             </label>
-            <input formControlName="primerNombre" type="text" placeholder="Ej: Ana"
+            <input id="admin-person-primerNombre" formControlName="primerNombre" type="text" placeholder="Ej: Ana"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
             @if (personForm.controls.primerNombre.touched && personForm.controls.primerNombre.invalid) {
               <p class="mt-1 text-xs text-red-400">Primer nombre es obligatorio.</p>
             }
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Segundo nombre</label>
-            <input formControlName="segundoNombre" type="text" placeholder="Ej: María"
+            <label for="admin-person-segundoNombre" class="block text-sm font-medium text-gray-300 mb-1">Segundo nombre</label>
+            <input id="admin-person-segundoNombre" formControlName="segundoNombre" type="text" placeholder="Ej: María"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">
+            <label for="admin-person-primerApellido" class="block text-sm font-medium text-gray-300 mb-1">
               Primer apellido <span class="text-red-400">*</span>
             </label>
-            <input formControlName="primerApellido" type="text" placeholder="Ej: Rodríguez"
+            <input id="admin-person-primerApellido" formControlName="primerApellido" type="text" placeholder="Ej: Rodríguez"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
             @if (personForm.controls.primerApellido.touched && personForm.controls.primerApellido.invalid) {
               <p class="mt-1 text-xs text-red-400">Primer apellido es obligatorio.</p>
             }
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Segundo apellido</label>
-            <input formControlName="segundoApellido" type="text" placeholder="Ej: López"
+            <label for="admin-person-segundoApellido" class="block text-sm font-medium text-gray-300 mb-1">Segundo apellido</label>
+            <input id="admin-person-segundoApellido" formControlName="segundoApellido" type="text" placeholder="Ej: López"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">
+            <label for="admin-person-tipoDocumento" class="block text-sm font-medium text-gray-300 mb-1">
               Tipo de documento <span class="text-red-400">*</span>
             </label>
-            <select formControlName="tipoDocumento"
+            <select id="admin-person-tipoDocumento" formControlName="tipoDocumento"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
               <option value="" disabled>
                 @if (!documentTypes().length) { Cargando tipos... }
@@ -1189,20 +1190,20 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">
+            <label for="admin-person-numeroDocumento" class="block text-sm font-medium text-gray-300 mb-1">
               Número de documento <span class="text-red-400">*</span>
             </label>
-            <input formControlName="numeroDocumento" type="text" placeholder="Ej: 1234567890"
+            <input id="admin-person-numeroDocumento" formControlName="numeroDocumento" type="text" placeholder="Ej: 1234567890"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">
+            <label for="admin-person-roleId" class="block text-sm font-medium text-gray-300 mb-1">
               Rol <span class="text-red-400">*</span>
             </label>
-            <select formControlName="roleId"
+            <select id="admin-person-roleId" formControlName="roleId"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
               <option [ngValue]="null" disabled>
                 @if (personRolesLoading()) { Cargando roles... }
@@ -1215,8 +1216,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-1">Género</label>
-            <select formControlName="genderId"
+            <label for="admin-person-genderId" class="block text-sm font-medium text-gray-300 mb-1">Género</label>
+            <select id="admin-person-genderId" formControlName="genderId"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
               <option [ngValue]="null">Sin especificar</option>
               @for (g of genders(); track g.id) {
@@ -1227,14 +1228,14 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Contacto / Teléfono</label>
-          <input formControlName="contacto" type="tel" placeholder="Ej: 3001234567"
+          <label for="admin-person-contacto" class="block text-sm font-medium text-gray-300 mb-1">Contacto / Teléfono</label>
+          <input id="admin-person-contacto" formControlName="contacto" type="tel" placeholder="Ej: 3001234567"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">Comentarios</label>
-          <textarea formControlName="comentarios" rows="3" placeholder="Observaciones adicionales..."
+          <label for="admin-person-comentarios" class="block text-sm font-medium text-gray-300 mb-1">Comentarios</label>
+          <textarea id="admin-person-comentarios" formControlName="comentarios" rows="3" placeholder="Observaciones adicionales..."
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"></textarea>
         </div>
       </div>

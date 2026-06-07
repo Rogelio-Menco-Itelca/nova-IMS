@@ -1,4 +1,5 @@
 const { pool } = require("../../config/db");
+const logger = require("../../utils/logger");
 const { normalizeAgencyCode } = require("./maps");
 
 function truncate(value, max) {
@@ -90,7 +91,7 @@ async function safeLog(fn) {
   try {
     return await fn();
   } catch (err) {
-    console.error("[login-log]", err.message);
+    logger.error("[login-log]", err.message);
     return null;
   }
 }

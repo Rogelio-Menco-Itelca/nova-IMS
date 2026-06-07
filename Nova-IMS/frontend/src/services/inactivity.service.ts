@@ -170,13 +170,13 @@ export class InactivityService implements OnDestroy {
  
   private attachActivityListeners(): void {
     for (const ev of ACTIVITY_EVENTS) {
-      window.addEventListener(ev, this.onActivity, { passive: true });
+      globalThis.addEventListener(ev, this.onActivity, { passive: true });
     }
   }
  
   private detachActivityListeners(): void {
     for (const ev of ACTIVITY_EVENTS) {
-      window.removeEventListener(ev, this.onActivity);
+      globalThis.removeEventListener(ev, this.onActivity);
     }
   }
  

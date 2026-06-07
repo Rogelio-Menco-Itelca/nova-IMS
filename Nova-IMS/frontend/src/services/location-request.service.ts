@@ -41,7 +41,6 @@ export class LocationRequestService {
 
   clearNewIncidentTrigger(): void {
     this.triggerNewIncident.set(false);
-    //this.pendingPhone.set(null);
   }
 
   clearPendingPhone(): void {
@@ -82,7 +81,7 @@ export class LocationRequestService {
   //   "3026172447"      → 10 dígitos locales           ✓
   //   "+573026172447"   → indicativo completo con +     ✓
   //   "573026172447"    → indicativo sin +              ✓
-  // Todo lo demás es rechazado con notificación de error.
+  // Cualquier otro formato se rechaza con notificación de error.
   validateColombianPhone(phone: string): { valid: boolean; error?: string } {
     const digits = phone.replace(/\D/g, "");
 

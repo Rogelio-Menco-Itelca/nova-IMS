@@ -204,8 +204,8 @@ export function splitPersonName(full: string): Pick<
   return {
     primerNombre: parts[0],
     segundoNombre: parts[1],
-    primerApellido: parts[parts.length - 2],
-    segundoApellido: parts[parts.length - 1],
+    primerApellido: parts.at(-2) ?? "",
+    segundoApellido: parts.at(-1) ?? "",
   };
 }
 

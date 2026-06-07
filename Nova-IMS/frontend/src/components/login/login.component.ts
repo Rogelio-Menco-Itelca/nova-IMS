@@ -187,10 +187,10 @@ export class LoginComponent implements OnInit, OnDestroy {
 
     this.authService
       .login({
-        agencia: agencia!,
+        agencia,
         usuario: usuario!,
         password: password!,
-        rol: rol!,
+        rol,
         rememberMe: !!rememberMe,
       })
       .subscribe({
@@ -255,13 +255,18 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.errorMsg.set(null);
     this.otpForm.reset();
     const { agencia, rol, usuario, password, rememberMe } = this.loginForm.getRawValue();
+    if (!agencia || !rol || !usuario || !password) {
+      this.errorMsg.set("Sesión de login incompleta. Vuelva a ingresar credenciales.");
+      this.step.set("credentials");
+      return;
+    }
     this.isLoading.set(true);
     this.authService
       .login({
-        agencia: agencia!,
-        usuario: usuario!,
-        password: password!,
-        rol: rol!,
+        agencia,
+        usuario,
+        password,
+        rol,
         rememberMe: !!rememberMe,
       })
       .subscribe({

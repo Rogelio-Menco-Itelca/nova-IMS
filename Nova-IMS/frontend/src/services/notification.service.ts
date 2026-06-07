@@ -28,10 +28,10 @@ export class NotificationService {
   addNotification(title: string, message: string, incidentId?: string) {
     const recent = this._notifications()[0];
     if (
-      recent &&
-      recent.title === title &&
-      recent.message === message &&
-      Date.now() - recent.timestamp.getTime() < 3000
+      recent?.title === title &&
+      recent?.message === message &&
+      Date.now() - (recent?.timestamp.getTime() ?? Number.POSITIVE_INFINITY) <
+        3000
     ) {
       return;
     }
