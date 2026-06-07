@@ -5,27 +5,42 @@ import {
   ColombiaDepartment,
   ColombiaMunicipality,
 } from "../models/incident.model";
+import { AuthService } from "./auth.service";
 
 @Injectable({ providedIn: "root" })
 export class ColombiaGeoService {
   private http = inject(HttpClient);
+  private authService = inject(AuthService);
 
-  private departmentsCache: ColombiaDepartment[] | null = null;
+  private departmentsCache = new Map<string, ColombiaDepartment[]>();
+
+  private sessionAgency(): string | null {
+    return this.authService.currentUser()?.agency?.trim().toUpperCase() || null;
+  }
 
   async getDepartments(): Promise<ColombiaDepartment[]> {
-    if (this.departmentsCache?.length) {
-      return this.departmentsCache;
+    const agency = this.sessionAgency();
+    if (!agency) return [];
+
+    if (this.departmentsCache.has(agency)) {
+      return this.departmentsCache.get(agency)!;
     }
     const rows = await firstValueFrom(
-      this.http.get<ColombiaDepartment[]>("/api/departments"),
+      this.http.get<ColombiaDepartment[]>("/api/departments", {
+        params: { agency },
+      }),
     );
-    this.departmentsCache = rows;
+    this.departmentsCache.set(agency, rows);
     return rows;
   }
 
   getMunicipalities(departmentId: number) {
+    const agency = this.sessionAgency();
     return this.http.get<ColombiaMunicipality[]>("/api/municipalities", {
-      params: { departmentId: String(departmentId) },
+      params: {
+        departmentId: String(departmentId),
+        ...(agency ? { agency } : {}),
+      },
     });
   }
 }

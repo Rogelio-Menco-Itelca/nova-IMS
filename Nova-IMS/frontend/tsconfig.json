@@ -27,6 +27,7 @@
   },
   "include": [
     "src/**/*.ts",
+    "src/environments/**/*.ts",
     "index.tsx"
   ],
   "angularCompilerOptions": {

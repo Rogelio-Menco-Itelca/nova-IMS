@@ -1,13 +1,14 @@
 import { Injectable, signal, inject, computed } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Observable, tap, catchError, throwError } from "rxjs";
-import { AuthSource, User } from "../models/user.model";
+import { AuthSource, User, Agency, RoleOption } from "../models/user.model";
 
 interface LoginPayload {
   agencia: string;
   usuario: string;
   password: string;
   rol?: string;
+  rememberMe?: boolean;
 }
 
 interface LoginResponse {
@@ -20,6 +21,7 @@ interface LoginResponse {
     role: string;
     role_id: string;
     agency: string;
+    agencyName?: string | null;
     authSource?: AuthSource;
   };
 }
@@ -42,6 +44,7 @@ interface VerifyOtpResponse {
     role: string;
     role_id: string;
     agency: string;
+    agencyName?: string | null;
     authSource?: AuthSource;
   };
 }
@@ -84,6 +87,11 @@ export class AuthService {
     return source === "ldap" ? "Directorio activo" : "Cuenta local";
   });
 
+  /** Código de la agencia de la sesión actual (ej. CSJ, POL). */
+  sessionAgencyLabel = computed(() =>
+    String(this.currentUser()?.agency || "").trim(),
+  );
+
   isDirectorySession = computed(
     () => (this.currentUser()?.authSource ?? "local") === "ldap",
   );
@@ -123,6 +131,7 @@ export class AuthService {
             email: resp.user.email,
             role: resp.user.role,
             agency: resp.user.agency,
+            agencyName: resp.user.agencyName ?? undefined,
             authSource: normalizeAuthSource(resp.user.authSource),
           };
           sessionStorage.setItem(TOKEN_KEY, resp.token);
@@ -149,8 +158,8 @@ export class AuthService {
   }
 
   /** Paso 2 (usuarios locales): verifica OTP y guarda sesión */
-  verifyOtp(userId: string, code: string): Observable<VerifyOtpResponse> {
-    return this.http.post<VerifyOtpResponse>(`${this.apiUrl}/verify-otp`, { userId, code }).pipe(
+  verifyOtp(userId: string, code: string, agencia?: string): Observable<VerifyOtpResponse> {
+    return this.http.post<VerifyOtpResponse>(`${this.apiUrl}/verify-otp`, { userId, code, agencia }).pipe(
       tap((resp) => {
         const user: User = {
           id:     resp.user.id,
@@ -158,6 +167,7 @@ export class AuthService {
           email:  resp.user.email,
           role:   resp.user.role,
           agency: resp.user.agency,
+          agencyName: resp.user.agencyName ?? undefined,
           authSource: normalizeAuthSource(resp.user.authSource ?? 'local'),
         };
         sessionStorage.setItem(TOKEN_KEY, resp.token);
@@ -203,5 +213,17 @@ export class AuthService {
 
   getToken(): string | null {
     return this.token() || sessionStorage.getItem(TOKEN_KEY);
+  }
+
+  /** Catálogo público de agencias (login) */
+  getAgencies(): Observable<Agency[]> {
+    return this.http.get<Agency[]>("/api/agencies");
+  }
+
+  /** Catálogo público de roles (login) — filtrados por agencia en BD */
+  getRoles(agencyCode: string): Observable<RoleOption[]> {
+    return this.http.get<RoleOption[]>("/api/roles/list", {
+      params: { agency: agencyCode },
+    });
   }
 }

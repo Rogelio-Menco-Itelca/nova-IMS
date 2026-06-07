@@ -1,0 +1,19 @@
+import { environment } from '../environments/environment';
+
+/** Base URL del backend. Vacío = mismo origen (proxy dev o nginx en producción). */
+export function apiBaseUrl(): string {
+  return String(environment.apiUrl || '').replace(/\/+$/, '');
+}
+
+export function apiUrl(path: string): string {
+  const base = apiBaseUrl();
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return base ? `${base}${p}` : p;
+}
+
+export function socketUrl(): string {
+  const base = apiBaseUrl();
+  if (base) return base;
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:3000';
+}

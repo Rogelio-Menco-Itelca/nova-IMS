@@ -1,12 +1,22 @@
 import { Injectable, signal, inject } from "@angular/core";
 import { SocketService } from "./socket.service";
 import { NotificationService } from "./notification.service";
+import { apiUrl } from "../utils/api-base";
+import {
+  resolvePublicShareUrl,
+  isMobileShareUrl,
+  buildLocationShareMessage,
+} from "../utils/public-share-url";
 
 export interface LocationData {
   lat: number;
   lng: number;
   timestamp: number;
   phoneNumber?: string;
+  channel?: "whatsapp" | "sms";
+  requestId?: string;
+  solicitudId?: number;
+  address?: string;
 }
 
 @Injectable({ providedIn: "root" })
@@ -39,18 +49,30 @@ export class LocationRequestService {
   }
 
   private lastRequestedNumber = signal<string | null>(null);
+  private lastRequestChannel = signal<"whatsapp" | "sms">("whatsapp");
   private lastRequestId = signal<string | null>(null);
+  private lastSolicitudId = signal<number | null>(null);
   private socketService = inject(SocketService);
   private notificationService = inject(NotificationService);
 
   constructor() {
     this.socketService.on("location:received", (data: any) => {
-      const processedData = {
+      const processedData: LocationData = {
         lat: data.lat,
         lng: data.lng,
         timestamp: data.timestamp || Date.now(),
-        phoneNumber: this.lastRequestedNumber() || undefined,
+        phoneNumber: data.phoneNumber || this.lastRequestedNumber() || undefined,
+        channel: this.lastRequestChannel(),
+        requestId: data.request_id || this.lastRequestId() || undefined,
+        solicitudId: data.solicitudId ?? this.lastSolicitudId() ?? undefined,
+        address: data.address || undefined,
       };
+      if (data.request_id) {
+        this.lastRequestId.set(String(data.request_id));
+      }
+      if (data.solicitudId != null) {
+        this.lastSolicitudId.set(Number(data.solicitudId));
+      }
       this.locationReceived.set(processedData);
     });
   }
@@ -100,11 +122,12 @@ export class LocationRequestService {
     phone: string,
     channel: "whatsapp" | "sms",
   ): Promise<string> {
+    this.lastRequestChannel.set(channel);
     const token =
       sessionStorage.getItem("ims_token") ||
       localStorage.getItem("ims_token") ||
       "";
-    const response = await fetch("/api/location-requests", {
+    const response = await fetch(apiUrl("/api/location-requests"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -119,13 +142,42 @@ export class LocationRequestService {
       throw new Error("No se recibió requestUrl del backend");
     }
 
+    if (data.publicUrlWarning) {
+      this.notificationService.addNotification(
+        "Configurar URL pública",
+        String(data.publicUrlWarning),
+      );
+    }
+
     const urlParams = new URL(data.requestUrl).searchParams;
     const requestId = urlParams.get("request_id");
     if (requestId) {
       this.lastRequestId.set(requestId);
     }
+    if (data.id != null) {
+      this.lastSolicitudId.set(Number(data.id));
+    }
+    if (data.requestId) {
+      this.lastRequestId.set(String(data.requestId));
+    }
 
-    return data.requestUrl;
+    return resolvePublicShareUrl(data.requestUrl);
+  }
+
+  getLastLocationRequestId(): string | null {
+    return this.lastRequestId();
+  }
+
+  getLastLocationSolicitudId(): number | null {
+    return this.lastSolicitudId();
+  }
+
+  private warnIfShareUrlNotPublic(shareUrl: string): void {
+    if (isMobileShareUrl(shareUrl)) return;
+    this.notificationService.addNotification(
+      "Enlace no público",
+      "El enlace sigue siendo localhost. En backend/.env agregue NGROK_URL=https://su-tunel.ngrok-free.dev y reinicie el backend (o publicShareBaseUrl en environment.ts).",
+    );
   }
 
   // ── WHATSAPP ──────────────────────────────────────────────────────────────
@@ -146,17 +198,13 @@ export class LocationRequestService {
     this.openNewIncidentForm(localNumber);
 
     try {
-      const urlFromBackend = await this.createLocationRequest(
+      const shareUrl = await this.createLocationRequest(
         localNumber,
         "whatsapp",
       );
+      this.warnIfShareUrlNotPublic(shareUrl);
 
-      const publicUrl = urlFromBackend.replace(
-        "http://localhost:3000",
-        "https://irritant-knelt-reaffirm.ngrok-free.dev",
-      );
-
-      const message = `Haz clic en el enlace y permite el acceso para compartir tu ubicación de forma automática:\n${publicUrl}`;
+      const message = buildLocationShareMessage(shareUrl);
 
       const waPhone = this.toInternationalCo(localNumber);
 
@@ -194,17 +242,13 @@ export class LocationRequestService {
     this.openNewIncidentForm(localNumber);
 
     try {
-      const urlFromBackend = await this.createLocationRequest(
+      const shareUrl = await this.createLocationRequest(
         localNumber,
         "sms",
       );
+      this.warnIfShareUrlNotPublic(shareUrl);
 
-      const publicUrl = urlFromBackend.replace(
-        "http://localhost:3000",
-        "https://irritant-knelt-reaffirm.ngrok-free.dev",
-      );
-
-      const message = `Haz clic en el enlace y permite el acceso para compartir tu ubicación de forma automática:\n${publicUrl}`;
+      const message = buildLocationShareMessage(shareUrl);
 
       const smsPhone = this.toInternationalCo(localNumber);
 
@@ -234,6 +278,7 @@ export class LocationRequestService {
       lng,
       timestamp: Date.now(),
       phoneNumber: phoneNumber || undefined,
+      channel: this.lastRequestChannel(),
     });
   }
 

@@ -7,7 +7,7 @@
       <button (click)="setTab('users')"
         [class]="activeTab() === 'users' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'"
         class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-        Usuarios y Roles
+        Usuarios
       </button>
       <button (click)="setTab('incidents')"
         [class]="activeTab() === 'incidents' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'"
@@ -75,6 +75,8 @@
             <tr>
               <th scope="col" class="px-6 py-3">Nombre</th>
               <th scope="col" class="px-6 py-3">Email</th>
+              <th scope="col" class="px-6 py-3">Teléfono</th>
+              <th scope="col" class="px-6 py-3">Agencia</th>
               <th scope="col" class="px-6 py-3">ID de Operador</th>
               <th scope="col" class="px-6 py-3">Rol</th>
               <th scope="col" class="px-6 py-3">Estado</th>
@@ -86,22 +88,22 @@
             <tr class="border-b border-gray-700 hover:bg-gray-700/50">
               <td class="px-6 py-4 font-medium text-white">{{ operator.name }}</td>
               <td class="px-6 py-4">{{ operator.email }}</td>
+              <td class="px-6 py-4 text-indigo-400 font-mono">{{ operator.telefono || '—' }}</td>
+              <td class="px-6 py-4">{{ operator.agencyName || operator.agency }}</td>
               <td class="px-6 py-4">{{ operator.id }}</td>
               <td class="px-6 py-4">{{ operator.role }}</td>
               <td class="px-6 py-4">
                 <span [class]="operator.status === 'Activo' ? 'text-green-400' : 'text-red-500'">{{ operator.status
                   }}</span>
               </td>
-              <td class="px-6 py-4 flex items-center gap-4">
+              <td class="px-6 py-4">
                 <button (click)="openEditForm(operator)"
                   class="font-medium text-indigo-400 hover:text-indigo-300">Editar</button>
-                <button (click)="openDeleteConfirm(operator)"
-                  class="font-medium text-red-400 hover:text-red-300">Eliminar</button>
               </td>
             </tr>
             } @empty {
             <tr class="border-b border-gray-700">
-              <td colspan="6" class="text-center py-8 text-gray-400">No se encontraron operadores.</td>
+              <td colspan="8" class="text-center py-8 text-gray-400">No se encontraron operadores.</td>
             </tr>
             }
           </tbody>
@@ -482,6 +484,27 @@
               </div>
 
               <div>
+                <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Lugares Involucrados</h4>
+                <div class="space-y-3">
+                  @for (place of incident.involvedPlaces; track place.name) {
+                  <div class="bg-gray-700/20 p-3 rounded-lg border border-gray-700 flex justify-between items-start">
+                    <div>
+                      <div class="text-white font-medium">{{ place.name }}</div>
+                      <div class="text-xs text-gray-500">{{ place.roleName }}</div>
+                      <div class="text-xs text-gray-400 mt-1">{{ place.address }}</div>
+                      @if (place.comments) {
+                      <div class="text-xs text-gray-500 mt-1 italic">{{ place.comments }}</div>
+                      }
+                    </div>
+                    <div class="text-xs text-indigo-400">{{ place.contact }}</div>
+                  </div>
+                  } @empty {
+                  <p class="text-sm text-gray-500 italic">No hay lugares registrados.</p>
+                  }
+                </div>
+              </div>
+
+              <div>
                 <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Vehículos Involucrados</h4>
                 <div class="space-y-3">
                   @for (vehicle of incident.involvedVehicles; track vehicle.plate) {
@@ -724,8 +747,9 @@
             <tr>
               <th scope="col" class="px-6 py-3">Nombre</th>
               <th scope="col" class="px-6 py-3">Documento</th>
-              <th scope="col" class="px-6 py-3">Teléfono</th>
-              <th scope="col" class="px-6 py-3">Dirección</th>
+              <th scope="col" class="px-6 py-3">Contacto</th>
+              <th scope="col" class="px-6 py-3">Rol</th>
+              <th scope="col" class="px-6 py-3">Género</th>
               <th scope="col" class="px-6 py-3">Acciones</th>
             </tr>
           </thead>
@@ -733,9 +757,20 @@
             @for (person of people(); track person.id) {
             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors">
               <td class="px-6 py-4 font-medium text-white">{{ person.name }}</td>
-              <td class="px-6 py-4">{{ person.documentId }}</td>
-              <td class="px-6 py-4 text-indigo-400 font-mono">{{ person.phone }}</td>
-              <td class="px-6 py-4">{{ person.address }}</td>
+              <td class="px-6 py-4">
+                @if (person.documentTypeName || person.documentType) {
+                  <span class="text-gray-400 text-xs block">
+                    {{ person.documentTypeName || person.documentType }}
+                    @if (person.documentType && person.documentTypeName) {
+                      ({{ person.documentType }})
+                    }
+                  </span>
+                }
+                {{ person.documentId }}
+              </td>
+              <td class="px-6 py-4 text-indigo-400 font-mono">{{ person.contacto || person.phone || '—' }}</td>
+              <td class="px-6 py-4">{{ person.roleName || '—' }}</td>
+              <td class="px-6 py-4">{{ person.gender || '—' }}</td>
               <td class="px-6 py-4 flex items-center gap-4">
                 <button (click)="openEditPersonForm(person)"
                   class="font-medium text-indigo-400 hover:text-indigo-300">Editar</button>
@@ -745,7 +780,7 @@
             </tr>
             } @empty {
             <tr class="border-b border-gray-700">
-              <td colspan="5" class="text-center py-12 text-gray-500 italic">No hay personas registradas en el sistema.
+              <td colspan="6" class="text-center py-12 text-gray-500 italic">No hay personas registradas en el sistema.
               </td>
             </tr>
             }
@@ -823,7 +858,7 @@
 <!-- Add/Edit Operator Modal -->
 @if (showOperatorForm()) {
 <div class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4" (click)="closeForm()">
-  <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg" (click)="$event.stopPropagation()">
+  <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl" (click)="$event.stopPropagation()">
     <form [formGroup]="operatorForm" (ngSubmit)="saveOperator()">
       <div class="flex justify-between items-center border-b border-gray-700 p-4">
         <h3 class="text-xl font-bold text-white">{{ isEditMode() ? 'Editar Usuario' : 'Registrar Nuevo Usuario' }}</h3>
@@ -831,46 +866,120 @@
           class="text-gray-400 hover:text-white text-3xl font-light leading-none">&times;</button>
       </div>
       <div class="p-6 space-y-4">
-        <div>
-          <label for="name" class="block text-sm font-medium text-gray-300 mb-1">Nombre Completo</label>
-          <input id="name" type="text" formControlName="name" placeholder="Ej: Ana Rodriguez"
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
-            required>
+        @if (operatorFormError()) {
+        <div class="rounded-md border border-red-500/40 bg-red-900/30 px-3 py-2 text-sm text-red-300">
+          {{ operatorFormError() }}
+        </div>
+        }
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="primerNombre" class="block text-sm font-medium text-gray-300 mb-1">
+              Primer nombre <span class="text-red-400">*</span>
+            </label>
+            <input id="primerNombre" type="text" formControlName="primerNombre" placeholder="Ej: Ana"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+            @if (operatorForm.controls.primerNombre.touched && operatorForm.controls.primerNombre.invalid) {
+              <p class="mt-1 text-xs text-red-400">Primer nombre es obligatorio.</p>
+            }
+          </div>
+          <div>
+            <label for="segundoNombre" class="block text-sm font-medium text-gray-300 mb-1">Segundo nombre</label>
+            <input id="segundoNombre" type="text" formControlName="segundoNombre" placeholder="Ej: María"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+          </div>
+          <div>
+            <label for="primerApellido" class="block text-sm font-medium text-gray-300 mb-1">
+              Primer apellido <span class="text-red-400">*</span>
+            </label>
+            <input id="primerApellido" type="text" formControlName="primerApellido" placeholder="Ej: Rodríguez"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+            @if (operatorForm.controls.primerApellido.touched && operatorForm.controls.primerApellido.invalid) {
+              <p class="mt-1 text-xs text-red-400">Primer apellido es obligatorio.</p>
+            }
+          </div>
+          <div>
+            <label for="segundoApellido" class="block text-sm font-medium text-gray-300 mb-1">Segundo apellido</label>
+            <input id="segundoApellido" type="text" formControlName="segundoApellido" placeholder="Ej: López"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+          </div>
         </div>
         <div>
-          <label for="user" class="block text-sm font-medium text-gray-300 mb-1">Usuario</label>
+          <label for="user" class="block text-sm font-medium text-gray-300 mb-1">
+            Usuario (ID de acceso) <span class="text-red-400">*</span>
+          </label>
           <input id="user" type="text" formControlName="username" placeholder="ej: arodriguez"
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60"
             required>
         </div>
+        @if (!isEditMode()) {
         <div>
-          <label for="pass" class="block text-sm font-medium text-gray-300 mb-1">Contraseña</label>
+          <label for="pass" class="block text-sm font-medium text-gray-300 mb-1">
+            Contraseña <span class="text-red-400">*</span>
+          </label>
           <input id="pass" type="password" formControlName="password" placeholder="ej: K7m#xR9pQ2!w"
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            class="bg-gray-700 border text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            [class.border-red-500]="operatorPasswordError()"
+            [class.border-gray-600]="!operatorPasswordError()"
             required>
-          <p class="mt-2 text-xs text-gray-400">
-            La contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula, número, carácter especial y no usar espacios.
+          @if (operatorPasswordError()) {
+          <p class="mt-2 text-xs text-red-400" role="alert">
+            {{ operatorPasswordError() }}
           </p>
+          } @else {
+          <p class="mt-2 text-xs text-gray-400">
+            Use al menos 8 caracteres con mayúscula, minúscula, número y símbolo. Sin espacios.
+          </p>
+          }
         </div>
+        }
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+          <label for="email" class="block text-sm font-medium text-gray-300 mb-1">
+            Email <span class="text-red-400">*</span>
+          </label>
           <input id="email" type="email" formControlName="email" placeholder="ej: a.rodriguez@ims.co"
             class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
             required>
-          @if (operatorPasswordError()) {
-          <p class="mt-2 text-xs text-red-400">{{ operatorPasswordError() }}</p>
+        </div>
+        <div>
+          <label for="telefono" class="block text-sm font-medium text-gray-300 mb-1">Teléfono / Contacto</label>
+          <input id="telefono" type="tel" formControlName="telefono" placeholder="ej: 3001234567"
+            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full">
+        </div>
+        <div>
+          <label for="agency" class="block text-sm font-medium text-gray-300 mb-1">
+            Agencia <span class="text-red-400">*</span>
+          </label>
+          <select id="agency" formControlName="agency"
+            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60"
+            required>
+            <option value="" disabled>Seleccione agencia...</option>
+            @for (ag of agencies(); track ag.id) {
+            <option [value]="ag.code">{{ ag.name }} ({{ ag.code }})</option>
+            }
+          </select>
+          @if (operatorForm.controls.agency.touched && operatorForm.controls.agency.invalid) {
+            <p class="mt-1 text-xs text-red-400">La agencia es obligatoria.</p>
           }
         </div>
         <div>
-          <label for="role" class="block text-sm font-medium text-gray-300 mb-1">Rol</label>
+          <label for="role" class="block text-sm font-medium text-gray-300 mb-1">
+            Rol <span class="text-red-400">*</span>
+          </label>
           <select id="role" formControlName="role"
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60"
             required>
-            <option value="" disabled>Seleccione un rol</option>
-            @for (role of rolePermissions(); track role.id) {
-            <option [value]="role.role">{{ role.role }}</option>
+            <option value="" disabled>
+              @if (rolesLoading()) { Cargando roles... }
+              @else if (!operatorForm.controls.agency.value) { Seleccione agencia primero }
+              @else { Seleccione un rol }
+            </option>
+            @for (role of agencyRoles(); track role.id) {
+            <option [value]="role.name">{{ role.name }}</option>
             }
           </select>
+          @if (operatorForm.controls.agency.value && !rolesLoading() && agencyRoles().length === 0) {
+            <p class="mt-1 text-xs text-amber-400">No hay roles configurados para esta agencia.</p>
+          }
         </div>
         <div>
           <label for="status" class="block text-sm font-medium text-gray-300 mb-1">Estado</label>
@@ -885,7 +994,8 @@
       <div class="border-t border-gray-700 p-4 flex justify-end gap-3">
         <button type="button" (click)="closeForm()"
           class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">Cancelar</button>
-        <button type="submit" [disabled]="operatorForm.invalid"
+        <button type="submit"
+          [disabled]="operatorForm.invalid || !operatorForm.getRawValue().agency || !operatorForm.getRawValue().role"
           class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed">
           {{ isEditMode() ? 'Guardar Cambios' : 'Crear Usuario' }}
         </button>
@@ -894,33 +1004,6 @@
   </div>
 </div>
 }
-
-<!-- Delete Operator Confirmation -->
-@if (operatorToDelete(); as operator) {
-<div class="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4"
-  (click)="closeDeleteConfirm()">
-  <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-md" (click)="$event.stopPropagation()">
-    <div class="p-6 text-center">
-      <svg class="mx-auto h-12 w-12 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-        </path>
-      </svg>
-      <h3 class="mt-2 text-xl font-bold text-white">¿Eliminar Usuario?</h3>
-      <p class="mt-2 text-sm text-gray-400">¿Está seguro que desea eliminar a <strong class="text-gray-200">{{
-          operator.name }}</strong>? Esta acción no se puede deshacer.</p>
-    </div>
-    <div class="bg-gray-700/50 p-4 flex justify-center gap-4 rounded-b-lg">
-      <button (click)="closeDeleteConfirm()"
-        class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded transition-colors duration-200">Cancelar</button>
-      <button (click)="confirmDeleteOperator()"
-        class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors duration-200">Eliminar</button>
-    </div>
-  </div>
-</div>
-}
-
 
 <!-- Add/Edit Incident Type Modal -->
 @if (showIncidentTypeForm()) {
@@ -1048,7 +1131,7 @@
 @if (showPersonForm()) {
 <div class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
   (click)="showPersonForm.set(false)">
-  <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg" (click)="$event.stopPropagation()">
+  <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl" (click)="$event.stopPropagation()">
     <form [formGroup]="personForm" (ngSubmit)="savePerson()">
       <div class="flex justify-between items-center border-b border-gray-700 p-4">
         <h3 class="text-xl font-bold text-white">{{ isEditModePerson() ? 'Editar Persona' : 'Registrar Persona' }}</h3>
@@ -1056,43 +1139,110 @@
           class="text-gray-400 hover:text-white text-3xl font-light">&times;</button>
       </div>
       <div class="p-6 space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-400 mb-1">Nombre Completo</label>
-            <input formControlName="name" type="text"
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+              Primer nombre <span class="text-red-400">*</span>
+            </label>
+            <input formControlName="primerNombre" type="text" placeholder="Ej: Ana"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+            @if (personForm.controls.primerNombre.touched && personForm.controls.primerNombre.invalid) {
+              <p class="mt-1 text-xs text-red-400">Primer nombre es obligatorio.</p>
+            }
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Segundo nombre</label>
+            <input formControlName="segundoNombre" type="text" placeholder="Ej: María"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-400 mb-1">Documento de Identidad</label>
-            <input formControlName="documentId" type="text"
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+              Primer apellido <span class="text-red-400">*</span>
+            </label>
+            <input formControlName="primerApellido" type="text" placeholder="Ej: Rodríguez"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+            @if (personForm.controls.primerApellido.touched && personForm.controls.primerApellido.invalid) {
+              <p class="mt-1 text-xs text-red-400">Primer apellido es obligatorio.</p>
+            }
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-400 mb-1">Teléfono / Celular</label>
-            <input formControlName="phone" type="text"
-              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-400 mb-1">Email (Opcional)</label>
-            <input formControlName="email" type="email"
+            <label class="block text-sm font-medium text-gray-300 mb-1">Segundo apellido</label>
+            <input formControlName="segundoApellido" type="text" placeholder="Ej: López"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
           </div>
         </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+              Tipo de documento <span class="text-red-400">*</span>
+            </label>
+            <select formControlName="tipoDocumento"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+              <option value="" disabled>
+                @if (!documentTypes().length) { Cargando tipos... }
+                @else { Seleccione tipo de documento... }
+              </option>
+              @for (tipo of documentTypes(); track tipo.code) {
+                <option [value]="tipo.code">{{ tipo.name }} ({{ tipo.code }})</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+              Número de documento <span class="text-red-400">*</span>
+            </label>
+            <input formControlName="numeroDocumento" type="text" placeholder="Ej: 1234567890"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+              Rol <span class="text-red-400">*</span>
+            </label>
+            <select formControlName="roleId"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+              <option [ngValue]="null" disabled>
+                @if (personRolesLoading()) { Cargando roles... }
+                @else if (!personRoles().length) { Sin roles para su agencia }
+                @else { Seleccione rol... }
+              </option>
+              @for (role of personRoles(); track role.id) {
+                <option [ngValue]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Género</label>
+            <select formControlName="genderId"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
+              <option [ngValue]="null">Sin especificar</option>
+              @for (g of genders(); track g.id) {
+                <option [ngValue]="g.id">{{ g.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-400 mb-1">Dirección de Residencia</label>
-          <input formControlName="address" type="text"
+          <label class="block text-sm font-medium text-gray-300 mb-1">Contacto / Teléfono</label>
+          <input formControlName="contacto" type="tel" placeholder="Ej: 3001234567"
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500">
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-400 mb-1">Notas Adicionales</label>
-          <textarea formControlName="notes" rows="3"
+          <label class="block text-sm font-medium text-gray-300 mb-1">Comentarios</label>
+          <textarea formControlName="comentarios" rows="3" placeholder="Observaciones adicionales..."
             class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"></textarea>
         </div>
       </div>
       <div class="border-t border-gray-700 p-4 flex justify-end gap-3">
         <button type="button" (click)="showPersonForm.set(false)"
           class="bg-gray-600 text-white px-4 py-2 rounded">Cancelar</button>
-        <button type="submit" [disabled]="personForm.invalid"
+        <button type="submit"
+          [disabled]="personForm.invalid || personForm.controls.roleId.value == null"
           class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded disabled:opacity-50">
           {{ isEditModePerson() ? 'Guardar Cambios' : 'Registrar Persona' }}
         </button>

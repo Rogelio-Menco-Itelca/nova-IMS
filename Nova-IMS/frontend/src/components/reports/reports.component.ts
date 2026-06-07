@@ -89,6 +89,7 @@ export class ReportsComponent implements OnInit {
       'En situación':'bg-purple-500/20 text-purple-300 border border-purple-500/30',
       'Resuelto':'bg-green-500/20 text-green-300 border border-green-500/30',
       'Cerrado':'bg-gray-500/20 text-gray-300 border border-gray-500/30',
+      'Cerrado con solución':'bg-teal-500/20 text-teal-300 border border-teal-500/30',
       'Cancelado':'bg-red-500/20 text-red-300 border border-red-500/30',
     };
     return m[s] ?? 'bg-gray-600/20 text-gray-300';
@@ -105,7 +106,7 @@ export class ReportsComponent implements OnInit {
   }
   statusBar(s: string): string {
     return { 'Nuevo':'bg-blue-500','Asignado':'bg-yellow-500','En camino':'bg-orange-500',
-      'En situación':'bg-purple-500','Resuelto':'bg-green-500','Cerrado':'bg-gray-500','Cancelado':'bg-red-500' }[s] ?? 'bg-gray-500';
+      'En situación':'bg-purple-500','Resuelto':'bg-green-500','Cerrado':'bg-gray-500','Cerrado con solución':'bg-teal-500','Cancelado':'bg-red-500' }[s] ?? 'bg-gray-500';
   }
 
   exportCSV(): void {

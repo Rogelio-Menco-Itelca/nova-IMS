@@ -2,7 +2,7 @@ import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
-  IncidentType, ResponseProtocol, Operator, AuditLog,
+  IncidentType, ResponseProtocol, Operator, OperatorFormPayload, AuditLog,
   RolePermission, AdminActionLog
 } from '../models/admin.model';
 import { SocketService } from './socket.service';
@@ -41,12 +41,12 @@ export class ConfigurationService {
     this.operators.set(ops);
   }
 
-  async addOperator(operatorData: Omit<Operator, 'id'>): Promise<void> {
+  async addOperator(operatorData: OperatorFormPayload): Promise<void> {
     const created = await firstValueFrom(this.http.post<Operator>('/api/operators', operatorData));
     this.operators.update(ops => [created, ...ops]);
   }
 
-  async updateOperator(operatorId: string, updates: Partial<Operator>): Promise<void> {
+  async updateOperator(operatorId: string, updates: OperatorFormPayload): Promise<void> {
     const updated = await firstValueFrom(this.http.put<Operator>(`/api/operators/${operatorId}`, updates));
     this.operators.update(ops => ops.map(o => o.id === operatorId ? updated : o));
   }

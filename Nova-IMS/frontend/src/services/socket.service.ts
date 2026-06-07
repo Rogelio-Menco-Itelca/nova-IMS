@@ -1,8 +1,7 @@
 import { Injectable, signal, inject } from "@angular/core";
 import { io, Socket } from "socket.io-client";
 import { AuthService } from "./auth.service";
-
-const SOCKET_URL = "http://localhost:3000";
+import { socketUrl } from "../utils/api-base";
 
 @Injectable({ providedIn: "root" })
 export class SocketService {
@@ -12,7 +11,7 @@ export class SocketService {
   isConnected = signal(false);
 
   constructor() {
-    this.socket = io(SOCKET_URL, {
+    this.socket = io(socketUrl(), {
       path: "/socket.io",
       transports: ["polling", "websocket"],
       auth: {

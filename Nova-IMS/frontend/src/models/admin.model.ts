@@ -3,7 +3,29 @@ import { IncidentPriority } from './incident.model';
 export interface Operator {
   id: string;
   name: string;
+  username?: string;
+  primerNombre: string;
+  segundoNombre?: string;
+  primerApellido: string;
+  segundoApellido?: string;
   email: string;
+  telefono?: string;
+  agency: string;
+  agencyName?: string;
+  role: string;
+  status: 'Activo' | 'Inactivo';
+}
+
+export interface OperatorFormPayload {
+  username: string;
+  primerNombre: string;
+  segundoNombre?: string;
+  primerApellido: string;
+  segundoApellido?: string;
+  email: string;
+  telefono?: string;
+  agency: string;
+  password?: string;
   role: string;
   status: 'Activo' | 'Inactivo';
 }

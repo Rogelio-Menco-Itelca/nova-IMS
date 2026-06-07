@@ -4,6 +4,7 @@ import {
   inject,
   signal,
   OnInit,
+  OnDestroy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
@@ -13,8 +14,10 @@ import {
   FormControl,
   FormGroup,
 } from "@angular/forms";
+import { Subscription } from "rxjs";
 import { AuthService } from "../../services/auth.service";
 import { NotificationService } from "../../services/notification.service";
+import { Agency, RoleOption } from "../../models/user.model";
 
 type Step = "credentials" | "otp";
 
@@ -28,6 +31,7 @@ interface OtpForm {
 }
 
 const REMEMBER_KEY = "ims_remember";
+const LOGIN_NOTICE_KEY = "ims_login_notice";
 
 @Component({
   selector: "app-login",
@@ -36,23 +40,31 @@ const REMEMBER_KEY = "ims_remember";
   templateUrl: "./login.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
   private fb                  = inject(FormBuilder);
   private authService         = inject(AuthService);
   private notificationService = inject(NotificationService);
 
   step            = signal<Step>("credentials");
   isLoading       = signal(false);
+  agenciesLoading = signal(true);
+  rolesLoading    = signal(false);
+  agencies        = signal<Agency[]>([]);
+  roles           = signal<RoleOption[]>([]);
   errorMsg        = signal<string | null>(null);
+  successMsg      = signal<string | null>(null);
   otpTarget       = signal<string>("");
   pendingUser     = signal<string>("");
+  pendingAgency   = signal<string>("");
   resendCountdown = signal(0);
 
   private resendTimer: ReturnType<typeof setInterval> | null = null;
+  private agencySub: Subscription | null = null;
+  private rolesSub: Subscription | null = null;
 
   loginForm = this.fb.group({
-    agencia:    ["CENTRAL", [Validators.required]],
-    rol:        ["", [Validators.required]],
+    agencia:    ["", [Validators.required]],
+    rol:        [{ value: "", disabled: true }, [Validators.required]],
     usuario:    ["", [Validators.required]],
     password:   ["", [Validators.required]],
     rememberMe: [false],
@@ -68,15 +80,80 @@ export class LoginComponent implements OnInit {
   }) as FormGroup<OtpForm>;
 
   ngOnInit(): void {
+    const notice = sessionStorage.getItem(LOGIN_NOTICE_KEY);
+    if (notice) {
+      sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+      this.successMsg.set(notice);
+    }
+
     const saved = localStorage.getItem(REMEMBER_KEY);
     if (saved) {
       try {
-        const { agencia, rol, usuario } = JSON.parse(saved);
-        this.loginForm.patchValue({ agencia, rol, usuario, rememberMe: true });
+        const { usuario } = JSON.parse(saved);
+        this.loginForm.patchValue({
+          usuario: usuario ?? "",
+          rememberMe: true,
+        });
       } catch {
         localStorage.removeItem(REMEMBER_KEY);
       }
     }
+
+    this.authService.getAgencies().subscribe({
+      next: (list) => {
+        this.agencies.set(list);
+        this.agenciesLoading.set(false);
+        this.loginForm.patchValue({ agencia: "" });
+      },
+      error: () => {
+        this.agenciesLoading.set(false);
+        this.errorMsg.set("No se pudieron cargar las agencias. Verifique que el backend esté activo.");
+      },
+    });
+
+    this.agencySub = this.loginForm.controls.agencia.valueChanges.subscribe((code) => {
+      this.loadRolesForAgency(code || "");
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.agencySub?.unsubscribe();
+    this.rolesSub?.unsubscribe();
+    if (this.resendTimer) clearInterval(this.resendTimer);
+  }
+
+  private loadRolesForAgency(agencyCode: string): void {
+    this.rolesSub?.unsubscribe();
+    this.resetRolSelection();
+
+    if (!agencyCode) {
+      this.roles.set([]);
+      this.rolesLoading.set(false);
+      this.loginForm.controls.rol.disable({ emitEvent: false });
+      return;
+    }
+
+    this.loginForm.controls.rol.enable({ emitEvent: false });
+    this.rolesLoading.set(true);
+
+    this.rolesSub = this.authService.getRoles(agencyCode).subscribe({
+      next: (list) => {
+        this.roles.set(list);
+        this.rolesLoading.set(false);
+        // Evita que el navegador preseleccione el primer rol (p. ej. Administrador)
+        queueMicrotask(() => this.resetRolSelection());
+      },
+      error: () => {
+        this.rolesLoading.set(false);
+        this.roles.set([]);
+        this.resetRolSelection();
+        this.errorMsg.set("No se pudieron cargar los roles para la agencia seleccionada.");
+      },
+    });
+  }
+
+  private resetRolSelection(): void {
+    this.loginForm.controls.rol.setValue("", { emitEvent: false });
   }
 
   submitCredentials(): void {
@@ -86,22 +163,42 @@ export class LoginComponent implements OnInit {
     }
     this.isLoading.set(true);
     this.errorMsg.set(null);
+    this.successMsg.set(null);
 
-    const { agencia, rol, usuario, password, rememberMe } = this.loginForm.value;
+    const { agencia, rol, usuario, password, rememberMe } = this.loginForm.getRawValue();
+
+    if (!agencia) {
+      this.isLoading.set(false);
+      this.errorMsg.set("Seleccione una agencia.");
+      return;
+    }
+
+    if (!rol) {
+      this.isLoading.set(false);
+      this.errorMsg.set("Seleccione un rol.");
+      return;
+    }
 
     if (rememberMe) {
-      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ agencia, rol, usuario }));
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ usuario }));
     } else {
       localStorage.removeItem(REMEMBER_KEY);
     }
 
     this.authService
-      .login({ agencia: agencia!, usuario: usuario!, password: password!, rol: rol! })
+      .login({
+        agencia: agencia!,
+        usuario: usuario!,
+        password: password!,
+        rol: rol!,
+        rememberMe: !!rememberMe,
+      })
       .subscribe({
         next: (res) => {
           this.isLoading.set(false);
           if ('requiresOtp' in res) {
             this.pendingUser.set(res.userId);
+            this.pendingAgency.set(agencia);
             this.otpTarget.set(res.otpTarget);
             this.step.set("otp");
             this.startResendCountdown();
@@ -129,11 +226,12 @@ export class LoginComponent implements OnInit {
     }
     this.isLoading.set(true);
     this.errorMsg.set(null);
+    this.successMsg.set(null);
 
     const v = this.otpForm.getRawValue();
     const code = [v.d0, v.d1, v.d2, v.d3, v.d4, v.d5].join("");
 
-    this.authService.verifyOtp(this.pendingUser(), code).subscribe({
+    this.authService.verifyOtp(this.pendingUser(), code, this.pendingAgency()).subscribe({
       next: (res) => {
         this.isLoading.set(false);
         this.notificationService.clearSessionNotifications();
@@ -156,10 +254,16 @@ export class LoginComponent implements OnInit {
     if (this.resendCountdown() > 0) return;
     this.errorMsg.set(null);
     this.otpForm.reset();
-    const { agencia, rol, usuario, password } = this.loginForm.value;
+    const { agencia, rol, usuario, password, rememberMe } = this.loginForm.getRawValue();
     this.isLoading.set(true);
     this.authService
-      .login({ agencia: agencia!, usuario: usuario!, password: password!, rol: rol! })
+      .login({
+        agencia: agencia!,
+        usuario: usuario!,
+        password: password!,
+        rol: rol!,
+        rememberMe: !!rememberMe,
+      })
       .subscribe({
         next: (res) => {
           this.isLoading.set(false);

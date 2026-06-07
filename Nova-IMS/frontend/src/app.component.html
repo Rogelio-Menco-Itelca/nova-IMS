@@ -133,6 +133,10 @@
                 [class.text-sky-300]="authService.isDirectorySession()"
                 [class.text-amber-200]="!authService.isDirectorySession()">
                 {{ authService.authSourceLabel() }}
+                @if (authService.sessionAgencyLabel()) {
+                <span class="text-gray-500 font-normal"> · </span>
+                <span>{{ authService.sessionAgencyLabel() }}</span>
+                }
               </p>
             </div>
           </div>

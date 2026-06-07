@@ -22,6 +22,9 @@ import {
   Incident,
   IncidentStatus,
   IncidentPriority,
+  isVisibleInActiveViews,
+  isHiddenByDefaultInIncidentList,
+  DASHBOARD_ACTIVE_STATUSES,
   PersonRole,
   VehicleRole,
   InvolvedPerson,
@@ -55,14 +58,23 @@ const priorityOrder: Record<IncidentPriority, number> = {
   Baja: 1,
 };
 
-const statusOrder: Record<IncidentStatus, number> = {
+const statusOrder: Record<string, number> = {
   Nuevo: 7,
+  "En gestión OSGE": 6,
+  "Enviado a CERREM": 5,
+  "En evaluación CERREM": 4,
+  "Aprobado con medidas": 3,
+  "Medidas asignadas": 2,
+  "Seguimiento activo": 1,
   Asignado: 6,
   "En camino": 5,
   "En situación": 4,
-  Resuelto: 3,
-  Cerrado: 2,
-  Cancelado: 1,
+  Resuelto: 0,
+  "Resuelto con medidas": 0,
+  Cerrado: 0,
+  "Cerrado sin medidas": 0,
+  "Cerrado con solución": 0,
+  Cancelado: 0,
 };
 
 /** Vista inicial del mapa del dashboard (Bogotá D.C.) */
@@ -150,15 +162,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   filterText = signal("");
   filterStatus = signal<IncidentStatus | "">("");
   priorities: IncidentPriority[] = ["Baja", "Media", "Alta", "Crítica"];
-  statuses: IncidentStatus[] = [
-    "Nuevo",
-    "Asignado",
-    "En camino",
-    "En situación",
-    "Resuelto",
-    "Cerrado",
-    "Cancelado",
-  ];
+  statuses: IncidentStatus[] = [...DASHBOARD_ACTIVE_STATUSES];
   incidentTypes = this.configService.incidentTypes;
   personRoles: PersonRole[] = ["Víctima", "Victimario", "Testigo"];
   vehicleRoles: VehicleRole[] = [
@@ -487,12 +491,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   dashboardActiveIncidents = computed(() =>
-    this.incidents().filter(
-      (inc) =>
-        inc.status !== "Cerrado" &&
-        inc.status !== "Cancelado" &&
-        inc.status !== "Resuelto",
-    ),
+    this.incidents().filter((inc) => isVisibleInActiveViews(inc.status)),
   );
 
   private getDashboardActiveIncidents(): Incident[] {
@@ -562,9 +561,10 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   });
 
   getMarkerColor(incident: Incident): string {
-    if (incident.status === "Resuelto") return "#22c55e";
-    if (incident.status === "Cancelado") return "#991b1b";
-    if (incident.status === "Cerrado") return "#6b7280";
+    if (isHiddenByDefaultInIncidentList(incident.status)) {
+      if (incident.status === "Cancelado") return "#991b1b";
+      return "#6b7280";
+    }
     switch (incident.priority) {
       case "Crítica":
         return "#ef4444";
@@ -580,6 +580,18 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     switch (incident.status) {
       case "Nuevo":
         return "#3b82f6";
+      case "En gestión OSGE":
+        return "#6366f1";
+      case "Enviado a CERREM":
+        return "#8b5cf6";
+      case "En evaluación CERREM":
+        return "#a855f7";
+      case "Aprobado con medidas":
+        return "#eab308";
+      case "Medidas asignadas":
+        return "#f97316";
+      case "Seguimiento activo":
+        return "#22c55e";
       case "Asignado":
         return "#6366f1";
       case "En camino":
@@ -656,9 +668,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   private prefetchActiveAddresses(incidents: Incident[]): void {
     incidents
-      .filter(
-        (inc) => inc.status !== "Cerrado" && inc.status !== "Cancelado",
-      )
+      .filter((inc) => isVisibleInActiveViews(inc.status))
       .forEach((inc) => {
         if (this.hasValidCoords(inc)) {
           this.resolveAddressForIncident(inc);
@@ -988,7 +998,6 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       documentType: ["" as DocumentType | "", Validators.required],
       documentId: [""],
       gender: ["" as PersonGender | "", Validators.required],
-      address: [""],
     });
   }
   addPerson(): void {
@@ -1075,7 +1084,9 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   );
   closedCount = computed(
     () =>
-      this.incidents().filter((inc) => inc.status === "Resuelto").length,
+      this.incidents().filter((inc) =>
+        isHiddenByDefaultInIncidentList(inc.status),
+      ).length,
   );
 
   private sortIncidents(incidents: Incident[]): Incident[] {
@@ -1184,7 +1195,6 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       phone: person.phone,
       documentType,
       documentId: person.documentId,
-      address: person.address,
     });
     this.involvedPeople.push(group);
   }
@@ -1272,7 +1282,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     }
     const formValue = this.incidentForm.getRawValue();
     const newIncident: Incident = {
-      id: `INC-${String(Math.floor(Math.random() * 900) + 100).padStart(3, "0")}`,
+      id: "",
       timestamp: new Date().toLocaleString("es-CO", {
         dateStyle: "short",
         timeStyle: "short",
@@ -1372,10 +1382,10 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     state.involvedPeople?.forEach((p) =>
       this.involvedPeople.push(
         this.fb.group({
-          name: [p.name, Validators.required],
-          role: [p.role, Validators.required],
+          name: [p.name ?? "", Validators.required],
+          role: [p.role ?? "Testigo", Validators.required],
           contact: [p.contact],
-          details: [p.details],
+          details: [p.details ?? p.comentarios],
           phone: [p.phone],
           documentType: [
             (p.documentType || "") as DocumentType | "",
@@ -1383,7 +1393,6 @@ export class IncidentsComponent implements OnInit, OnDestroy {
           ],
           documentId: [p.documentId],
           gender: [(p.gender ?? "") as PersonGender | "", Validators.required],
-          address: [p.address],
         }),
       ),
     );
@@ -1459,6 +1468,18 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     switch (status) {
       case "Nuevo":
         return "bg-blue-600/80 text-blue-100";
+      case "En gestión OSGE":
+        return "bg-indigo-600/80 text-indigo-100";
+      case "Enviado a CERREM":
+        return "bg-violet-600/80 text-violet-100";
+      case "En evaluación CERREM":
+        return "bg-purple-600/80 text-purple-100";
+      case "Aprobado con medidas":
+        return "bg-yellow-600/80 text-yellow-100";
+      case "Medidas asignadas":
+        return "bg-orange-600/80 text-orange-100";
+      case "Seguimiento activo":
+        return "bg-green-600/80 text-green-100";
       case "Asignado":
         return "bg-indigo-600/80 text-indigo-100";
       case "En camino":
@@ -1466,9 +1487,13 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       case "En situación":
         return "bg-orange-600/80 text-orange-100";
       case "Resuelto":
+      case "Resuelto con medidas":
         return "bg-green-600/80 text-green-100";
       case "Cerrado":
+      case "Cerrado sin medidas":
         return "bg-gray-600/80 text-gray-200";
+      case "Cerrado con solución":
+        return "bg-teal-600/80 text-teal-100";
       case "Cancelado":
         return "bg-red-800/80 text-red-200";
       default:

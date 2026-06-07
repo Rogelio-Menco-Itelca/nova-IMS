@@ -22,8 +22,21 @@
       <form [formGroup]="loginForm" (ngSubmit)="submitCredentials()" class="space-y-6">
 
         <div class="relative">
-          <input formControlName="agencia" type="text" id="agencia" placeholder=" "
+          <select formControlName="agencia" id="agencia"
             class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer">
+            <option value="" disabled hidden>
+              @if (agenciesLoading()) {
+                Cargando agencias...
+              } @else if (!agencies().length) {
+                No hay agencias disponibles
+              } @else {
+                Seleccione agencia...
+              }
+            </option>
+            @for (agency of agencies(); track agency.code) {
+              <option [value]="agency.code">{{ agency.code }}</option>
+            }
+          </select>
           <label for="agencia"
             class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4">
             Agencia
@@ -33,13 +46,20 @@
         <div class="relative">
           <select formControlName="rol" id="rol"
             class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer">
-            <option value="" disabled selected>Seleccionar rol...</option>
-          <option value="Administrador del sistema">Administrador del sistema</option>
-            <option value="Supervisor / Coordinador">Supervisor / Coordinador</option>
-            <option value="Operador / Despachador">Operador / Despachador</option>
-            <option value="Unidad / Agente de campo">Unidad / Agente de campo</option>
-            <option value="Analista / Informes">Analista / Informes</option>
-            <option value="Usuario Consulta">Usuario Consulta</option>
+            <option value="" disabled hidden>
+              @if (!loginForm.controls.agencia.value) {
+                Seleccione agencia primero...
+              } @else if (rolesLoading()) {
+                Cargando roles...
+              } @else if (!roles().length) {
+                Sin roles para esta agencia
+              } @else {
+                Seleccione rol...
+              }
+            </option>
+            @for (role of roles(); track role.id) {
+              <option [value]="role.name">{{ role.name }}</option>
+            }
           </select>
           <label for="rol"
             class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4">
@@ -77,13 +97,19 @@
           Las credenciales son las de su cuenta de Active Directory.
         </p>
 
+        @if (successMsg()) {
+          <div class="bg-green-900/50 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg text-sm text-center">
+            {{ successMsg() }}
+          </div>
+        }
+
         @if (errorMsg()) {
           <div class="bg-red-900/50 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm text-center animate-shake">
             {{ errorMsg() }}
           </div>
         }
 
-        <button type="submit" [disabled]="loginForm.invalid || isLoading()"
+        <button type="submit" [disabled]="loginForm.invalid || isLoading() || agenciesLoading() || rolesLoading()"
           class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors duration-300">
           @if (isLoading()) {
             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

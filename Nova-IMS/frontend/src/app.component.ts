@@ -88,12 +88,6 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.authService.checkAuth();
-    if (
-      this.authService.isAuthenticated() &&
-      this.authService.mustChangePassword()
-    ) {
-      this.authService.currentView.set("dashboard");
-    }
   }
   @HostListener("document:click", ["$event"])
   onDocumentClick(event: MouseEvent) {

@@ -127,7 +127,7 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label for="event_id"
-                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_evento (Tipo)</label>
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_evento (Tipo) <span class="text-red-400">*</span></label>
               <select id="event_id" formControlName="event_id"
                 class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                 required>
@@ -138,7 +138,7 @@
             </div>
             <div>
               <label for="priority_id"
-                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_prioridad</label>
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">ID_prioridad <span class="text-red-400">*</span></label>
               <select id="priority_id" formControlName="priority_id"
                 class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                 required>
@@ -148,12 +148,18 @@
             </div>
             <div>
               <label for="status"
-                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Estado</label>
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Estado <span class="text-red-400">*</span></label>
               <select id="status" formControlName="status"
                 class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                 required>
-                @for(status of statuses; track status){ <option [value]="status">{{ status }}</option> }
+                <option value="" disabled>Seleccione estado</option>
+                @for (st of incidentStatuses(); track st.id) {
+                  <option [value]="st.name">{{ st.name }}</option>
+                }
               </select>
+              @if (incidentStatuses().length === 0) {
+                <p class="mt-1 text-xs text-amber-400">No hay estados configurados para su agencia en la base de datos.</p>
+              }
             </div>
           </div>
 
@@ -161,64 +167,42 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label for="origin"
-                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Origen</label>
-              <input id="origin" type="text" formControlName="origin" placeholder="Ej: Llamada 911, Botón Pánico"
+                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Origen <span class="text-red-400">*</span></label>
+              <select id="origin" formControlName="origin"
                 class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                 required>
+                <option value="" disabled>Seleccione origen</option>
+                @for (o of origins(); track o.id) {
+                  <option [value]="o.name">{{ o.name }}</option>
+                }
+              </select>
+              @if (origins().length === 0) {
+                <p class="mt-1 text-xs text-amber-400">No hay orígenes configurados para su agencia en la base de datos.</p>
+              }
             </div>
             <div>
               <label for="phone"
                 class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Teléfono llamada</label>
-              <input id="phone" type="text" formControlName="phone" placeholder="Número del llamante"
-                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
-                required>
+              <input id="phone" type="text" formControlName="phone" placeholder="Número del llamante (opcional)"
+                class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all">
             </div>
           </div>
 
-          <!-- Sección 3: Ubicación del Incidente (depto → municipio → dirección → punto en mapa) -->
+          <!-- Sección 3: Ubicación del Incidente (dirección → mapa → depto/municipio) -->
           <section class="rounded-lg border border-gray-700/60 bg-gray-800/25 p-4 sm:p-5 space-y-5">
             <div>
               <h4 class="text-sm font-semibold text-white">Ubicación del Incidente</h4>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Departamento</label>
-                <select formControlName="departmentId" (change)="onIncidentDepartmentChange()"
-                  class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
-                  <option [ngValue]="null" disabled>Seleccione departamento</option>
-                  @for (dept of departments(); track dept.id) {
-                  <option [ngValue]="dept.id">{{ dept.name }}</option>
-                  }
-                </select>
-                @if (incidentForm.get('departmentId')?.touched && incidentForm.get('departmentId')?.invalid) {
-                <p class="text-red-400 text-[11px] mt-1">Indique el departamento donde ocurre el incidente.</p>
-                }
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Municipio / ciudad</label>
-                <select formControlName="municipalityId"
-                  [disabled]="!incidentForm.get('departmentId')?.value"
-                  class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                  <option [ngValue]="null" disabled>Seleccione municipio</option>
-                  @for (mun of incidentMunicipalities(); track mun.id) {
-                  <option [ngValue]="mun.id">{{ mun.name }}</option>
-                  }
-                </select>
-                @if (incidentForm.get('municipalityId')?.touched && incidentForm.get('municipalityId')?.invalid) {
-                <p class="text-red-400 text-[11px] mt-1">Indique el municipio donde ocurre el incidente.</p>
-                }
-              </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               <div class="space-y-4 order-2 lg:order-1">
                 <div>
                   <label for="location"
-                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dirección o referencia</label>
+                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Dirección o referencia <span class="text-red-400">*</span></label>
                   <div class="relative">
                     <input id="location" type="text" formControlName="location"
-                      placeholder="Calle, carrera, barrio, punto de referencia..."
+                      placeholder="Calle, carrera, barrio... (Enter para ubicar)"
+                      (keydown.enter)="$event.preventDefault(); geocodeManualLocation()"
                       class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
                       required>
                     <svg class="absolute left-3 top-3 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg"
@@ -229,22 +213,56 @@
                         d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
+                  <p class="text-[11px] text-gray-500 mt-1">Pulse Enter para obtener latitud, longitud y punto en el mapa.</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <label for="lat"
-                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Latitud</label>
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Latitud <span class="text-red-400">*</span></label>
                     <input id="lat" type="number" step="any" formControlName="lat"
                       class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                       required>
                   </div>
                   <div>
                     <label for="lng"
-                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Longitud</label>
+                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Longitud <span class="text-red-400">*</span></label>
                     <input id="lng" type="number" step="any" formControlName="lng"
                       class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                       required>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Departamento</label>
+                    <select formControlName="departmentId"
+                      class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                      <option [ngValue]="null">Seleccione departamento…</option>
+                      @for (dept of departments(); track dept.id) {
+                      <option [ngValue]="dept.id">{{ dept.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Municipio / ciudad</label>
+                    <select formControlName="municipalityId"
+                      [disabled]="!incidentForm.get('departmentId')?.value"
+                      class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                      <option [ngValue]="null">
+                        @if (!incidentForm.get('departmentId')?.value) {
+                          Seleccione primero un departamento
+                        } @else {
+                          Seleccione municipio…
+                        }
+                      </option>
+                      @for (mun of incidentMunicipalities(); track mun.id) {
+                      <option [ngValue]="mun.id">{{ mun.name }}</option>
+                      }
+                    </select>
+                    @if (incidentForm.get('departmentId')?.value && incidentMunicipalities().length === 0) {
+                    <p class="text-[11px] text-gray-500 mt-1">No hay municipios para este departamento en su agencia.</p>
+                    }
                   </div>
                 </div>
 
@@ -274,7 +292,7 @@
             <div>
               <label for="agregarComentario"
                 class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agregar
-                comentario</label>
+                comentario @if (activeTabId() === 'new') {<span class="text-red-400">*</span>}</label>
               <textarea id="agregarComentario" formControlName="agregarComentario" rows="4"
                 [placeholder]="activeTabId() === 'new' ? 'Descripción del incidente, hechos reportados, notas...' : 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...'"
                 class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"></textarea>
@@ -282,30 +300,35 @@
               <p class="text-red-400 text-[11px] mt-1">Escriba el primer comentario del incidente.</p>
               }
             </div>
+            @if (activeTabId() !== 'new') {
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Historial de
                 comentarios</label>
-              <div class="rounded-lg border border-gray-700 bg-gray-900/60 overflow-hidden min-h-[140px]">
-                <div class="max-h-52 overflow-y-auto p-3 space-y-2">
+              <div class="rounded-lg border border-gray-700/80 bg-gray-900/40 overflow-hidden">
+                <div class="max-h-56 overflow-y-auto divide-y divide-gray-700/60">
                   @if (commentsHistory().length === 0) {
-                  <p class="text-sm text-gray-500 italic">Sin comentarios registrados.</p>
+                  <p class="text-sm text-gray-500 italic p-4">Sin comentarios registrados.</p>
                   } @else {
                   @for (entry of commentsHistory(); track $index) {
-                  <div class="bg-gray-800/50 border border-gray-700/60 rounded-md p-2.5 text-sm">
-                    <div class="text-[11px] text-indigo-300/90 mb-1">{{ formatNoteHeader(entry) }}</div>
-                    <p class="text-gray-200 whitespace-pre-wrap">{{ entry.text }}</p>
-                  </div>
+                  <article class="p-3 hover:bg-gray-800/30 transition-colors">
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
+                      <span class="text-xs font-medium text-indigo-300">{{ entry.author || 'Operador' }}</span>
+                      <time class="text-[11px] text-gray-500 tabular-nums">{{ formatNoteHeader(entry) }}</time>
+                    </div>
+                    <p class="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{{ entry.text }}</p>
+                  </article>
                   }
                   }
                 </div>
               </div>
             </div>
+            }
           </div>
 
-          <!-- Involucrados (Compacto) -->
+          <!-- Personas Involucradas -->
           <div class="pt-4 mt-4 border-t border-gray-700">
             <div class="flex justify-between items-center mb-3">
-              <h4 class="text-lg font-semibold text-white">Personas Involucradas</h4>
+              <h4 class="text-lg font-semibold text-white">Solicitantes</h4>
               <button type="button" (click)="addPerson()" [disabled]="involvedPeople.length >= 4"
                 class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -318,27 +341,42 @@
             </div>
             <div formArrayName="involvedPeople" class="space-y-4">
               @if (involvedPeople.length === 0) {
-              <p class="text-sm text-gray-500 italic">Si la cédula está registrada en el sistema, los datos del ciudadano aparecerán automáticamente.</p>
+              <p class="text-sm text-gray-500 italic">Si la cédula o teléfono está registrado, los datos aparecerán automáticamente.</p>
               }
               @for (personGroup of involvedPeople.controls; track $index) {
               <div [formGroupName]="$index"
                 class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn">
                 <button type="button" (click)="removePerson($index)"
                   class="absolute top-2 right-2 text-gray-400 hover:text-red-400 text-2xl font-bold leading-none"
-                  title="Eliminar Persona">&times;</button>
+                  title="Eliminar persona">&times;</button>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Nombre completo</label>
-                    <input formControlName="name" type="text" placeholder="Nombre y apellidos"
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Primer nombre <span class="text-red-400">*</span></label>
+                    <input formControlName="primerNombre" type="text" placeholder="Ej.: Ana"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol</label>
-                    <select formControlName="role"
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Segundo nombre</label>
+                    <input formControlName="segundoNombre" type="text" placeholder="Opcional"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                      <option value="" disabled>Seleccione rol</option>
-                      @for (role of personRoles; track role) {
-                      <option [value]="role">{{ role }}</option>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Primer apellido <span class="text-red-400">*</span></label>
+                    <input formControlName="primerApellido" type="text" placeholder="Ej.: Rodríguez"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Segundo apellido</label>
+                    <input formControlName="segundoApellido" type="text" placeholder="Opcional"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
+                    <select formControlName="roleId"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                      <option [ngValue]="null" disabled>Seleccione rol</option>
+                      @for (role of personRoles(); track role.id) {
+                      <option [ngValue]="role.id">{{ role.name }}</option>
                       }
                     </select>
                   </div>
@@ -346,14 +384,11 @@
                     <label class="block text-xs font-medium text-gray-400 mb-1">Tipo de documento</label>
                     <select formControlName="documentType"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                      <option value="" disabled>Seleccione tipo</option>
-                      @for (doc of documentTypeOptions; track doc) {
-                      <option [value]="doc">{{ doc }}</option>
+                      <option value="">Seleccione tipo</option>
+                      @for (doc of documentTypes(); track doc.code) {
+                      <option [value]="doc.code">{{ doc.name }}</option>
                       }
                     </select>
-                    @if (personGroup.get('documentType')?.touched && personGroup.get('documentType')?.invalid) {
-                    <p class="text-red-400 text-[11px] mt-1">Seleccione el tipo de documento.</p>
-                    }
                   </div>
                   <div>
                     <label class="block text-xs font-medium text-gray-400 mb-1">Número de documento</label>
@@ -362,31 +397,23 @@
                   </div>
                   <div>
                     <label class="block text-xs font-medium text-gray-400 mb-1">Género</label>
-                    <select formControlName="gender"
+                    <select formControlName="genderId"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                      <option value="" disabled>Seleccione género</option>
-                      @for (g of genderOptions; track g) {
-                      <option [value]="g">{{ g }}</option>
+                      <option [ngValue]="null">Seleccione género</option>
+                      @for (g of genders(); track g.id) {
+                      <option [ngValue]="g.id">{{ g.name }}</option>
                       }
                     </select>
-                    @if (personGroup.get('gender')?.touched && personGroup.get('gender')?.invalid) {
-                    <p class="text-red-400 text-[11px] mt-1">Seleccione el género.</p>
-                    }
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto / Teléfono</label>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto / teléfono</label>
                     <input formControlName="contact" type="text" placeholder="Teléfono"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
                   </div>
-                  <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Dirección de residencia</label>
-                    <input formControlName="address" type="text" placeholder="Opcional — domicilio"
-                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
-                  </div>
-                  <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1" title="Vestimenta, edad aparente, señas, comportamiento">Detalles adicionales</label>
-                    <textarea formControlName="details" rows="2"
-                      placeholder="Ej.: chaqueta azul, aprox. 35 años…"
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del solicitante</label>
+                    <textarea formControlName="comentarios" rows="2"
+                      placeholder="Notas sobre el solicitante (opcional)"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"></textarea>
                   </div>
                 </div>
@@ -396,7 +423,97 @@
           </div>
           <div class="pt-4 mt-4 border-t border-gray-700">
             <div class="flex justify-between items-center mb-3">
-              <h4 class="text-lg font-semibold text-white">Vehículos Involucrados</h4>
+              <h4 class="text-lg font-semibold text-white">Lugares Asociados</h4>
+              <button type="button" (click)="addPlace()" [disabled]="involvedPlaces.length >= 4"
+                class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd"
+                    d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                    clip-rule="evenodd" />
+                </svg>
+                Añadir
+              </button>
+            </div>
+            <div formArrayName="involvedPlaces" class="space-y-4">
+              @if (involvedPlaces.length === 0) {
+              <p class="text-sm text-gray-500 italic">Registre sitios relacionados con el incidente (vivienda, sede, vía pública, etc.).</p>
+              }
+              @for (placeGroup of involvedPlaces.controls; track $index) {
+              <div [formGroupName]="$index"
+                class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn">
+                <button type="button" (click)="removePlace($index)"
+                  class="absolute top-2 right-2 text-gray-400 hover:text-red-400 text-2xl font-bold leading-none"
+                  title="Eliminar lugar">&times;</button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Nombre del lugar <span class="text-red-400">*</span></label>
+                    <input formControlName="name" type="text" placeholder="Ej: Casa magistrado"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Dirección <span class="text-red-400">*</span></label>
+                    <input formControlName="address" type="text" placeholder="Calle, carrera, barrio…"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Departamento</label>
+                    <select formControlName="departmentId"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                      <option [ngValue]="null">Seleccione departamento…</option>
+                      @for (dept of departments(); track dept.id) {
+                      <option [ngValue]="dept.id">{{ dept.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Municipio</label>
+                    <select formControlName="municipalityId"
+                      [disabled]="!placeGroup.get('departmentId')?.value"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50">
+                      <option [ngValue]="null">
+                        @if (!placeGroup.get('departmentId')?.value) {
+                          Seleccione primero un departamento
+                        } @else {
+                          Seleccione municipio…
+                        }
+                      </option>
+                      @for (mun of placeMunicipalitiesFor($index); track mun.id) {
+                      <option [ngValue]="mun.id">{{ mun.name }}</option>
+                      }
+                    </select>
+                    @if (placeGroup.get('departmentId')?.value && placeMunicipalitiesFor($index).length === 0) {
+                    <p class="text-[11px] text-gray-500 mt-1">No hay municipios para este departamento en su agencia.</p>
+                    }
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol / tipo de lugar <span class="text-red-400">*</span></label>
+                    <select formControlName="roleId"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                      <option [ngValue]="null" disabled>Seleccione rol…</option>
+                      @for (role of placeRoles(); track role.id) {
+                      <option [ngValue]="role.id">{{ formatPlaceRoleLabel(role.name) }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Contacto</label>
+                    <input formControlName="contact" type="text" placeholder="Teléfono o referencia"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500">
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del lugar</label>
+                    <textarea formControlName="comments" rows="2"
+                      placeholder="Observaciones sobre el lugar…"
+                      class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 resize-y min-h-[2.5rem]"></textarea>
+                  </div>
+                </div>
+              </div>
+              }
+            </div>
+          </div>
+          <div class="pt-4 mt-4 border-t border-gray-700">
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="text-lg font-semibold text-white">Vehículos Asociados</h4>
               <button type="button" (click)="addVehicle()" [disabled]="involvedVehicles.length >= 4"
                 class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -416,8 +533,8 @@
                   title="Eliminar Vehículo">&times;</button>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Placa</label>
-                    <input formControlName="plate" type="text" placeholder="ABC123"
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Placa <span class="text-gray-500 font-normal">(opcional)</span></label>
+                    <input formControlName="plate" type="text" placeholder="ABC123 (opcional)"
                       (input)="onVehiclePlateInput($index)"
                       (keydown.enter)="$event.preventDefault(); normalizeAndLookupVehicle($index)"
                       (blur)="normalizeAndLookupVehicle($index)"
@@ -429,7 +546,7 @@
                     }
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol</label>
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Rol <span class="text-red-400">*</span></label>
                     <select formControlName="role"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                       <option value="" disabled>Seleccione rol</option>
@@ -457,8 +574,8 @@
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                   </div>
                   <div class="md:col-span-3">
-                    <label class="block text-xs font-medium text-gray-400 mb-1">Detalles Adicionales</label>
-                    <textarea formControlName="details" rows="2" placeholder="Daños, señas particulares, etc."
+                    <label class="block text-xs font-medium text-gray-400 mb-1">Comentarios del vehículo <span class="text-gray-500 font-normal">(opcional)</span></label>
+                    <textarea formControlName="details" rows="2" placeholder="Daños, señas particulares, etc. (opcional)"
                       class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                   </div>
                 </div>
@@ -555,8 +672,10 @@
         class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-1/2 lg:w-1/3">
       <select (change)="onFilterStatus($event)"
         class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-auto">
-        <option value="">Todos los Estados</option>
-        @for(status of statuses; track status) { <option [value]="status">{{ status }}</option> }
+        <option value="">Todos los activos</option>
+        @for (st of incidentStatuses(); track st.id) {
+          <option [value]="st.name">{{ st.name }}</option>
+        }
       </select>
     </div>
     <div class="overflow-x-auto">
