@@ -52,6 +52,20 @@ interface VerifyOtpResponse {
 const TOKEN_KEY = 'ims_token';
 const USER_KEY = 'ims_currentUser';
 const MUST_CHANGE_KEY = 'ims_mustChangePassword';
+const LAST_LOGIN_KEY = 'ims_last_login_at';
+const SESSION_STARTED_KEY = 'ims_session_started_at';
+
+function persistLastLoginAt(): void {
+  const now = new Date().toISOString();
+  localStorage.setItem(LAST_LOGIN_KEY, now);
+  sessionStorage.setItem(SESSION_STARTED_KEY, now);
+}
+
+function ensureSessionStartedAt(): void {
+  if (!sessionStorage.getItem(SESSION_STARTED_KEY)) {
+    sessionStorage.setItem(SESSION_STARTED_KEY, new Date().toISOString());
+  }
+}
 
 function normalizeAuthSource(value: unknown): AuthSource {
   if (typeof value !== 'string') {
@@ -109,6 +123,7 @@ export class AuthService {
         });
         this.isAuthenticated.set(true);
         this.mustChangePassword.set(sessionStorage.getItem(MUST_CHANGE_KEY) === 'true');
+        ensureSessionStartedAt();
       } catch {
         this.logout();
       }
@@ -135,6 +150,7 @@ export class AuthService {
           this.currentUser.set(user);
           this.isAuthenticated.set(true);
           this.mustChangePassword.set(resp.mustChangePassword);
+          persistLastLoginAt();
           if (resp.mustChangePassword) {
             sessionStorage.setItem(MUST_CHANGE_KEY, 'true');
           } else {
@@ -172,6 +188,7 @@ export class AuthService {
           this.currentUser.set(user);
           this.isAuthenticated.set(true);
           this.mustChangePassword.set(resp.mustChangePassword);
+          persistLastLoginAt();
           if (resp.mustChangePassword) {
             sessionStorage.setItem(MUST_CHANGE_KEY, 'true');
           } else {

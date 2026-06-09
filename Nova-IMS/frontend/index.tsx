@@ -1,3 +1,6 @@
+import './src/animations.css';
+import './src/theme-light.css';
+
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
