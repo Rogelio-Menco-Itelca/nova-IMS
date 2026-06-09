@@ -6,6 +6,8 @@ const { sendIncidentNotification } = require('../services/email.service');
 const { diffNewCommentEntries, truncateAuditText } = require('../utils/incidentNotes');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
+const comunicacion = require('../db/gestionincidentes/comunicacion');
+const { requireSessionAgency } = require('../utils/requestAgency');
 
 function pickCoord(primary, fallback) {
   const p = primary != null && primary !== '' ? Number(primary) : NaN;
@@ -459,6 +461,17 @@ const sendEmail = asyncHandler(async (req, res) => {
   incident.auditLogs = allAuditLogs.length > 0 ? [allAuditLogs[allAuditLogs.length - 1]] : [];
 
   const result = await sendIncidentNotification({ to: recipients, incident });
+
+  const agencyCode = requireSessionAgency(req);
+  await comunicacion.safeLog(() =>
+    comunicacion.logIncidentEmailCommunications({
+      incidentInternalId: incRaw.internal_id,
+      sessionUser: req.user,
+      agencyCode,
+      recipientEmails: recipients,
+    }),
+  );
+
   res.json({
     ok: true,
     incidentId: id,
