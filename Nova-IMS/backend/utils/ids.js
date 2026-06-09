@@ -8,7 +8,7 @@ async function nextId(table, column, prefix, width = 3) {
   const like = `${prefix}-%`;
   const [rows] = await pool.query(
     `SELECT ${column} AS id FROM ${table} WHERE ${column} LIKE ? ORDER BY ${column} DESC LIMIT 1`,
-    [like]
+    [like],
   );
   let next = 1;
   if (rows.length) {

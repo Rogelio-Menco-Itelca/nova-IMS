@@ -7,8 +7,8 @@
  * - Un código solo puede usarse una vez (se invalida al verificar)
  */
 
-const OTP_EXPIRY_MS  = 10 * 60 * 1000; // 10 minutos
-const MAX_ATTEMPTS   = 5;
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutos
+const MAX_ATTEMPTS = 5;
 
 // Map<userId, { code, expiresAt, attempts }>
 const store = new Map();
@@ -68,11 +68,14 @@ function verify(userId, inputCode) {
 /**
  * Limpieza periódica de entradas expiradas (cada 15 min)
  */
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, entry] of store) {
-    if (now > entry.expiresAt) store.delete(id);
-  }
-}, 15 * 60 * 1000);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [id, entry] of store) {
+      if (now > entry.expiresAt) store.delete(id);
+    }
+  },
+  15 * 60 * 1000,
+);
 
 module.exports = { generate, verify, getLoginRegistroId };

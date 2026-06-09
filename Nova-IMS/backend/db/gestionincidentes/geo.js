@@ -1,7 +1,7 @@
-const { pool } = require("../../config/db");
-const { normalizeAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const { normalizeAgencyCode } = require('./maps');
 
-const { requireAgencyInput } = require("./agencyContext");
+const { requireAgencyInput } = require('./agencyContext');
 
 async function listDepartments(agencyCode) {
   const agency = requireAgencyInput(agencyCode);
@@ -35,21 +35,21 @@ async function listMunicipalities(departmentId, agencyCode) {
 }
 
 async function getDepartmentName(id) {
-  if (!id) return "";
+  if (!id) return '';
   const [rows] = await pool.query(
     `SELECT nombre_departamento AS name FROM departamentos WHERE id_departamento = ? LIMIT 1`,
     [id],
   );
-  return rows[0]?.name || "";
+  return rows[0]?.name || '';
 }
 
 async function getMunicipalityName(id) {
-  if (!id) return "";
+  if (!id) return '';
   const [rows] = await pool.query(
     `SELECT nombre_municipio AS name FROM municipios WHERE id_municipio = ? LIMIT 1`,
     [id],
   );
-  return rows[0]?.name || "";
+  return rows[0]?.name || '';
 }
 
 module.exports = {

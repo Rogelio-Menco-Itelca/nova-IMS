@@ -66,8 +66,11 @@ class LdapAuthError extends Error {
  * @returns {string}
  */
 function escapeFilter(value) {
-  return String(value).replace(/[\\*()\u0000]/g, (c) => // eslint-disable-line no-control-regex
-    '\\' + c.charCodeAt(0).toString(16).padStart(2, '0')
+  return String(value).replace(
+    /[\\*()\u0000]/g,
+    (
+      c, // eslint-disable-line no-control-regex
+    ) => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'),
   );
 }
 
@@ -134,7 +137,7 @@ async function authenticate(username, password) {
     } catch (err) {
       throw new LdapAuthError(
         ErrorCode.CONFIG_ERROR,
-        `No se pudo autenticar el service account "${ldapConfig.bindDn}": ${err.message}`
+        `No se pudo autenticar el service account "${ldapConfig.bindDn}": ${err.message}`,
       );
     }
 
@@ -150,32 +153,23 @@ async function authenticate(username, password) {
       });
 
       if (!searchEntries.length) {
-        throw new LdapAuthError(
-          ErrorCode.USER_NOT_FOUND,
-          `Usuario no encontrado para ${filter}`
-        );
+        throw new LdapAuthError(ErrorCode.USER_NOT_FOUND, `Usuario no encontrado para ${filter}`);
       }
       if (searchEntries.length > 1) {
         throw new LdapAuthError(
           ErrorCode.CONFIG_ERROR,
-          `Filtro ambiguo: ${searchEntries.length} usuarios coinciden con ${filter}`
+          `Filtro ambiguo: ${searchEntries.length} usuarios coinciden con ${filter}`,
         );
       }
       entry = searchEntries[0];
     } catch (err) {
       if (err instanceof LdapAuthError) throw err;
-      throw new LdapAuthError(
-        ErrorCode.SERVER_ERROR,
-        `Error al buscar en LDAP: ${err.message}`
-      );
+      throw new LdapAuthError(ErrorCode.SERVER_ERROR, `Error al buscar en LDAP: ${err.message}`);
     }
 
     const userDn = entryDn(entry);
     if (!userDn) {
-      throw new LdapAuthError(
-        ErrorCode.SERVER_ERROR,
-        'Entrada LDAP sin DN válido',
-      );
+      throw new LdapAuthError(ErrorCode.SERVER_ERROR, 'Entrada LDAP sin DN válido');
     }
 
     // [3] Bind con las credenciales del usuario → ésta es la verificación real
@@ -183,14 +177,11 @@ async function authenticate(username, password) {
       await client.bind(userDn, password);
     } catch (err) {
       if (isInvalidCredentialsError(err)) {
-        throw new LdapAuthError(
-          ErrorCode.INVALID_CREDENTIALS,
-          'Password incorrecta'
-        );
+        throw new LdapAuthError(ErrorCode.INVALID_CREDENTIALS, 'Password incorrecta');
       }
       throw new LdapAuthError(
         ErrorCode.SERVER_ERROR,
-        `Error al hacer bind del usuario: ${err.message}`
+        `Error al hacer bind del usuario: ${err.message}`,
       );
     }
 
@@ -203,7 +194,9 @@ async function authenticate(username, password) {
     };
   } finally {
     // Siempre cerrar la conexión, tanto en éxito como en error
-    await client.unbind().catch(() => { /* silencioso */ });
+    await client.unbind().catch(() => {
+      /* silencioso */
+    });
   }
 }
 
@@ -229,23 +222,19 @@ async function tryAuthenticate(username, password) {
     if (!(err instanceof LdapAuthError)) {
       throw err;
     }
-    if (
-      err.code === ErrorCode.INVALID_CREDENTIALS ||
-      err.code === ErrorCode.USER_NOT_FOUND
-    ) {
+    if (err.code === ErrorCode.INVALID_CREDENTIALS || err.code === ErrorCode.USER_NOT_FOUND) {
       return { ok: false };
     }
     if (err.code === ErrorCode.DISABLED) {
       return {
         ok: false,
-        error:
-          "Autenticación con directorio no disponible. Contacte al administrador.",
+        error: 'Autenticación con directorio no disponible. Contacte al administrador.',
       };
     }
-    console.error("[LDAP]", err.code, err.message);
+    console.error('[LDAP]', err.code, err.message);
     return {
       ok: false,
-      error: "No se pudo validar con el directorio. Intente más tarde.",
+      error: 'No se pudo validar con el directorio. Intente más tarde.',
     };
   }
 }

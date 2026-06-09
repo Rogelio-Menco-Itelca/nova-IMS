@@ -1,8 +1,8 @@
-const { pool } = require("../../config/db");
-const { getInternalId } = require("./incidents");
-const { resolveUserContext } = require("./users");
-const { normalizeAgencyCode } = require("./maps");
-const { requireAgencyInput } = require("./agencyContext");
+const { pool } = require('../../config/db');
+const { getInternalId } = require('./incidents');
+const { resolveUserContext } = require('./users');
+const { normalizeAgencyCode } = require('./maps');
+const { requireAgencyInput } = require('./agencyContext');
 
 async function listNotifications() {
   const [rows] = await pool.query(
@@ -32,15 +32,7 @@ async function createNotification({ id, title, message, triggeredBy, incidentId,
     `INSERT INTO notificaciones_usuarios
       (id_notificaciones, incidente_id, triggered_by, titulo, mensaje, fue_leida, ID_agencia, ID_usuario)
      VALUES (?,?,?,?,?,0,?,?)`,
-    [
-      id,
-      internalIncident,
-      ctx.userId,
-      title,
-      message,
-      ctx.agencyCode,
-      ctx.userId,
-    ],
+    [id, internalIncident, ctx.userId, title, message, ctx.agencyCode, ctx.userId],
   );
 }
 
@@ -68,10 +60,10 @@ async function listNotificationEmails() {
 }
 
 async function addNotificationEmail(email, agencyCode) {
-  await pool.query(
-    `INSERT IGNORE INTO correosincidentes (Correo, ID_Agencia) VALUES (?,?)`,
-    [email.trim().toLowerCase(), normalizeAgencyCode(agencyCode)],
-  );
+  await pool.query(`INSERT IGNORE INTO correosincidentes (Correo, ID_Agencia) VALUES (?,?)`, [
+    email.trim().toLowerCase(),
+    normalizeAgencyCode(agencyCode),
+  ]);
 }
 
 async function deleteNotificationEmail(email) {

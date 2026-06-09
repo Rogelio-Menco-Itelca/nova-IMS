@@ -1,5 +1,5 @@
-const { pool } = require("../../config/db");
-const { normalizeAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const { normalizeAgencyCode } = require('./maps');
 
 async function listRolesSimple(agencyCode) {
   const agency = normalizeAgencyCode(agencyCode);
@@ -50,17 +50,19 @@ async function buildRolePermissions() {
 }
 
 async function createRole(id, name, agencyCode) {
-  if (!agencyCode) throw new Error("Agencia requerida");
+  if (!agencyCode) throw new Error('Agencia requerida');
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(
-      `INSERT INTO roles (ID_Rol, Rol, ID_Agencia, Descripcion) VALUES (?,?,?,?)`,
-      [id, name, normalizeAgencyCode(agencyCode), name],
-    );
+    await conn.query(`INSERT INTO roles (ID_Rol, Rol, ID_Agencia, Descripcion) VALUES (?,?,?,?)`, [
+      id,
+      name,
+      normalizeAgencyCode(agencyCode),
+      name,
+    ]);
     const [modules] = await conn.query(`SELECT id, name FROM modules`);
     for (const m of modules) {
-      const isDashOrInc = m.name === "Dashboard" || m.name === "Incidentes";
+      const isDashOrInc = m.name === 'Dashboard' || m.name === 'Incidentes';
       await conn.query(
         `INSERT INTO permisos_de_rol
           (id_rol, ID_Agencia, module_id, enabled, can_view, can_create, can_edit, can_delete)
@@ -89,12 +91,11 @@ async function createRole(id, name, agencyCode) {
 async function updateRolePermissions(roleId, permissions) {
   const [modules] = await pool.query(`SELECT * FROM modules`);
   const modIdByName = Object.fromEntries(modules.map((m) => [m.name, m.id]));
-  const [roleRow] = await pool.query(
-    `SELECT ID_Agencia FROM roles WHERE ID_Rol = ? LIMIT 1`,
-    [roleId],
-  );
-  const agency = normalizeAgencyCode(roleRow[0]?.ID_Agencia || "");
-  if (!agency) throw new Error("Rol sin agencia");
+  const [roleRow] = await pool.query(`SELECT ID_Agencia FROM roles WHERE ID_Rol = ? LIMIT 1`, [
+    roleId,
+  ]);
+  const agency = normalizeAgencyCode(roleRow[0]?.ID_Agencia || '');
+  if (!agency) throw new Error('Rol sin agencia');
 
   const conn = await pool.getConnection();
   try {

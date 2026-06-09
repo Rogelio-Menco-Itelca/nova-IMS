@@ -84,7 +84,11 @@ exports.update = asyncHandler(async (req, res) => {
     agencyCode: existing.id_agencia || requireSessionAgency(req),
     userId: await resolveDbUserId(req.user),
   });
-  await writeAdminLog(req.user, 'Actualización de Persona', `Se actualizó información de ID: ${id}`);
+  await writeAdminLog(
+    req.user,
+    'Actualización de Persona',
+    `Se actualizó información de ID: ${id}`,
+  );
   res.json(mapPerson(row));
 });
 

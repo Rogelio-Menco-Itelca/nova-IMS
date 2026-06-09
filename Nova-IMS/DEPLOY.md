@@ -4,12 +4,12 @@
 
 Copia `backend/.env.example` → `backend/.env`.
 
-| Variable | Uso |
-|----------|-----|
-| `PUBLIC_URL` | URL pública del **backend**. Enlaces WhatsApp/SMS (`/location/share`). |
-| `APP_URL` | URL del **frontend**. Enlaces en correos de bienvenida. |
-| `CORS_ORIGIN` | Origen permitido del Angular (dev o dominio producción). |
-| `DB_*` | MySQL `gestionincidentes` (sin cambios de esquema). |
+| Variable      | Uso                                                                    |
+| ------------- | ---------------------------------------------------------------------- |
+| `PUBLIC_URL`  | URL pública del **backend**. Enlaces WhatsApp/SMS (`/location/share`). |
+| `APP_URL`     | URL del **frontend**. Enlaces en correos de bienvenida.                |
+| `CORS_ORIGIN` | Origen permitido del Angular (dev o dominio producción).               |
+| `DB_*`        | MySQL `gestionincidentes` (sin cambios de esquema).                    |
 
 ### Desarrollo local + WhatsApp (ngrok)
 
@@ -51,6 +51,7 @@ El frontend estático se sirve desde `/` (carpeta `frontend/dist`).
    - `apiUrl`: déjalo vacío `''` si nginx proxya `/api` en el mismo dominio.
 
 2. Build:
+
    ```bash
    cd frontend
    npm run build

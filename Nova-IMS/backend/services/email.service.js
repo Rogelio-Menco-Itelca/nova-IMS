@@ -1,9 +1,6 @@
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
-const {
-  formatLatestNoteForEmail,
-  formatLatestNoteHtml,
-} = require('../utils/incidentNotes');
+const { formatLatestNoteForEmail, formatLatestNoteHtml } = require('../utils/incidentNotes');
 
 let transporter;
 
@@ -63,9 +60,7 @@ async function sendWelcomeEmail({
 
   const displayName = formatPersonName(name);
   const agencyLabel =
-    agencyName && agencyCode
-      ? `${agencyName} (${agencyCode})`
-      : agencyName || agencyCode || '—';
+    agencyName && agencyCode ? `${agencyName} (${agencyCode})` : agencyName || agencyCode || '—';
   const appUrl = process.env.APP_URL || 'http://localhost:4200';
   const phoneLine = telefono ? `\nTeléfono registrado: ${telefono.trim()}` : '';
 
@@ -151,7 +146,6 @@ Equipo IMS NOVA
     });
 
     logger.info('✅ Correo enviado a', to);
-
   } catch (err) {
     logger.error('❌ Error enviando email:', err.message);
   }
@@ -185,9 +179,7 @@ function formatDocument(person) {
 }
 
 function formatPersonText(p, index) {
-  const lines = [
-    `  ${index}. ${dash(p.name)} (${dash(p.role)})`,
-  ];
+  const lines = [`  ${index}. ${dash(p.name)} (${dash(p.role)})`];
   const doc = formatDocument(p);
   if (doc) lines.push(`     Documento: ${doc}`);
   const gender = String(p.gender || '').trim();
@@ -200,9 +192,7 @@ function formatPersonText(p, index) {
 }
 
 function formatVehicleText(v, index) {
-  const lines = [
-    `  ${index}. Placa: ${dash(v.plate)} | Rol: ${dash(v.role)}`,
-  ];
+  const lines = [`  ${index}. Placa: ${dash(v.plate)} | Rol: ${dash(v.role)}`];
   const specs = [v.make, v.model, v.color].filter((x) => String(x || '').trim());
   if (specs.length) lines.push(`     Marca/Modelo/Color: ${specs.join(' | ')}`);
   if (v.incidentDate) {
@@ -215,9 +205,7 @@ function formatVehicleText(v, index) {
 function formatPersonHtml(p) {
   const doc = formatDocument(p);
   const phone = String(p.phone || p.contact || '').trim();
-  const bits = [
-    `<strong>${escapeHtml(dash(p.name))}</strong> (${escapeHtml(dash(p.role))})`,
-  ];
+  const bits = [`<strong>${escapeHtml(dash(p.name))}</strong> (${escapeHtml(dash(p.role))})`];
   if (doc) bits.push(`Documento: ${escapeHtml(doc)}`);
   const gender = String(p.gender || '').trim();
   if (gender) bits.push(`Género: ${escapeHtml(gender)}`);
@@ -266,9 +254,7 @@ function formatAuditText(logs) {
       if (log.changes) lines.push(`  Resumen: ${log.changes}`);
       const details = parseAuditDetails(log.details);
       for (const d of details) {
-        lines.push(
-          `    • ${d.field}: "${d.old ?? '(vacío)'}" → "${d.new ?? '(vacío)'}"`,
-        );
+        lines.push(`    • ${d.field}: "${d.old ?? '(vacío)'}" → "${d.new ?? '(vacío)'}"`);
       }
       return lines.join('\n');
     })
@@ -345,14 +331,8 @@ function incidentSummaryRows(incident) {
     ['ANI', incident.ani || '—'],
     ['Teléfono ubicación (SMS/WhatsApp)', locationPhone],
     ['Ubicación', incident.location || '—'],
-    [
-      'Departamento (Ubicación del Incidente)',
-      incident.departmentName || '—',
-    ],
-    [
-      'Municipio / ciudad (Ubicación del Incidente)',
-      incident.municipalityName || '—',
-    ],
+    ['Departamento (Ubicación del Incidente)', incident.departmentName || '—'],
+    ['Municipio / ciudad (Ubicación del Incidente)', incident.municipalityName || '—'],
     ['Coordenadas', `${incident.lat ?? '—'}, ${incident.lng ?? '—'}`],
   );
 
@@ -362,12 +342,9 @@ function incidentSummaryRows(incident) {
 function formatIncidentBodyText(incident) {
   const peopleList = incident.involvedPeople || [];
   const vehicleList = incident.involvedVehicles || [];
-  const people =
-    peopleList.map((p, i) => formatPersonText(p, i + 1)).join('\n') ||
-    '  (ninguna)';
+  const people = peopleList.map((p, i) => formatPersonText(p, i + 1)).join('\n') || '  (ninguna)';
   const vehicles =
-    vehicleList.map((v, i) => formatVehicleText(v, i + 1)).join('\n') ||
-    '  (ninguno)';
+    vehicleList.map((v, i) => formatVehicleText(v, i + 1)).join('\n') || '  (ninguno)';
   const audit = formatAuditText(incident.auditLogs || []);
 
   const header = incidentSummaryRows(incident)
@@ -402,11 +379,9 @@ Este correo contiene información confidencial de uso exclusivo para los destina
 function formatIncidentBodyHtml(incident) {
   const ts = formatDateTime(incident.timestamp);
   const people =
-    (incident.involvedPeople || []).map(formatPersonHtml).join('') ||
-    '<li>(ninguna)</li>';
+    (incident.involvedPeople || []).map(formatPersonHtml).join('') || '<li>(ninguna)</li>';
   const vehicles =
-    (incident.involvedVehicles || []).map(formatVehicleHtml).join('') ||
-    '<li>(ninguno)</li>';
+    (incident.involvedVehicles || []).map(formatVehicleHtml).join('') || '<li>(ninguno)</li>';
   const auditHtml = formatAuditHtml(incident.auditLogs || []);
 
   const rows = incidentSummaryRows(incident);
@@ -483,7 +458,6 @@ async function sendIncidentNotification({ to, incident }) {
 
   return { mode: 'smtp', recipients };
 }
-
 
 // ---------- 2FA: correo OTP ----------
 

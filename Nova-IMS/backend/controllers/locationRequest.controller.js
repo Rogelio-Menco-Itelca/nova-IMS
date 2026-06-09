@@ -2,10 +2,7 @@ const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
 const socket = require('../realtime/socket');
 const giLocation = require('../db/gestionincidentes/location');
-const {
-  buildLocationShareUrlAsync,
-  publicUrlSetupHint,
-} = require('../utils/publicUrl');
+const { buildLocationShareUrlAsync, publicUrlSetupHint } = require('../utils/publicUrl');
 
 exports.create = asyncHandler(async (req, res) => {
   const { phone, channel, incident_id } = req.body || {};

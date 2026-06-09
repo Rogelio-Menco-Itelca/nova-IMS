@@ -1,5 +1,5 @@
-const { pool } = require("../../config/db");
-const { mapPriorityFromGi, mapPriorityToGi, normalizeAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const { mapPriorityFromGi, mapPriorityToGi, normalizeAgencyCode } = require('./maps');
 
 async function listIncidentTypes(agencyCode) {
   const [rows] = await pool.query(
@@ -17,13 +17,13 @@ async function listIncidentTypes(agencyCode) {
     id: r.id,
     name: r.name,
     default_priority: mapPriorityFromGi(r.default_priority_raw),
-    description: r.description || "",
+    description: r.description || '',
   }));
 }
 
 async function createIncidentType(id, name, defaultPriority, description, agencyCode) {
   const m = String(id).match(/(\d+)/);
-  const priorityName = mapPriorityToGi(defaultPriority || "Media");
+  const priorityName = mapPriorityToGi(defaultPriority || 'Media');
   const [pri] = await pool.query(
     `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
     [priorityName],
@@ -31,18 +31,16 @@ async function createIncidentType(id, name, defaultPriority, description, agency
   await pool.query(
     `INSERT INTO eventos (ID_Agencia, Descripcion, TipoEvento, prioridad_por_defecto)
      VALUES (?,?,?,?)`,
-    [
-      normalizeAgencyCode(agencyCode),
-      description || name,
-      name,
-      pri[0]?.ID_prioridad || 2,
-    ],
+    [normalizeAgencyCode(agencyCode), description || name, name, pri[0]?.ID_prioridad || 2],
   );
-  const [rows] = await pool.query(
-    `SELECT ID_evento FROM eventos ORDER BY ID_evento DESC LIMIT 1`,
-  );
-  const newId = `IT-${String(rows[0].ID_evento).padStart(2, "0")}`;
-  return { id: newId, name, defaultPriority: defaultPriority || "Media", description: description || "" };
+  const [rows] = await pool.query(`SELECT ID_evento FROM eventos ORDER BY ID_evento DESC LIMIT 1`);
+  const newId = `IT-${String(rows[0].ID_evento).padStart(2, '0')}`;
+  return {
+    id: newId,
+    name,
+    defaultPriority: defaultPriority || 'Media',
+    description: description || '',
+  };
 }
 
 async function updateIncidentType(id, { name, defaultPriority, description }) {
@@ -52,11 +50,11 @@ async function updateIncidentType(id, { name, defaultPriority, description }) {
   const sets = [];
   const params = [];
   if (name != null) {
-    sets.push("TipoEvento = ?");
+    sets.push('TipoEvento = ?');
     params.push(name);
   }
   if (description != null) {
-    sets.push("Descripcion = ?");
+    sets.push('Descripcion = ?');
     params.push(description);
   }
   if (defaultPriority != null) {
@@ -65,12 +63,12 @@ async function updateIncidentType(id, { name, defaultPriority, description }) {
       `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
       [priorityName],
     );
-    sets.push("prioridad_por_defecto = ?");
+    sets.push('prioridad_por_defecto = ?');
     params.push(pri[0]?.ID_prioridad || 2);
   }
   if (sets.length) {
     params.push(eventoId);
-    await pool.query(`UPDATE eventos SET ${sets.join(", ")} WHERE ID_evento = ?`, params);
+    await pool.query(`UPDATE eventos SET ${sets.join(', ')} WHERE ID_evento = ?`, params);
   }
   const [rows] = await pool.query(
     `SELECT CONCAT('IT-', LPAD(ID_evento, 2, '0')) AS id, TipoEvento AS name,
@@ -78,15 +76,14 @@ async function updateIncidentType(id, { name, defaultPriority, description }) {
     [eventoId],
   );
   if (!rows.length) return null;
-  const [priRow] = await pool.query(
-    `SELECT Prioridad FROM prioridades WHERE ID_prioridad = ?`,
-    [rows[0].prioridad_por_defecto],
-  );
+  const [priRow] = await pool.query(`SELECT Prioridad FROM prioridades WHERE ID_prioridad = ?`, [
+    rows[0].prioridad_por_defecto,
+  ]);
   return {
     id: rows[0].id,
     name: rows[0].name,
     defaultPriority: mapPriorityFromGi(priRow[0]?.Prioridad),
-    description: description || "",
+    description: description || '',
   };
 }
 
@@ -115,7 +112,7 @@ async function findIncidentTypeIdByName(name, agencyCode) {
     [name, agencyCode, agencyCode],
   );
   if (!rows.length) return null;
-  return `IT-${String(rows[0].ID_evento).padStart(2, "0")}`;
+  return `IT-${String(rows[0].ID_evento).padStart(2, '0')}`;
 }
 
 module.exports = {

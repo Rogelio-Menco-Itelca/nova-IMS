@@ -10,7 +10,7 @@ function parseJsonEnv(name) {
   if (!raw || !String(raw).trim()) return {};
   try {
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
     console.warn(`[config] ${name} no es JSON válido; se ignora.`);
     return {};
@@ -20,8 +20,12 @@ function parseJsonEnv(name) {
 function normalizeAliases(map) {
   const out = {};
   for (const [key, value] of Object.entries(map)) {
-    const k = String(key || "").trim().toUpperCase();
-    const v = String(value || "").trim().toUpperCase();
+    const k = String(key || '')
+      .trim()
+      .toUpperCase();
+    const v = String(value || '')
+      .trim()
+      .toUpperCase();
     if (k && v) out[k] = v;
   }
   return out;
@@ -35,7 +39,5 @@ module.exports = Object.freeze({
   /** Solo si está definido en .env (opcional, evitar usar en flujos de login) */
   defaultAgencyCode,
   /** Mapa opcional LEGACY→real, p. ej. {"CENTRAL":"CSJ"} en .env */
-  legacyAgencyAliases: normalizeAliases(
-    parseJsonEnv("LEGACY_AGENCY_ALIASES"),
-  ),
+  legacyAgencyAliases: normalizeAliases(parseJsonEnv('LEGACY_AGENCY_ALIASES')),
 });

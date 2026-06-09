@@ -4,26 +4,23 @@
  * @module services/auth.service
  */
 
-const jwt = require("jsonwebtoken");
-const HttpError = require("../utils/HttpError");
-const ldapConfig = require("../config/ldap");
-const ldapService = require("./ldap.service");
-const {
-  isDirectorySessionId,
-  DIRECTORY_USER_PREFIX,
-} = require("../utils/jwtUser");
-const giUsers = require("../db/gestionincidentes/users");
-const giAgencies = require("../db/gestionincidentes/agencies");
-const loginLogs = require("../db/gestionincidentes/loginLogs");
+const jwt = require('jsonwebtoken');
+const HttpError = require('../utils/HttpError');
+const ldapConfig = require('../config/ldap');
+const ldapService = require('./ldap.service');
+const { isDirectorySessionId, DIRECTORY_USER_PREFIX } = require('../utils/jwtUser');
+const giUsers = require('../db/gestionincidentes/users');
+const giAgencies = require('../db/gestionincidentes/agencies');
+const loginLogs = require('../db/gestionincidentes/loginLogs');
 
-const INVALID_MSG = "Credenciales incorrectas. Por favor, intente de nuevo.";
+const INVALID_MSG = 'Credenciales incorrectas. Por favor, intente de nuevo.';
 
 function isDirectoryOnlyId(id) {
   return isDirectorySessionId(id);
 }
 
 function normalizeAuthSource(value) {
-  return String(value || "local").toLowerCase();
+  return String(value || 'local').toLowerCase();
 }
 
 async function findDbUser(username, agencyCode) {
@@ -37,21 +34,20 @@ async function buildDirectorySession(username, agencyCode, ldapProfile) {
   }
 
   const roleId = ldapConfig.defaultRoleId;
-  const { pool } = require("../config/db");
-  const [roleRows] = await pool.query(
-    `SELECT Rol AS name FROM roles WHERE ID_Rol = ? LIMIT 1`,
-    [roleId],
-  );
+  const { pool } = require('../config/db');
+  const [roleRows] = await pool.query(`SELECT Rol AS name FROM roles WHERE ID_Rol = ? LIMIT 1`, [
+    roleId,
+  ]);
 
   return {
     id: `${DIRECTORY_USER_PREFIX}${username}`,
     username,
     name: ldapProfile.displayName || ldapProfile.cn || username,
     email: ldapProfile.mail || `${username}@ims.local`,
-    auth_source: "ldap",
+    auth_source: 'ldap',
     must_change_password: 0,
     role_id: roleId,
-    role_name: roleRows[0]?.name || "Operador / Despachador",
+    role_name: roleRows[0]?.name || 'Operador / Despachador',
     agency_id: agency.id,
     agency_code: agency.code,
     agency_name: agency.name,
@@ -59,9 +55,9 @@ async function buildDirectorySession(username, agencyCode, ldapProfile) {
 }
 
 function assertActive(user) {
-  const status = String(user.status || "Activo");
-  if (status.toLowerCase() !== "activo") {
-    throw new HttpError(403, "Usuario inactivo. Contacte al administrador.");
+  const status = String(user.status || 'Activo');
+  if (status.toLowerCase() !== 'activo') {
+    throw new HttpError(403, 'Usuario inactivo. Contacte al administrador.');
   }
 }
 
@@ -69,13 +65,13 @@ async function recordFailedLogin(user, agencyCode, description, rememberUser = f
   if (!user?.id || !user?.role_id) return;
   await loginLogs.safeLog(() =>
     loginLogs.insertLoginRecord({
-      action: "Inicio de sesión",
+      action: 'Inicio de sesión',
       description,
       userId: user.id,
       agencyCode: user.agency_code || agencyCode,
       roleId: user.role_id,
       rememberUser,
-      status: "Fallido",
+      status: 'Fallido',
     }),
   );
 }
@@ -84,21 +80,20 @@ async function recordSuccessfulLogin(user, meta = {}) {
   if (!user?.id || !user?.role_id || isDirectoryOnlyId(user.id)) return;
   await loginLogs.safeLog(() =>
     loginLogs.insertLoginRecord({
-      action: "Inicio de sesión",
-      description: meta.description || "Inicio de sesión exitoso",
+      action: 'Inicio de sesión',
+      description: meta.description || 'Inicio de sesión exitoso',
       userId: user.id,
       agencyCode: user.agency_code || meta.agencyCode,
       roleId: user.role_id,
       rememberUser: !!meta.rememberUser,
-      status: "Exitoso",
+      status: 'Exitoso',
     }),
   );
 }
 
 function buildTokenResponse(user, loginMeta = {}) {
   const authSource = normalizeAuthSource(user.auth_source);
-  const mustChangePassword =
-    authSource === "ldap" ? false : !!user.must_change_password;
+  const mustChangePassword = authSource === 'ldap' ? false : !!user.must_change_password;
 
   if (!isDirectoryOnlyId(user.id)) {
     giUsers.updateLastLogin().catch(() => {});
@@ -117,7 +112,7 @@ function buildTokenResponse(user, loginMeta = {}) {
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "8h",
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
   });
 
   return {
@@ -138,12 +133,12 @@ function buildTokenResponse(user, loginMeta = {}) {
 
 async function verifyLocalPassword(user, password, agencyCode, rememberUser = false) {
   if (!user.password_hash) {
-    await recordFailedLogin(user, agencyCode, "Usuario sin contraseña local", rememberUser);
+    await recordFailedLogin(user, agencyCode, 'Usuario sin contraseña local', rememberUser);
     throw new HttpError(401, INVALID_MSG);
   }
   const ok = await giUsers.verifyPassword(user.password_hash, password);
   if (!ok) {
-    await recordFailedLogin(user, agencyCode, "Contraseña incorrecta", rememberUser);
+    await recordFailedLogin(user, agencyCode, 'Contraseña incorrecta', rememberUser);
     throw new HttpError(401, INVALID_MSG);
   }
 }
@@ -153,7 +148,7 @@ async function login(credentials, options = {}) {
   const rememberUser = !!rememberMe;
   const logSuccess = options.logSuccess !== false;
   if (!usuario || !password || !agencia) {
-    throw new HttpError(400, "agencia, usuario y password son requeridos");
+    throw new HttpError(400, 'agencia, usuario y password son requeridos');
   }
 
   const dbUser = await findDbUser(usuario, agencia);
@@ -173,16 +168,12 @@ async function login(credentials, options = {}) {
         await recordSuccessfulLogin(dbUser, {
           agencyCode: agencia,
           rememberUser,
-          description: "Inicio de sesión LDAP exitoso",
+          description: 'Inicio de sesión LDAP exitoso',
         });
       }
-      return buildTokenResponse({ ...dbUser, auth_source: "ldap" });
+      return buildTokenResponse({ ...dbUser, auth_source: 'ldap' });
     }
-    const session = await buildDirectorySession(
-      usuario,
-      agencia,
-      directoryResult.profile,
-    );
+    const session = await buildDirectorySession(usuario, agencia, directoryResult.profile);
     return buildTokenResponse(session);
   }
 
@@ -203,11 +194,11 @@ async function login(credentials, options = {}) {
     throw err;
   }
 
-  if (normalizeAuthSource(dbUser.auth_source) === "ldap") {
+  if (normalizeAuthSource(dbUser.auth_source) === 'ldap') {
     await recordFailedLogin(
       dbUser,
       agencia,
-      "Usuario LDAP debe autenticarse por directorio",
+      'Usuario LDAP debe autenticarse por directorio',
       rememberUser,
     );
     throw new HttpError(401, INVALID_MSG);
@@ -218,7 +209,7 @@ async function login(credentials, options = {}) {
     await recordSuccessfulLogin(dbUser, {
       agencyCode: agencia,
       rememberUser,
-      description: "Inicio de sesión exitoso",
+      description: 'Inicio de sesión exitoso',
     });
   }
   return buildTokenResponse(dbUser);
@@ -235,13 +226,13 @@ async function getProfile(jwtUser) {
       role_id: jwtUser.role_id,
       agency: jwtUser.agency_code,
       agencyName: agency?.name || null,
-      authSource: normalizeAuthSource(jwtUser.auth_source || "ldap"),
+      authSource: normalizeAuthSource(jwtUser.auth_source || 'ldap'),
     };
   }
 
   const u = await giUsers.findUserById(jwtUser.sub, jwtUser.agency_code);
   if (!u) {
-    throw new HttpError(404, "Usuario no encontrado");
+    throw new HttpError(404, 'Usuario no encontrado');
   }
   const agency = await giAgencies.resolveAgency(u.agency_code);
   return {
@@ -252,7 +243,7 @@ async function getProfile(jwtUser) {
     role_id: u.role_id,
     agency: u.agency_code,
     agencyName: u.agency_name || agency?.name || null,
-    authSource: normalizeAuthSource(u.auth_source || jwtUser.auth_source || "local"),
+    authSource: normalizeAuthSource(u.auth_source || jwtUser.auth_source || 'local'),
   };
 }
 
@@ -260,40 +251,42 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
   if (isDirectoryOnlyId(jwtUser.sub)) {
     throw new HttpError(
       400,
-      "Los usuarios del directorio corporativo gestionan su contraseña fuera de esta aplicación.",
+      'Los usuarios del directorio corporativo gestionan su contraseña fuera de esta aplicación.',
     );
   }
 
   if (!currentPassword || !newPassword) {
-    throw new HttpError(400, "Contraseña actual y nueva son requeridas");
+    throw new HttpError(400, 'Contraseña actual y nueva son requeridas');
   }
 
   const user = await giUsers.findUserById(jwtUser.sub, jwtUser.agency_code);
   if (!user) {
-    throw new HttpError(404, "Usuario no encontrado");
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
-  if (normalizeAuthSource(user.auth_source) === "ldap") {
+  if (normalizeAuthSource(user.auth_source) === 'ldap') {
     throw new HttpError(
       400,
-      "Los usuarios del directorio corporativo gestionan su contraseña fuera de esta aplicación.",
+      'Los usuarios del directorio corporativo gestionan su contraseña fuera de esta aplicación.',
     );
   }
 
   const ok = await giUsers.verifyPassword(user.password_hash, currentPassword);
   if (!ok) {
-    throw new HttpError(401, "La contraseña actual es incorrecta");
+    throw new HttpError(401, 'La contraseña actual es incorrecta');
   }
 
-  const { validatePassword } = require("../utils/passwordPolicy");
+  const { validatePassword } = require('../utils/passwordPolicy');
   const check = validatePassword(newPassword);
   if (!check.ok) {
-    throw new HttpError(400, check.errors.join(" "));
+    throw new HttpError(400, check.errors.join(' '));
   }
 
   await giUsers.updatePasswordHash(user.id, user.agency_code, newPassword);
 
-  return { message: "Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña." };
+  return {
+    message: 'Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña.',
+  };
 }
 
 module.exports = {

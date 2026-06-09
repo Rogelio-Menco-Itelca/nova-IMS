@@ -21,15 +21,14 @@ const REQUIRED_WHEN_ENABLED = [
   'LDAP_DEFAULT_AGENCY_CODE',
 ];
 
-const enabled =
-  String(process.env.LDAP_ENABLED || 'false').toLowerCase() === 'true';
+const enabled = String(process.env.LDAP_ENABLED || 'false').toLowerCase() === 'true';
 
 if (enabled) {
   const missing = REQUIRED_WHEN_ENABLED.filter((key) => !process.env[key]);
   if (missing.length) {
     throw new Error(
       `[LDAP] LDAP_ENABLED=true pero faltan variables requeridas: ` +
-      `${missing.join(', ')}. Revisa tu archivo .env`
+        `${missing.join(', ')}. Revisa tu archivo .env`,
     );
   }
 }

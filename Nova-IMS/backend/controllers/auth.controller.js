@@ -1,27 +1,27 @@
-const asyncHandler = require("../utils/asyncHandler");
-const logger = require("../utils/logger");
-const authService = require("../services/auth.service");
-const ldapConfig = require("../config/ldap");
-const ldapService = require("../services/ldap.service");
-const otpService = require("../services/otp.service");
-const { sendOtpEmail } = require("../services/email.service");
-const jwt = require("jsonwebtoken");
-const HttpError = require("../utils/HttpError");
-const giUsers = require("../db/gestionincidentes/users");
-const loginLogs = require("../db/gestionincidentes/loginLogs");
+const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger');
+const authService = require('../services/auth.service');
+const ldapConfig = require('../config/ldap');
+const ldapService = require('../services/ldap.service');
+const otpService = require('../services/otp.service');
+const { sendOtpEmail } = require('../services/email.service');
+const jwt = require('jsonwebtoken');
+const HttpError = require('../utils/HttpError');
+const giUsers = require('../db/gestionincidentes/users');
+const loginLogs = require('../db/gestionincidentes/loginLogs');
 
 function maskEmail(email) {
-  if (!email) return "****";
-  const [local, domain] = email.split("@");
+  if (!email) return '****';
+  const [local, domain] = email.split('@');
   const visible = local.slice(0, 2);
-  return `${visible}${"*".repeat(Math.max(1, local.length - 2))}@${domain}`;
+  return `${visible}${'*'.repeat(Math.max(1, local.length - 2))}@${domain}`;
 }
 
 const OTP_FAIL_REASONS = {
-  expired: "Código OTP expirado",
-  too_many_attempts: "Demasiados intentos fallidos de OTP",
-  invalid_code: "Código OTP incorrecto",
-  no_code: "No hay código OTP activo",
+  expired: 'Código OTP expirado',
+  too_many_attempts: 'Demasiados intentos fallidos de OTP',
+  invalid_code: 'Código OTP incorrecto',
+  no_code: 'No hay código OTP activo',
 };
 
 async function startOtpFlow(user, rememberUser, resend = false) {
@@ -33,22 +33,22 @@ async function startOtpFlow(user, rememberUser, resend = false) {
     await loginLogs.safeLog(() =>
       loginLogs.updateLoginStatus(
         registroId,
-        "Pendiente",
+        'Pendiente',
         resend
-          ? "Reenvío de código OTP solicitado"
-          : "Contraseña validada, pendiente verificación 2FA",
+          ? 'Reenvío de código OTP solicitado'
+          : 'Contraseña validada, pendiente verificación 2FA',
       ),
     );
   } else {
     registroId = await loginLogs.safeLog(() =>
       loginLogs.insertLoginRecord({
-        action: "Inicio de sesión",
-        description: "Contraseña validada, pendiente verificación 2FA",
+        action: 'Inicio de sesión',
+        description: 'Contraseña validada, pendiente verificación 2FA',
         userId: user.id,
         agencyCode: user.agency_code,
         roleId: user.role_id,
         rememberUser,
-        status: "Pendiente",
+        status: 'Pendiente',
       }),
     );
   }
@@ -57,14 +57,14 @@ async function startOtpFlow(user, rememberUser, resend = false) {
   try {
     await sendOtpEmail({ to: user.email, name: user.name, code });
   } catch (err) {
-    logger.error("[2FA] Error enviando OTP:", err.message);
+    logger.error('[2FA] Error enviando OTP:', err.message);
   }
 
   await loginLogs.safeLog(() =>
     loginLogs.insert2faRecord({
       action: resend
-        ? "Reenvío de código OTP al correo electrónico"
-        : "Envío código OTP al correo electrónico",
+        ? 'Reenvío de código OTP al correo electrónico'
+        : 'Envío código OTP al correo electrónico',
       userId: user.id,
       agencyCode: user.agency_code,
       email: user.email,
@@ -113,7 +113,7 @@ exports.login = asyncHandler(async (req, res) => {
         `El usuario no pertenece a la agencia ${String(agencia).toUpperCase()}. Seleccione ${elsewhere.agency_code}.`,
       );
     }
-    throw new HttpError(401, "Credenciales incorrectas.");
+    throw new HttpError(401, 'Credenciales incorrectas.');
   }
 
   res.json(await startOtpFlow(user, rememberUser, false));
@@ -122,14 +122,14 @@ exports.login = asyncHandler(async (req, res) => {
 exports.verifyOtp = asyncHandler(async (req, res) => {
   const { userId, code, agencia } = req.body || {};
   if (!userId || !code) {
-    throw new HttpError(400, "userId y code son requeridos");
+    throw new HttpError(400, 'userId y code son requeridos');
   }
 
   const user = await giUsers.findUserById(userId, agencia);
   if (!user) {
     throw new HttpError(
       401,
-      "Usuario no encontrado en la agencia seleccionada. Inicie sesión de nuevo.",
+      'Usuario no encontrado en la agencia seleccionada. Inicie sesión de nuevo.',
     );
   }
 
@@ -141,15 +141,15 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
 
   if (!result.ok) {
     const messages = {
-      expired: "El código ha expirado. Inicie sesión de nuevo.",
-      too_many_attempts: "Demasiados intentos fallidos. Inicie sesión de nuevo.",
-      invalid_code: "Código incorrecto. Verifique el correo e intente de nuevo.",
-      no_code: "No hay código activo. Inicie sesión de nuevo.",
+      expired: 'El código ha expirado. Inicie sesión de nuevo.',
+      too_many_attempts: 'Demasiados intentos fallidos. Inicie sesión de nuevo.',
+      invalid_code: 'Código incorrecto. Verifique el correo e intente de nuevo.',
+      no_code: 'No hay código activo. Inicie sesión de nuevo.',
     };
 
     await loginLogs.safeLog(() =>
       loginLogs.insert2faRecord({
-        action: OTP_FAIL_REASONS[result.reason] || "Verificación OTP fallida",
+        action: OTP_FAIL_REASONS[result.reason] || 'Verificación OTP fallida',
         userId: user.id,
         agencyCode: user.agency_code,
         email: user.email,
@@ -157,31 +157,24 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
       }),
     );
 
-    if (
-      registroId &&
-      (result.reason === "expired" || result.reason === "too_many_attempts")
-    ) {
+    if (registroId && (result.reason === 'expired' || result.reason === 'too_many_attempts')) {
       await loginLogs.safeLog(() =>
-        loginLogs.updateLoginStatus(
-          registroId,
-          "Fallido",
-          OTP_FAIL_REASONS[result.reason],
-        ),
+        loginLogs.updateLoginStatus(registroId, 'Fallido', OTP_FAIL_REASONS[result.reason]),
       );
     }
 
-    throw new HttpError(401, messages[result.reason] || "Código inválido.");
+    throw new HttpError(401, messages[result.reason] || 'Código inválido.');
   }
 
   await loginLogs.safeLog(async () => {
     if (registroId) {
       await loginLogs.updateLoginStatus(
         registroId,
-        "Exitoso",
-        "Autenticación de dos factores completada",
+        'Exitoso',
+        'Autenticación de dos factores completada',
       );
       await loginLogs.insert2faRecord({
-        action: "Verificación OTP exitosa",
+        action: 'Verificación OTP exitosa',
         userId: user.id,
         agencyCode: user.agency_code,
         email: user.email,
@@ -191,12 +184,12 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
     }
 
     await loginLogs.insertLoginRecord({
-      action: "Inicio de sesión",
-      description: "Autenticación 2FA completada",
+      action: 'Inicio de sesión',
+      description: 'Autenticación 2FA completada',
       userId: user.id,
       agencyCode: user.agency_code,
       roleId: user.role_id,
-      status: "Exitoso",
+      status: 'Exitoso',
     });
   });
 
@@ -209,11 +202,11 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
     role_name: user.role_name,
     agency_id: user.agency_id,
     agency_code: user.agency_code,
-    auth_source: "local",
+    auth_source: 'local',
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "8h",
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
   });
 
   res.json({
@@ -227,7 +220,7 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
       role_id: user.role_id,
       agency: user.agency_code,
       agencyName: user.agency_name || null,
-      authSource: "local",
+      authSource: 'local',
     },
   });
 });
@@ -244,7 +237,7 @@ exports.changePassword = asyncHandler(async (req, res) => {
 
 exports.ldapHealth = asyncHandler(async (req, res) => {
   if (!ldapConfig.enabled) {
-    return res.json({ enabled: false, ok: false, error: "LDAP deshabilitado" });
+    return res.json({ enabled: false, ok: false, error: 'LDAP deshabilitado' });
   }
   const result = await ldapService.isAvailable();
   res.json({ enabled: true, ...result });

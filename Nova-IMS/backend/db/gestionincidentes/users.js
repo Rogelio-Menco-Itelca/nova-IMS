@@ -1,18 +1,15 @@
-const bcrypt = require("bcryptjs");
-const { pool } = require("../../config/db");
-const HttpError = require("../../utils/HttpError");
-const {
-  fullUserName,
-  normalizeAgencyCode,
-} = require("./maps");
-const { loadAgencyMap, resolveAgency } = require("./agencies");
+const bcrypt = require('bcryptjs');
+const { pool } = require('../../config/db');
+const HttpError = require('../../utils/HttpError');
+const { fullUserName, normalizeAgencyCode } = require('./maps');
+const { loadAgencyMap, resolveAgency } = require('./agencies');
 
 /** Token_Contraseña: MUST_CHANGE = primer ingreso; cualquier otro valor = ya cambió */
-const MUST_CHANGE_PASSWORD_MARKER = "MUST_CHANGE";
-const PASSWORD_CHANGED_MARKER = "OK";
+const MUST_CHANGE_PASSWORD_MARKER = 'MUST_CHANGE';
+const PASSWORD_CHANGED_MARKER = 'OK';
 
 function resolveLoginUsername(username) {
-  return String(username || "").trim();
+  return String(username || '').trim();
 }
 
 const USER_SELECT = `
@@ -66,10 +63,11 @@ async function findUserByLogin(username, agencyCode) {
   )`;
 
   if (agency) {
-    const [rows] = await pool.query(
-      `${baseSql} AND UPPER(u.ID_Agencia) = ? LIMIT 1`,
-      [login, login, agency.code],
-    );
+    const [rows] = await pool.query(`${baseSql} AND UPPER(u.ID_Agencia) = ? LIMIT 1`, [
+      login,
+      login,
+      agency.code,
+    ]);
     return attachAgencyId(rows[0], agencyMap);
   }
 
@@ -84,9 +82,9 @@ async function findUserByLogin(username, agencyCode) {
 async function findUserById(id, agencyCode = null) {
   const agencyMap = await loadAgencyMap();
   const params = [id];
-  let agencyFilter = "";
+  let agencyFilter = '';
   if (agencyCode) {
-    agencyFilter = " AND UPPER(u.ID_Agencia) = ?";
+    agencyFilter = ' AND UPPER(u.ID_Agencia) = ?';
     params.push(normalizeAgencyCode(agencyCode));
   }
   const [rows] = await pool.query(
@@ -99,19 +97,18 @@ async function findUserById(id, agencyCode = null) {
 }
 
 async function userExists(id) {
-  const [rows] = await pool.query(
-    `SELECT ID_Usuario FROM usuarios WHERE ID_Usuario = ? LIMIT 1`,
-    [id],
-  );
+  const [rows] = await pool.query(`SELECT ID_Usuario FROM usuarios WHERE ID_Usuario = ? LIMIT 1`, [
+    id,
+  ]);
   return rows.length > 0;
 }
 
 async function verifyPassword(stored, plain) {
   if (stored == null || stored === undefined) return false;
   const value = String(stored);
-  if (!value && plain === "") return true;
+  if (!value && plain === '') return true;
   if (!value) return false;
-  if (value.startsWith("$2a$") || value.startsWith("$2b$")) {
+  if (value.startsWith('$2a$') || value.startsWith('$2b$')) {
     return bcrypt.compare(plain, value);
   }
   return value === plain;
@@ -173,18 +170,18 @@ async function usernameExists(username, agencyCode = null) {
 }
 
 function normalizeOptionalName(value) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   return trimmed || null;
 }
 
 function normalizeRequiredName(value, fieldLabel) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   if (!trimmed) throw new HttpError(400, `${fieldLabel} es requerido`);
   return trimmed;
 }
 
 function normalizeOptionalPhone(value) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   return trimmed || null;
 }
 
@@ -208,32 +205,35 @@ async function createOperator({
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
-      normalizeRequiredName(primerNombre, "Primer nombre"),
+      normalizeRequiredName(primerNombre, 'Primer nombre'),
       normalizeOptionalName(segundoNombre),
-      normalizeRequiredName(primerApellido, "Primer apellido"),
+      normalizeRequiredName(primerApellido, 'Primer apellido'),
       normalizeOptionalName(segundoApellido),
       roleId,
       normalizeAgencyCode(agencyCode),
       email.trim().toLowerCase(),
       normalizeOptionalPhone(telefono),
       passwordHash,
-      status || "Activo",
+      status || 'Activo',
       MUST_CHANGE_PASSWORD_MARKER,
     ],
   );
 }
 
-async function updateOperator(id, {
-  primerNombre,
-  segundoNombre,
-  primerApellido,
-  segundoApellido,
-  email,
-  telefono,
-  roleId,
-  status,
-  agencyCode,
-}) {
+async function updateOperator(
+  id,
+  {
+    primerNombre,
+    segundoNombre,
+    primerApellido,
+    segundoApellido,
+    email,
+    telefono,
+    roleId,
+    status,
+    agencyCode,
+  },
+) {
   const sets = [];
   const params = [];
   if (
@@ -243,37 +243,37 @@ async function updateOperator(id, {
     segundoApellido != null
   ) {
     sets.push(
-      "Primer_Nombre = ?",
-      "Segundo_Nombre = ?",
-      "Primer_Apellido = ?",
-      "Segundo_Apellido = ?",
+      'Primer_Nombre = ?',
+      'Segundo_Nombre = ?',
+      'Primer_Apellido = ?',
+      'Segundo_Apellido = ?',
     );
     params.push(
-      normalizeRequiredName(primerNombre, "Primer nombre"),
+      normalizeRequiredName(primerNombre, 'Primer nombre'),
       normalizeOptionalName(segundoNombre),
-      normalizeRequiredName(primerApellido, "Primer apellido"),
+      normalizeRequiredName(primerApellido, 'Primer apellido'),
       normalizeOptionalName(segundoApellido),
     );
   }
   if (email != null) {
-    sets.push("Correo = ?");
+    sets.push('Correo = ?');
     params.push(email.trim().toLowerCase());
   }
   if (telefono !== undefined) {
-    sets.push("Telefono = ?");
+    sets.push('Telefono = ?');
     params.push(normalizeOptionalPhone(telefono));
   }
   if (roleId != null) {
-    sets.push("ID_Rol = ?");
+    sets.push('ID_Rol = ?');
     params.push(roleId);
   }
   if (status != null) {
-    sets.push("estado = ?");
+    sets.push('estado = ?');
     params.push(status);
   }
   if (!sets.length) return;
   params.push(id);
-  let sql = `UPDATE usuarios SET ${sets.join(", ")} WHERE ID_Usuario = ?`;
+  let sql = `UPDATE usuarios SET ${sets.join(', ')} WHERE ID_Usuario = ?`;
   if (agencyCode) {
     sql += ` AND UPPER(ID_Agencia) = ?`;
     params.push(normalizeAgencyCode(agencyCode));
@@ -282,10 +282,7 @@ async function updateOperator(id, {
 }
 
 async function deleteOperator(id) {
-  const [result] = await pool.query(
-    `DELETE FROM usuarios WHERE ID_Usuario = ?`,
-    [id],
-  );
+  const [result] = await pool.query(`DELETE FROM usuarios WHERE ID_Usuario = ?`, [id]);
   return result.affectedRows;
 }
 

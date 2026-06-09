@@ -1,23 +1,23 @@
-const { pool } = require("../../config/db");
-const HttpError = require("../../utils/HttpError");
-const { normalizeAgencyCode } = require("./maps");
-const { resolveDocumentTypeCode } = require("./documentTypes");
+const { pool } = require('../../config/db');
+const HttpError = require('../../utils/HttpError');
+const { normalizeAgencyCode } = require('./maps');
+const { resolveDocumentTypeCode } = require('./documentTypes');
 
-const TABLE = "personas";
+const TABLE = 'personas';
 
 let adminCatalogReady = false;
 
 function formatNamePart(value) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   if (!trimmed) return null;
   return trimmed
     .split(/\s+/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+    .join(' ');
 }
 
 function normalizeGenderId(value) {
-  if (value == null || value === "") return null;
+  if (value == null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
@@ -37,8 +37,8 @@ async function ensureAdminPersonasCatalog() {
   if (adminCatalogReady) return;
   const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'ID_incidente'");
   const col = cols[0];
-  if (col && String(col.Null).toUpperCase() === "NO") {
-    await pool.query("ALTER TABLE personas MODIFY COLUMN ID_incidente int NULL");
+  if (col && String(col.Null).toUpperCase() === 'NO') {
+    await pool.query('ALTER TABLE personas MODIFY COLUMN ID_incidente int NULL');
   }
   await repairLegacyAdminPersonas();
   await pool.query(
@@ -52,7 +52,7 @@ async function ensureAdminPersonasCatalog() {
 }
 
 function parsePersonId(id) {
-  const raw = String(id || "").trim();
+  const raw = String(id || '').trim();
   const m = raw.match(/^PER-(\d+)$/i);
   if (m) return Number(m[1]);
   const n = Number(raw);
@@ -64,15 +64,10 @@ function formatPersonId(internalId) {
 }
 
 function buildDisplayName(row) {
-  return [
-    row.primer_nombre,
-    row.segundo_nombre,
-    row.primer_apellido,
-    row.segundo_apellido,
-  ]
-    .map((v) => String(v || "").trim())
+  return [row.primer_nombre, row.segundo_nombre, row.primer_apellido, row.segundo_apellido]
+    .map((v) => String(v || '').trim())
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 }
 
 const PERSON_SELECT = `
@@ -104,16 +99,16 @@ LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
 LEFT JOIN genero g ON g.ID_genero = p.ID_genero
 LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento`;
 
-function adminCatalogWhere(alias = "p") {
+function adminCatalogWhere(alias = 'p') {
   return `${alias}.ID_incidente IS NULL`;
 }
 
 async function listPeople(agencyCode = null) {
   await ensureAdminPersonasCatalog();
   const params = [];
-  let where = `WHERE ${adminCatalogWhere("p")}`;
+  let where = `WHERE ${adminCatalogWhere('p')}`;
   if (agencyCode) {
-    where += " AND UPPER(p.ID_Agencia) IN (UPPER(?), LOWER(?))";
+    where += ' AND UPPER(p.ID_Agencia) IN (UPPER(?), LOWER(?))';
     params.push(agencyCode, agencyCode);
   }
   const [rows] = await pool.query(
@@ -125,14 +120,11 @@ async function listPeople(agencyCode = null) {
 
 async function getPersonByInternalId(internalId, adminOnly = false) {
   const params = [internalId];
-  let where = "WHERE p.ID_persona = ?";
+  let where = 'WHERE p.ID_persona = ?';
   if (adminOnly) {
-    where += ` AND ${adminCatalogWhere("p")}`;
+    where += ` AND ${adminCatalogWhere('p')}`;
   }
-  const [rows] = await pool.query(
-    `SELECT ${PERSON_SELECT} ${where} LIMIT 1`,
-    params,
-  );
+  const [rows] = await pool.query(`SELECT ${PERSON_SELECT} ${where} LIMIT 1`, params);
   return rows[0] || null;
 }
 
@@ -165,7 +157,7 @@ async function resolvePersonRoleId(roleId, roleName, agencyCode) {
 }
 
 function normalizeOptional(value) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   return trimmed || null;
 }
 
@@ -176,30 +168,23 @@ function normalizeRequired(value, label) {
 }
 
 function normalizeRequiredText(value, label) {
-  const trimmed = String(value ?? "").trim();
+  const trimmed = String(value ?? '').trim();
   if (!trimmed) throw new HttpError(400, `${label} es requerido`);
   return trimmed;
 }
 
 async function insertPersonComment(executor, personId, text, userId, agencyCode) {
-  const commentText = String(text || "").trim();
+  const commentText = String(text || '').trim();
   if (!commentText || !userId) return;
   await executor.query(
     `INSERT INTO comentariospersonas (ID_persona, ID_Usuario, ID_Agencia, Comentarios)
      VALUES (?,?,?,?)`,
-    [
-      personId,
-      userId,
-      normalizeAgencyCode(agencyCode),
-      commentText.substring(0, 200),
-    ],
+    [personId, userId, normalizeAgencyCode(agencyCode), commentText.substring(0, 200)],
   );
 }
 
 async function deletePersonComments(executor, personId) {
-  await executor.query(`DELETE FROM comentariospersonas WHERE ID_persona = ?`, [
-    personId,
-  ]);
+  await executor.query(`DELETE FROM comentariospersonas WHERE ID_persona = ?`, [personId]);
 }
 
 async function createPerson(data) {
@@ -207,15 +192,15 @@ async function createPerson(data) {
   const agencyCode = normalizeAgencyCode(data.agencyCode);
   const roleId = await resolvePersonRoleId(data.roleId, data.roleName, agencyCode);
   if (!roleId) {
-    throw new HttpError(400, "Rol de persona no válido para la agencia");
+    throw new HttpError(400, 'Rol de persona no válido para la agencia');
   }
 
-  const primerNombre = normalizeRequired(data.primerNombre, "Primer nombre");
-  const primerApellido = normalizeRequired(data.primerApellido, "Primer apellido");
+  const primerNombre = normalizeRequired(data.primerNombre, 'Primer nombre');
+  const primerApellido = normalizeRequired(data.primerApellido, 'Primer apellido');
   const tipoDocumento = await resolveDocumentTypeCode(
-    normalizeRequiredText(data.tipoDocumento, "Tipo de documento"),
+    normalizeRequiredText(data.tipoDocumento, 'Tipo de documento'),
   );
-  const numeroDocumento = normalizeRequiredText(data.numeroDocumento, "Número de documento");
+  const numeroDocumento = normalizeRequiredText(data.numeroDocumento, 'Número de documento');
   const contacto = normalizeOptional(data.contacto ?? data.phone);
   const commentText = normalizeOptional(data.comentarios ?? data.notes);
 
@@ -243,13 +228,7 @@ async function createPerson(data) {
   );
 
   if (commentText && data.userId) {
-    await insertPersonComment(
-      pool,
-      result.insertId,
-      commentText,
-      data.userId,
-      agencyCode,
-    );
+    await insertPersonComment(pool, result.insertId, commentText, data.userId, agencyCode);
   }
 
   return getPersonByInternalId(result.insertId);
@@ -262,36 +241,29 @@ async function updatePerson(id, data) {
   const existing = await getPersonByInternalId(internalId, true);
   if (!existing) return null;
 
-  const agencyCode = normalizeAgencyCode(
-    data.agencyCode || existing.id_agencia,
-  );
+  const agencyCode = normalizeAgencyCode(data.agencyCode || existing.id_agencia);
   let roleId = existing.id_rol_p;
   if (data.roleId != null || data.roleName) {
     roleId = await resolvePersonRoleId(data.roleId, data.roleName, agencyCode);
-    if (!roleId) throw new HttpError(400, "Rol de persona no válido para la agencia");
+    if (!roleId) throw new HttpError(400, 'Rol de persona no válido para la agencia');
   }
 
   const primerNombre = normalizeRequired(
     data.primerNombre ?? existing.primer_nombre,
-    "Primer nombre",
+    'Primer nombre',
   );
   const primerApellido = normalizeRequired(
     data.primerApellido ?? existing.primer_apellido,
-    "Primer apellido",
+    'Primer apellido',
   );
   const tipoDocumento = await resolveDocumentTypeCode(
-    normalizeRequiredText(
-      data.tipoDocumento ?? existing.tipo_documento,
-      "Tipo de documento",
-    ),
+    normalizeRequiredText(data.tipoDocumento ?? existing.tipo_documento, 'Tipo de documento'),
   );
   const numeroDocumento = normalizeRequiredText(
     data.numeroDocumento ?? existing.numero_documento,
-    "Número de documento",
+    'Número de documento',
   );
-  const contacto = normalizeOptional(
-    data.contacto ?? data.phone ?? existing.contacto,
-  );
+  const contacto = normalizeOptional(data.contacto ?? data.phone ?? existing.contacto);
   const newComment = normalizeOptional(data.comentarios ?? data.notes);
   const previousComment = normalizeOptional(existing.comentarios);
 
@@ -329,13 +301,7 @@ async function updatePerson(id, data) {
 
   const userId = data.userId ?? existing.id_usuario;
   if (newComment && newComment !== previousComment && userId) {
-    await insertPersonComment(
-      pool,
-      internalId,
-      newComment,
-      userId,
-      agencyCode,
-    );
+    await insertPersonComment(pool, internalId, newComment, userId, agencyCode);
   }
 
   return getPersonByInternalId(internalId);
@@ -355,10 +321,10 @@ async function deletePerson(id) {
 
 async function lookupByPhone(candidates) {
   await ensureAdminPersonasCatalog();
-  const ph = candidates.map(() => "?").join(",");
+  const ph = candidates.map(() => '?').join(',');
   const [rows] = await pool.query(
     `SELECT ${PERSON_SELECT}
-     WHERE ${adminCatalogWhere("p")} AND p.Contacto IN (${ph})
+     WHERE ${adminCatalogWhere('p')} AND p.Contacto IN (${ph})
      ORDER BY p.FechaRegistro DESC
      LIMIT 1`,
     candidates,

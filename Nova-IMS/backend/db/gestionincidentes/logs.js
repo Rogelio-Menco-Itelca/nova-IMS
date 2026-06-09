@@ -1,7 +1,7 @@
-const { pool } = require("../../config/db");
-const { resolveUserContext } = require("./users");
-const { getInternalId } = require("./incidents");
-const { requireAgencyInput } = require("./agencyContext");
+const { pool } = require('../../config/db');
+const { resolveUserContext } = require('./users');
+const { getInternalId } = require('./incidents');
+const { requireAgencyInput } = require('./agencyContext');
 
 async function writeAdminLog(jwtUser, action, details) {
   const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -11,11 +11,11 @@ async function writeAdminLog(jwtUser, action, details) {
     `INSERT INTO auditoria_general
       (ID_Auditoria, Tabla_Afectada, Accion, Detalle, ID_Usuario, ID_Agencia)
      VALUES (?,?,?,?,?,?)`,
-    [id, "admin", action, details, ctx.userId || jwtUser?.sub || "SYSTEM", ctx.agencyCode],
+    [id, 'admin', action, details, ctx.userId || jwtUser?.sub || 'SYSTEM', ctx.agencyCode],
   );
   return {
     id,
-    user: jwtUser?.name || "Sistema",
+    user: jwtUser?.name || 'Sistema',
     action,
     details,
     timestamp: new Date(),
@@ -33,7 +33,7 @@ async function listAdminLogs() {
   );
   return rows.map((r) => ({
     id: r.id,
-    user: r.user_id || "Sistema",
+    user: r.user_id || 'Sistema',
     action: r.action,
     details: r.details,
     timestamp: r.created_at,
@@ -57,7 +57,7 @@ async function listAuditLogs() {
   return rows.map((r) => ({
     id: r.id,
     incidentId: r.incidentId,
-    user: r.user_id || "Sistema",
+    user: r.user_id || 'Sistema',
     action: r.action,
     changes: r.changes,
     details_json: r.details_json,

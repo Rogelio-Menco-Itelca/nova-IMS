@@ -1,17 +1,12 @@
-const { normalizeAgencyCode } = require("./maps");
+const { normalizeAgencyCode } = require('./maps');
 
 async function insertVehicleComment(executor, vehicleId, text, userId, agencyCode) {
-  const commentText = String(text || "").trim();
+  const commentText = String(text || '').trim();
   if (!commentText || !userId || !vehicleId) return;
   await executor.query(
     `INSERT INTO comentariosvehiculos (ID_vehiculo, ID_Usuario, ID_Agencia, Comentarios)
      VALUES (?,?,?,?)`,
-    [
-      vehicleId,
-      userId,
-      normalizeAgencyCode(agencyCode),
-      commentText.substring(0, 200),
-    ],
+    [vehicleId, userId, normalizeAgencyCode(agencyCode), commentText.substring(0, 200)],
   );
 }
 

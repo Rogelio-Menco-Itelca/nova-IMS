@@ -1,6 +1,6 @@
-const { pool } = require("../../config/db");
-const { findIncidentTypeIdByName } = require("./incidentTypes");
-const { normalizeAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const { findIncidentTypeIdByName } = require('./incidentTypes');
+const { normalizeAgencyCode } = require('./maps');
 
 async function listProtocols() {
   const [rows] = await pool.query(
@@ -18,7 +18,7 @@ async function listProtocols() {
 async function hydrateSteps(protocols) {
   if (!protocols.length) return [];
   const ids = protocols.map((p) => p.internal_id);
-  const ph = ids.map(() => "?").join(",");
+  const ph = ids.map(() => '?').join(',');
   const [steps] = await pool.query(
     `SELECT ID_Protocolo AS protocol_id, Descripcion AS description
      FROM pasosprotocolo
@@ -33,7 +33,7 @@ async function hydrateSteps(protocols) {
   return protocols.map((p) => ({
     id: p.id,
     name: p.name,
-    incidentTypeName: p.type_name || "",
+    incidentTypeName: p.type_name || '',
     steps: byP[p.internal_id] || [],
   }));
 }
@@ -59,7 +59,7 @@ async function createProtocol({ name, incidentTypeName, steps, agencyCode }) {
       );
     }
     await conn.commit();
-    return `RPR-${String(protocolId).padStart(2, "0")}`;
+    return `RPR-${String(protocolId).padStart(2, '0')}`;
   } catch (e) {
     await conn.rollback();
     throw e;

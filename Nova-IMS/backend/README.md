@@ -35,11 +35,11 @@ Ver `sql/README.md` para detalle de archivos.
 
 ## 🔧 Scripts npm
 
-| Script                 | Descripción                                         |
-|------------------------|-----------------------------------------------------|
-| `npm run dev`          | Arranca con nodemon (hot reload)                    |
-| `npm start`            | Arranca en modo producción                          |
-| `npm run ldap:test`    | Prueba login contra LDAP                            |
+| Script              | Descripción                      |
+| ------------------- | -------------------------------- |
+| `npm run dev`       | Arranca con nodemon (hot reload) |
+| `npm start`         | Arranca en modo producción       |
+| `npm run ldap:test` | Prueba login contra LDAP         |
 
 ---
 
@@ -70,10 +70,10 @@ LDAP_DEFAULT_AGENCY_CODE=CENTRAL
 
 ### Login híbrido (directorio + MySQL local)
 
-| Usuario | Dónde valida contraseña | ¿Fila en `users`? |
-|---------|-------------------------|-------------------|
-| `uid` del directorio (p. ej. `rmenco`) | OpenLDAP / AD | No obligatoria |
-| Cuenta local (panel Administración) | bcrypt en MySQL | Sí |
+| Usuario                                | Dónde valida contraseña | ¿Fila en `users`? |
+| -------------------------------------- | ----------------------- | ----------------- |
+| `uid` del directorio (p. ej. `rmenco`) | OpenLDAP / AD           | No obligatoria    |
+| Cuenta local (panel Administración)    | bcrypt en MySQL         | Sí                |
 
 Código: `services/auth.service.js` (lógica) · `services/ldap.service.js` (directorio) · `controllers/auth.controller.js` (rutas HTTP).
 
@@ -96,27 +96,28 @@ Ver `sql/README.md` para la política del proyecto respecto a MySQL.
 ## 🔌 API REST
 
 Todas las rutas (excepto las públicas 🔓) requieren:
+
 ```http
 Authorization: Bearer <token>
 ```
 
 ### 🔓 Auth (públicas)
 
-| Método | Ruta                        | Body                              |
-|--------|-----------------------------|-----------------------------------|
-| POST   | `/api/auth/login`           | `{ agencia, usuario, password }`  |
-| GET    | `/api/agencies`             | —                                 |
-| GET    | `/api/roles/list`           | —                                 |
+| Método | Ruta              | Body                             |
+| ------ | ----------------- | -------------------------------- |
+| POST   | `/api/auth/login` | `{ agencia, usuario, password }` |
+| GET    | `/api/agencies`   | —                                |
+| GET    | `/api/roles/list` | —                                |
 
 ### 🔒 Incidentes
 
-| Método | Ruta                 | Descripción                              |
-|--------|----------------------|------------------------------------------|
-| GET    | `/api/incidents`     | Lista todos                              |
-| GET    | `/api/incidents/:id` | Detalle con personas y vehículos         |
-| POST   | `/api/incidents`     | Crea (emite `incident:created`)          |
-| PUT    | `/api/incidents/:id` | Actualiza (auditoría automática)         |
-| DELETE | `/api/incidents/:id` | Elimina                                  |
+| Método | Ruta                 | Descripción                      |
+| ------ | -------------------- | -------------------------------- |
+| GET    | `/api/incidents`     | Lista todos                      |
+| GET    | `/api/incidents/:id` | Detalle con personas y vehículos |
+| POST   | `/api/incidents`     | Crea (emite `incident:created`)  |
+| PUT    | `/api/incidents/:id` | Actualiza (auditoría automática) |
+| DELETE | `/api/incidents/:id` | Elimina                          |
 
 ### 🔒 Resto
 
@@ -135,13 +136,13 @@ Authorization: Bearer <token>
 
 Path `/socket.io`:
 
-| Evento               | Payload                             | Cuándo                       |
-|----------------------|-------------------------------------|------------------------------|
-| `incident:created`   | `Incident`                          | Se crea un incidente         |
-| `incident:updated`   | `Incident`                          | Se actualiza un incidente    |
-| `incident:deleted`   | `{ id }`                            | Se elimina                   |
-| `admin:log`          | `AdminActionLog`                    | Acción administrativa        |
-| `location:received`  | `{ id, lat, lng, phoneNumber }`     | Llega ubicación              |
+| Evento              | Payload                         | Cuándo                    |
+| ------------------- | ------------------------------- | ------------------------- |
+| `incident:created`  | `Incident`                      | Se crea un incidente      |
+| `incident:updated`  | `Incident`                      | Se actualiza un incidente |
+| `incident:deleted`  | `{ id }`                        | Se elimina                |
+| `admin:log`         | `AdminActionLog`                | Acción administrativa     |
+| `location:received` | `{ id, lat, lng, phoneNumber }` | Llega ubicación           |
 
 ---
 
@@ -202,10 +203,13 @@ Para producción asegúrate de:
 **CORS bloqueado** → ajusta `CORS_ORIGIN` en `.env` al origen del frontend.
 
 **Quiero cambiar una contraseña manualmente**:
+
 ```bash
 node -e "console.log(require('bcryptjs').hashSync('nuevaClave', 10))"
 ```
+
 Luego en MySQL:
+
 ```sql
 UPDATE users SET password_hash = '<hash>' WHERE username = 'admin';
 ```

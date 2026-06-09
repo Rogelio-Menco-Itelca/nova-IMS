@@ -1,24 +1,24 @@
-const { pool } = require("../../config/db");
-const HttpError = require("../../utils/HttpError");
+const { pool } = require('../../config/db');
+const HttpError = require('../../utils/HttpError');
 
 const LABEL_TO_CODE = {
-  "cedula de ciudadania": "CC",
-  "cedula de extranjeria": "CE",
-  "tarjeta de identidad": "TI",
-  pasaporte: "PA",
-  nit: "NIT",
+  'cedula de ciudadania': 'CC',
+  'cedula de extranjeria': 'CE',
+  'tarjeta de identidad': 'TI',
+  pasaporte: 'PA',
+  nit: 'NIT',
 };
 
 function normalizeLabel(value) {
-  return String(value || "")
+  return String(value || '')
     .trim()
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "");
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
 }
 
 async function resolveDocumentTypeCode(raw, reader = pool) {
-  const trimmed = String(raw || "").trim();
+  const trimmed = String(raw || '').trim();
   if (!trimmed) return null;
 
   const [byCode] = await reader.query(

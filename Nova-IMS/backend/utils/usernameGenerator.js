@@ -1,12 +1,13 @@
 const { pool } = require('../config/db');
 
 async function generateUniqueUsername(fullName) {
-  const base = String(fullName || 'user')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-    .slice(0, 12) || 'user';
+  const base =
+    String(fullName || 'user')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .slice(0, 12) || 'user';
 
   let candidate = base;
   let n = 1;

@@ -1,5 +1,5 @@
-const { pool } = require("../../config/db");
-const { normalizeAgencyCode, resolveLegacyAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const { normalizeAgencyCode, resolveLegacyAgencyCode } = require('./maps');
 
 let agencyCache = null;
 let agencyCacheAt = 0;

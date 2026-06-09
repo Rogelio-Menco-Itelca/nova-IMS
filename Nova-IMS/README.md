@@ -13,13 +13,13 @@ Incluye panel administrativo, dashboard con mapa, gestión de operadores, person
 
 ## 🧱 Stack tecnológico
 
-| Capa          | Tecnología                                    |
-|---------------|-----------------------------------------------|
-| **Frontend**  | Angular 20, TypeScript, Tailwind CSS, Leaflet |
-| **Backend**   | Node.js, Express 4, Socket.IO 4               |
-| **Base datos**| MySQL 8.x                                      |
-| **Auth**      | JWT + bcryptjs                                 |
-| **Tiempo real**| Socket.IO                                     |
+| Capa            | Tecnología                                    |
+| --------------- | --------------------------------------------- |
+| **Frontend**    | Angular 20, TypeScript, Tailwind CSS, Leaflet |
+| **Backend**     | Node.js, Express 4, Socket.IO 4               |
+| **Base datos**  | MySQL 8.x                                     |
+| **Auth**        | JWT + bcryptjs                                |
+| **Tiempo real** | Socket.IO                                     |
 
 ---
 

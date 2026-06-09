@@ -1,4 +1,4 @@
-const HttpError = require("./HttpError");
+const HttpError = require('./HttpError');
 
 /**
  * Agencia explícita en la petición (JWT, query o body).
@@ -6,11 +6,7 @@ const HttpError = require("./HttpError");
  * @returns {string|null}
  */
 function readAgencyCode(req) {
-  const code =
-    req.user?.agency_code ||
-    req.query?.agency ||
-    req.body?.agencia ||
-    req.body?.agency;
+  const code = req.user?.agency_code || req.query?.agency || req.body?.agencia || req.body?.agency;
   if (!code) return null;
   return String(code).trim().toUpperCase();
 }
@@ -19,7 +15,7 @@ function readAgencyCode(req) {
  * @param {import('express').Request} req
  * @param {string} [message]
  */
-function requireAgencyCode(req, message = "Parámetro agencia es requerido") {
+function requireAgencyCode(req, message = 'Parámetro agencia es requerido') {
   const code = readAgencyCode(req);
   if (!code) throw new HttpError(400, message);
   return code;
@@ -32,7 +28,7 @@ function requireAgencyCode(req, message = "Parámetro agencia es requerido") {
 function requireSessionAgency(req) {
   const code = req.user?.agency_code;
   if (!code) {
-    throw new HttpError(400, "La sesión no incluye agencia. Inicie sesión de nuevo.");
+    throw new HttpError(400, 'La sesión no incluye agencia. Inicie sesión de nuevo.');
   }
   return String(code).trim().toUpperCase();
 }

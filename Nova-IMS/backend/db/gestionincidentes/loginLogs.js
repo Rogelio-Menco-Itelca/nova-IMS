@@ -1,9 +1,9 @@
-const { pool } = require("../../config/db");
-const logger = require("../../utils/logger");
-const { normalizeAgencyCode } = require("./maps");
+const { pool } = require('../../config/db');
+const logger = require('../../utils/logger');
+const { normalizeAgencyCode } = require('./maps');
 
 function truncate(value, max) {
-  const text = String(value ?? "").trim();
+  const text = String(value ?? '').trim();
   if (!text) return null;
   return text.substring(0, max);
 }
@@ -15,7 +15,7 @@ async function insertLoginRecord({
   agencyCode,
   roleId,
   rememberUser = false,
-  status = "Pendiente",
+  status = 'Pendiente',
 }) {
   const agency = normalizeAgencyCode(agencyCode);
   const [result] = await pool.query(
@@ -24,13 +24,13 @@ async function insertLoginRecord({
        Recordar_usuario, Login_exitoso)
      VALUES (?,?,?,?,?,?,?,?)`,
     [
-      truncate(action, 50) || "Inicio de sesión",
+      truncate(action, 50) || 'Inicio de sesión',
       truncate(description, 200),
       userId,
       agency,
       roleId,
       agency,
-      rememberUser ? "Si" : "No",
+      rememberUser ? 'Si' : 'No',
       status,
     ],
   );
@@ -63,13 +63,7 @@ async function findPendingRegistro(userId, agencyCode) {
   return rows[0]?.ID_registro || null;
 }
 
-async function insert2faRecord({
-  action,
-  userId,
-  agencyCode,
-  email,
-  registroId,
-}) {
+async function insert2faRecord({ action, userId, agencyCode, email, registroId }) {
   if (!registroId) return;
   const agency = normalizeAgencyCode(agencyCode);
   await pool.query(
@@ -77,11 +71,11 @@ async function insert2faRecord({
       (accion, ID_Usuario, ID_Agencia, IDAgencias, Correo, ID_Registro)
      VALUES (?,?,?,?,?,?)`,
     [
-      truncate(action, 200) || "Acción 2FA",
+      truncate(action, 200) || 'Acción 2FA',
       userId,
       agency,
       agency,
-      truncate(email, 100) || "sin-correo@local",
+      truncate(email, 100) || 'sin-correo@local',
       registroId,
     ],
   );
@@ -91,7 +85,7 @@ async function safeLog(fn) {
   try {
     return await fn();
   } catch (err) {
-    logger.error("[login-log]", err.message);
+    logger.error('[login-log]', err.message);
     return null;
   }
 }

@@ -1,4 +1,4 @@
-const { pool } = require("../../config/db");
+const { pool } = require('../../config/db');
 const {
   mapStatusToGi,
   mapStatusFromGi,
@@ -8,17 +8,14 @@ const {
   PERSON_ROLE_TO_GI,
   locationChannelToGi,
   locationChannelFromGi,
-} = require("./maps");
-const { resolveUserContext } = require("./users");
-const { requireAgencyInput } = require("./agencyContext");
-const { resolveDocumentTypeCode } = require("./documentTypes");
-const { insertPersonComment } = require("./people");
-const {
-  insertVehicleComment,
-  deleteVehicleCommentsForIncident,
-} = require("./vehicles");
-const { linkLocationToIncident } = require("./location");
-const HttpError = require("../../utils/HttpError");
+} = require('./maps');
+const { resolveUserContext } = require('./users');
+const { requireAgencyInput } = require('./agencyContext');
+const { resolveDocumentTypeCode } = require('./documentTypes');
+const { insertPersonComment } = require('./people');
+const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
+const { linkLocationToIncident } = require('./location');
+const HttpError = require('../../utils/HttpError');
 
 const INCIDENT_BASE_SELECT = `
   i.ID_incidente AS internal_id,
@@ -60,25 +57,25 @@ async function getInternalId(visibleId) {
 }
 
 function formatCommentTimestamp(value) {
-  if (!value) return "";
-  return new Date(value).toLocaleString("es-CO", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+  if (!value) return '';
+  return new Date(value).toLocaleString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
   });
 }
 
 /** Guarda solo el texto; quita encabezados [fecha] heredados del frontend. */
 function plainCommentText(raw) {
-  let text = String(raw ?? "").trim();
+  let text = String(raw ?? '').trim();
   while (/^\[[^\]]+\]\s*(\n|$)/.test(text)) {
-    text = text.replace(/^\[[^\]]+\]\s*\n?/, "").trim();
+    text = text.replace(/^\[[^\]]+\]\s*\n?/, '').trim();
   }
-  text = text.replace(/^---\s*\n?/, "").trim();
+  text = text.replace(/^---\s*\n?/, '').trim();
   return text;
 }
 
@@ -89,16 +86,16 @@ async function loadComments(internalId) {
      ORDER BY FechaHora ASC, ID_Comentario ASC`,
     [internalId],
   );
-  if (!rows.length) return "";
+  if (!rows.length) return '';
   return rows
     .map((r) => {
       const plain = plainCommentText(r.Comentario);
-      if (!plain) return "";
+      if (!plain) return '';
       const ts = formatCommentTimestamp(r.FechaHora);
       return ts ? `[${ts}]\n${plain}` : plain;
     })
     .filter(Boolean)
-    .join("\n---\n");
+    .join('\n---\n');
 }
 
 function mapIncidentRow(r, extras = {}) {
@@ -106,11 +103,11 @@ function mapIncidentRow(r, extras = {}) {
     ...r,
     status: mapStatusFromGi(r.status_raw),
     internal_id: r.internal_id,
-    comments: extras.comments ?? r.comments ?? "",
+    comments: extras.comments ?? r.comments ?? '',
     contact_info: extras.contact_info ?? null,
     location_phone_number: extras.location_phone ?? null,
     operator_id: extras.operator_id ?? null,
-    operator_name: extras.operator_name ?? "",
+    operator_name: extras.operator_name ?? '',
     received_lat: extras.received_lat ?? null,
     received_lng: extras.received_lng ?? null,
     received_at: extras.received_at ?? null,
@@ -118,7 +115,10 @@ function mapIncidentRow(r, extras = {}) {
   };
 }
 
-async function resolveCatalogIds(agencyCode, { status, priority, origin, incidentTypeId, eventId }) {
+async function resolveCatalogIds(
+  agencyCode,
+  { status, priority, origin, incidentTypeId, eventId },
+) {
   const agency = normalizeAgencyCode(agencyCode);
 
   let eventoId = null;
@@ -136,7 +136,7 @@ async function resolveCatalogIds(agencyCode, { status, priority, origin, inciden
     eventoId = ev[0]?.ID_evento;
   }
 
-  const statusName = mapStatusToGi(status || "Abierto");
+  const statusName = mapStatusToGi(status || 'Abierto');
   const [est] = await pool.query(
     `SELECT ID_estado FROM estadosincidentes
      WHERE Nombre_estado = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
@@ -153,14 +153,14 @@ async function resolveCatalogIds(agencyCode, { status, priority, origin, inciden
     estadoId = fb[0]?.ID_estado;
   }
 
-  const priorityName = mapPriorityToGi(priority || "Media");
+  const priorityName = mapPriorityToGi(priority || 'Media');
   const [pri] = await pool.query(
     `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
     [priorityName],
   );
   const prioridadId = pri[0]?.ID_prioridad || 2;
 
-  const originName = String(origin || "").trim();
+  const originName = String(origin || '').trim();
   let origenId = null;
   if (originName) {
     const [or] = await pool.query(
@@ -173,10 +173,7 @@ async function resolveCatalogIds(agencyCode, { status, priority, origin, inciden
   }
 
   if (!eventoId) {
-    throw new HttpError(
-      400,
-      `No hay tipos de evento configurados para la agencia ${agency}.`,
-    );
+    throw new HttpError(400, `No hay tipos de evento configurados para la agencia ${agency}.`);
   }
   if (!estadoId) {
     throw new HttpError(
@@ -198,7 +195,7 @@ async function resolveCatalogIds(agencyCode, { status, priority, origin, inciden
 
 /** ID_visible = INC- + ID_incidente con 7 dígitos (p. ej. INC-0000004). */
 function formatVisibleId(internalId) {
-  return `INC-${String(internalId).padStart(7, "0")}`;
+  return `INC-${String(internalId).padStart(7, '0')}`;
 }
 
 async function fetchIncidentRows(whereSql, params, reader = pool) {
@@ -236,7 +233,7 @@ async function latestLocationForIncident(internalId, visibleId, reader = pool) {
 
 async function loadInvolvedPeople(internalIds, reader = pool) {
   if (!internalIds.length) return {};
-  const ph = internalIds.map(() => "?").join(",");
+  const ph = internalIds.map(() => '?').join(',');
   const [rows] = await reader.query(
     `SELECT p.ID_incidente AS internal_id,
             CONCAT('PER-', p.ID_persona) AS id,
@@ -269,12 +266,12 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
   for (const r of rows) {
     (map[r.internal_id] = map[r.internal_id] || []).push({
       id: r.id,
-      name: r.name?.replace(/\s+/g, " ").trim(),
+      name: r.name?.replace(/\s+/g, ' ').trim(),
       primerNombre: r.primer_nombre,
       segundoNombre: r.segundo_nombre,
       primerApellido: r.primer_apellido,
       segundoApellido: r.segundo_apellido,
-      role: r.role || "Testigo",
+      role: r.role || 'Testigo',
       roleId: r.role_id,
       contact: r.contact,
       phone: r.phone,
@@ -291,7 +288,7 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
 
 async function loadInvolvedVehicles(internalIds, reader = pool) {
   if (!internalIds.length) return {};
-  const ph = internalIds.map(() => "?").join(",");
+  const ph = internalIds.map(() => '?').join(',');
   const [rows] = await reader.query(
     `SELECT v.ID_incidente AS internal_id, v.ID_vehiculo AS vehicle_id,
             v.Placa AS plate, rv.Nombre AS role,
@@ -309,7 +306,7 @@ async function loadInvolvedVehicles(internalIds, reader = pool) {
   for (const r of rows) {
     (map[r.internal_id] = map[r.internal_id] || []).push({
       plate: r.plate,
-      role: r.role || "Vehículo Involucrado",
+      role: r.role || 'Vehículo Involucrado',
       make: r.make,
       model: r.model,
       color: r.color,
@@ -322,7 +319,7 @@ async function loadInvolvedVehicles(internalIds, reader = pool) {
 
 async function loadPlaceComments(lugarIds, reader = pool) {
   if (!lugarIds.length) return {};
-  const ph = lugarIds.map(() => "?").join(",");
+  const ph = lugarIds.map(() => '?').join(',');
   const [rows] = await reader.query(
     `SELECT ID_lugar, Comentario_lugar, FechaHora, ID_Usuario
      FROM comentarios_lugar
@@ -333,9 +330,9 @@ async function loadPlaceComments(lugarIds, reader = pool) {
   const map = {};
   for (const r of rows) {
     (map[r.ID_lugar] = map[r.ID_lugar] || []).push({
-      text: r.Comentario_lugar || "",
+      text: r.Comentario_lugar || '',
       at: r.FechaHora,
-      user: r.ID_Usuario || "",
+      user: r.ID_Usuario || '',
     });
   }
   return map;
@@ -343,7 +340,7 @@ async function loadPlaceComments(lugarIds, reader = pool) {
 
 async function loadInvolvedPlaces(internalIds, reader = pool) {
   if (!internalIds.length) return {};
-  const ph = internalIds.map(() => "?").join(",");
+  const ph = internalIds.map(() => '?').join(',');
   const [rows] = await reader.query(
     `SELECT l.ID_incidente AS internal_id,
             l.ID_lugar AS lugar_id,
@@ -370,18 +367,21 @@ async function loadInvolvedPlaces(internalIds, reader = pool) {
   const map = {};
   for (const r of rows) {
     const history = commentsMap[r.lugar_id] || [];
-    const comments = history.map((c) => c.text).filter(Boolean).join("\n");
+    const comments = history
+      .map((c) => c.text)
+      .filter(Boolean)
+      .join('\n');
     (map[r.internal_id] = map[r.internal_id] || []).push({
       id: r.id,
       name: r.name,
       address: r.address,
       departmentId: r.department_id,
       municipalityId: r.municipality_id,
-      departmentName: r.department_name || "",
-      municipalityName: r.municipality_name || "",
-      contact: r.contact || "",
+      departmentName: r.department_name || '',
+      municipalityName: r.municipality_name || '',
+      contact: r.contact || '',
       roleId: r.role_id,
-      roleName: r.role_name || "",
+      roleName: r.role_name || '',
       comments,
       commentsHistory: history,
     });
@@ -406,7 +406,7 @@ async function hydrateIncidents(rows, reader = pool) {
       mapIncidentRow(r, {
         comments,
         ...loc,
-        operator_name: r.operator_name || "",
+        operator_name: r.operator_name || '',
       }),
     );
     const last = out[out.length - 1];
@@ -434,7 +434,7 @@ async function getIncident(visibleId) {
 }
 
 async function insertComment(conn, internalId, text, userCtx) {
-  if (!String(text || "").trim()) return;
+  if (!String(text || '').trim()) return;
   await conn.query(
     `INSERT INTO comentarios_incidentes (ID_Incidente, Comentario, ID_Usuario, ID_Agencia)
      VALUES (?,?,?,?)`,
@@ -452,10 +452,8 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
   await conn.query(`DELETE FROM lugares WHERE ID_incidente = ?`, [internalId]);
 
   for (const place of places || []) {
-    const name = String(place.name || place.nombre || "").trim();
-    const address = String(
-      place.address || place.direccion || place.direccion_lugar || "",
-    ).trim();
+    const name = String(place.name || place.nombre || '').trim();
+    const address = String(place.address || place.direccion || place.direccion_lugar || '').trim();
     if (!name || !address) continue;
 
     let roleId = place.roleId ?? place.role_id ?? null;
@@ -493,17 +491,12 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
       ],
     );
 
-    const commentText = String(place.comments || place.comentario || "").trim();
+    const commentText = String(place.comments || place.comentario || '').trim();
     if (commentText && userCtx.userId) {
       await conn.query(
         `INSERT INTO comentarios_lugar (ID_lugar, ID_Usuario, ID_Agencia, Comentario_lugar)
          VALUES (?,?,?,?)`,
-        [
-          result.insertId,
-          userCtx.userId,
-          agencyCode,
-          commentText.substring(0, 200),
-        ],
+        [result.insertId, userCtx.userId, agencyCode, commentText.substring(0, 200)],
       );
     }
   }
@@ -516,29 +509,24 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
      WHERE p.ID_incidente = ?`,
     [internalId],
   );
-  await conn.query(`DELETE FROM personas WHERE ID_incidente = ? AND ID_incidente IS NOT NULL`, [internalId]);
+  await conn.query(`DELETE FROM personas WHERE ID_incidente = ? AND ID_incidente IS NOT NULL`, [
+    internalId,
+  ]);
   await deleteVehicleCommentsForIncident(conn, internalId);
   await conn.query(`DELETE FROM vehiculos WHERE ID_incidente = ?`, [internalId]);
   await replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCode);
 
   for (const p of people || []) {
-    let primerNombre = String(
-      p.primerNombre || p.primer_nombre || "",
-    ).trim();
-    let segundoNombre =
-      String(p.segundoNombre || p.segundo_nombre || "").trim() || null;
-    let primerApellido = String(
-      p.primerApellido || p.primer_apellido || "",
-    ).trim();
-    let segundoApellido =
-      String(p.segundoApellido || p.segundo_apellido || "").trim() || null;
+    let primerNombre = String(p.primerNombre || p.primer_nombre || '').trim();
+    let segundoNombre = String(p.segundoNombre || p.segundo_nombre || '').trim() || null;
+    let primerApellido = String(p.primerApellido || p.primer_apellido || '').trim();
+    let segundoApellido = String(p.segundoApellido || p.segundo_apellido || '').trim() || null;
 
-    if (!primerNombre && String(p.name || "").trim()) {
+    if (!primerNombre && String(p.name || '').trim()) {
       const names = String(p.name).trim().split(/\s+/);
-      primerNombre = names[0] || "";
+      primerNombre = names[0] || '';
       segundoNombre = names.length > 3 ? names[1] : null;
-      primerApellido =
-        names.length > 2 ? names[names.length - 2] : names[1] || "";
+      primerApellido = names.length > 2 ? names[names.length - 2] : names[1] || '';
       segundoApellido = names.length > 2 ? names[names.length - 1] : null;
     }
 
@@ -550,28 +538,18 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
         `SELECT ID_RolP FROM rolpersonas
          WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
          LIMIT 1`,
-        [
-          PERSON_ROLE_TO_GI[p.role] || p.role || "Testigo",
-          agencyCode,
-          agencyCode,
-        ],
+        [PERSON_ROLE_TO_GI[p.role] || p.role || 'Testigo', agencyCode, agencyCode],
       );
       rolP = roles[0]?.ID_RolP;
     }
     if (!rolP) {
-      const [fb] = await conn.query(
-        `SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`,
-      );
+      const [fb] = await conn.query(`SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`);
       rolP = fb[0]?.ID_RolP || 1;
     }
 
-    const comentarios =
-      p.comentarios ?? p.details ?? null;
+    const comentarios = p.comentarios ?? p.details ?? null;
     const genderId = p.genderId ?? p.gender_id ?? null;
-    const tipoDocumento = await resolveDocumentTypeCode(
-      p.documentType || p.tipo_documento,
-      conn,
-    );
+    const tipoDocumento = await resolveDocumentTypeCode(p.documentType || p.tipo_documento, conn);
 
     const [personResult] = await conn.query(
       `INSERT INTO personas
@@ -596,7 +574,7 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
       ],
     );
 
-    const commentText = String(comentarios || "").trim();
+    const commentText = String(comentarios || '').trim();
     if (commentText && userCtx.userId && personResult.insertId) {
       await insertPersonComment(
         conn,
@@ -609,13 +587,13 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
   }
 
   for (const v of vehicles || []) {
-    const plate = String(v.plate || "").trim();
-    const roleName = String(v.role || "").trim();
+    const plate = String(v.plate || '').trim();
+    const roleName = String(v.role || '').trim();
     const hasCatalog =
-      !!String(v.color || "").trim() ||
-      !!String(v.make || "").trim() ||
-      !!String(v.model || "").trim() ||
-      !!String(v.details || "").trim();
+      !!String(v.color || '').trim() ||
+      !!String(v.make || '').trim() ||
+      !!String(v.model || '').trim() ||
+      !!String(v.details || '').trim();
     if (!roleName && !plate && !hasCatalog) continue;
 
     let rolV = null;
@@ -658,15 +636,9 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
       ],
     );
 
-    const commentText = String(v.details || "").trim();
+    const commentText = String(v.details || '').trim();
     if (commentText && vehResult.insertId && userCtx.userId) {
-      await insertVehicleComment(
-        conn,
-        vehResult.insertId,
-        commentText,
-        userCtx.userId,
-        agencyCode,
-      );
+      await insertVehicleComment(conn, vehResult.insertId, commentText, userCtx.userId, agencyCode);
     }
   }
 }
@@ -688,7 +660,7 @@ async function createIncident(body, user) {
         cats.eventoId,
         cats.origenId,
         body.phone || body.ani || null,
-        body.location || "Sin dirección",
+        body.location || 'Sin dirección',
         body.lat ?? 0,
         body.lng ?? 0,
         cats.agency,
@@ -701,10 +673,10 @@ async function createIncident(body, user) {
     );
     const internalId = result.insertId;
     const visibleId = formatVisibleId(internalId);
-    await conn.query(
-      `UPDATE incidentes SET ID_visible = ? WHERE ID_incidente = ?`,
-      [visibleId, internalId],
-    );
+    await conn.query(`UPDATE incidentes SET ID_visible = ? WHERE ID_incidente = ?`, [
+      visibleId,
+      internalId,
+    ]);
     if (body.comments) {
       const plain = plainCommentText(body.comments);
       if (plain) await insertComment(conn, internalId, plain, userCtx);
@@ -757,7 +729,7 @@ async function updateIncident(visibleId, body, user) {
         cats.eventoId,
         cats.origenId,
         body.phone ?? body.ani ?? null,
-        body.location ?? "Sin dirección",
+        body.location ?? 'Sin dirección',
         body.lat ?? 0,
         body.lng ?? 0,
         body.departmentId ?? body.department_id ?? null,
@@ -770,7 +742,7 @@ async function updateIncident(visibleId, body, user) {
     if (body.comments) {
       const prev = await loadComments(internalId);
       if (body.comments !== prev) {
-        const added = body.comments.replace(prev, "").trim();
+        const added = body.comments.replace(prev, '').trim();
         const plain = plainCommentText(added);
         if (plain) await insertComment(conn, internalId, plain, userCtx);
       }
@@ -813,20 +785,16 @@ async function deleteIncident(visibleId) {
   await pool.query(`DELETE FROM personas WHERE ID_incidente = ?`, [internalId]);
   await deleteVehicleCommentsForIncident(pool, internalId);
   await pool.query(`DELETE FROM vehiculos WHERE ID_incidente = ?`, [internalId]);
-  await pool.query(`DELETE FROM comentarios_incidentes WHERE ID_Incidente = ?`, [
-    internalId,
-  ]);
-  await pool.query(`DELETE FROM auditoria_incidente WHERE incidentes_id = ?`, [
-    internalId,
-  ]);
-  const [r] = await pool.query(`DELETE FROM incidentes WHERE ID_incidente = ?`, [
-    internalId,
-  ]);
+  await pool.query(`DELETE FROM comentarios_incidentes WHERE ID_Incidente = ?`, [internalId]);
+  await pool.query(`DELETE FROM auditoria_incidente WHERE incidentes_id = ?`, [internalId]);
+  const [r] = await pool.query(`DELETE FROM incidentes WHERE ID_incidente = ?`, [internalId]);
   return r.affectedRows;
 }
 
 async function lookupVehicleByPlate(plate) {
-  const normalized = String(plate).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const normalized = String(plate)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
   const [rows] = await pool.query(
     `SELECT v.Placa AS plate, v.Marca AS make, v.Modelo_linea AS model, v.Color AS color,
             i.ID_visible AS incidentId
@@ -884,7 +852,7 @@ async function listNotificationEmails() {
 }
 
 async function emailAllowed(recipients) {
-  const ph = recipients.map(() => "?").join(",");
+  const ph = recipients.map(() => '?').join(',');
   const [rows] = await pool.query(
     `SELECT DISTINCT LOWER(Correo) AS email FROM correosincidentes WHERE LOWER(Correo) IN (${ph})`,
     recipients.map((e) => e.toLowerCase()),

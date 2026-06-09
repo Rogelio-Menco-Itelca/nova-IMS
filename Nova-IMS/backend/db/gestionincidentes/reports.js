@@ -1,5 +1,5 @@
-const { pool } = require("../../config/db");
-const { mapStatusFromGi, mapPriorityFromGi } = require("./maps");
+const { pool } = require('../../config/db');
+const { mapStatusFromGi, mapPriorityFromGi } = require('./maps');
 
 const INCIDENT_REPORT_FROM = `
   FROM incidentes i
@@ -68,30 +68,30 @@ async function summary(filters = {}) {
   const conditions = [];
   const params = [];
   if (from) {
-    conditions.push("DATE(i.FechaHora) >= ?");
+    conditions.push('DATE(i.FechaHora) >= ?');
     params.push(from);
   }
   if (to) {
-    conditions.push("DATE(i.FechaHora) <= ?");
+    conditions.push('DATE(i.FechaHora) <= ?');
     params.push(to);
   }
   if (status) {
-    conditions.push("es.Nombre_estado = ?");
+    conditions.push('es.Nombre_estado = ?');
     params.push(status);
   }
   if (type) {
-    conditions.push("e.TipoEvento = ?");
+    conditions.push('e.TipoEvento = ?');
     params.push(type);
   }
   if (priority) {
-    conditions.push("pr.Prioridad = ?");
+    conditions.push('pr.Prioridad = ?');
     params.push(priority);
   }
   if (operator) {
-    conditions.push("u.ID_Usuario LIKE ?");
+    conditions.push('u.ID_Usuario LIKE ?');
     params.push(`%${operator}%`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const [historyRaw] = await pool.query(
     `
@@ -116,7 +116,7 @@ async function summary(filters = {}) {
     origin: r.origin,
     phone: r.phone,
     location: r.location,
-    operator: r.operator || "Sin asignar",
+    operator: r.operator || 'Sin asignar',
     timestamp: r.timestamp,
     updatedAt: r.updatedAt,
   }));

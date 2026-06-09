@@ -1,8 +1,8 @@
-const { pool } = require("../../config/db");
-const { locationChannelToGi, locationChannelFromGi, normalizeAgencyCode } = require("./maps");
-const { resolveUserContext } = require("./users");
-const { getInternalId } = require("./incidents");
-const { requireAgencyInput } = require("./agencyContext");
+const { pool } = require('../../config/db');
+const { locationChannelToGi, locationChannelFromGi, normalizeAgencyCode } = require('./maps');
+const { resolveUserContext } = require('./users');
+const { getInternalId } = require('./incidents');
+const { requireAgencyInput } = require('./agencyContext');
 
 async function createLocationRequest({ phone, channel, incidentId, user, requestUrl }) {
   const agencyCode = requireAgencyInput(null, user);
@@ -14,11 +14,11 @@ async function createLocationRequest({ phone, channel, incidentId, user, request
       (Numero_ubicacion, Canal, ID_incidente, url_peticion, ID_usuario, ID_Agencia)
      VALUES (?,?,?,?,?,?)`,
     [
-      String(phone).replace(/\D/g, ""),
+      String(phone).replace(/\D/g, ''),
       locationChannelToGi(channel),
       internalIncident,
       requestUrl,
-      ctx.userId || user?.sub || "SYSTEM",
+      ctx.userId || user?.sub || 'SYSTEM',
       ctx.agencyCode,
     ],
   );
@@ -98,7 +98,7 @@ async function linkLocationToIncident(
     if (r.affectedRows > 0) return r.affectedRows;
   }
 
-  const cleanPhone = String(phone || "").replace(/\D/g, "");
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
   if (!cleanPhone) return 0;
 
   const [r] = await executor.query(

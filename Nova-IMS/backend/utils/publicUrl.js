@@ -9,12 +9,12 @@
  * 5. http://localhost:PORT
  */
 
-const http = require("http");
-const logger = require("./logger");
+const http = require('http');
+const logger = require('./logger');
 
 function isLoopbackHost(hostname) {
-  const h = String(hostname || "").toLowerCase();
-  return h === "localhost" || h === "127.0.0.1" || h === "0.0.0.0" || h === "::1";
+  const h = String(hostname || '').toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1';
 }
 
 function isLoopbackUrl(url) {
@@ -26,7 +26,9 @@ function isLoopbackUrl(url) {
 }
 
 function normalizeBaseUrl(raw) {
-  return String(raw || "").trim().replace(/\/+$/, "");
+  return String(raw || '')
+    .trim()
+    .replace(/\/+$/, '');
 }
 
 let cachedResolvedPublicUrl = null;
@@ -35,27 +37,24 @@ const DISCOVERY_TTL_MS = 15_000;
 
 function discoverNgrokPublicUrl() {
   const now = Date.now();
-  if (
-    cachedNgrokDiscovery.url &&
-    now - cachedNgrokDiscovery.at < DISCOVERY_TTL_MS
-  ) {
+  if (cachedNgrokDiscovery.url && now - cachedNgrokDiscovery.at < DISCOVERY_TTL_MS) {
     return Promise.resolve(cachedNgrokDiscovery.url);
   }
 
   return new Promise((resolve) => {
-    const req = http.get("http://127.0.0.1:4040/api/tunnels", (res) => {
-      let body = "";
-      res.on("data", (chunk) => {
+    const req = http.get('http://127.0.0.1:4040/api/tunnels', (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
         body += chunk;
       });
-      res.on("end", () => {
+      res.on('end', () => {
         try {
           const data = JSON.parse(body);
           const tunnels = Array.isArray(data.tunnels) ? data.tunnels : [];
           const httpsTunnel = tunnels.find((t) =>
-            String(t.public_url || "").startsWith("https://"),
+            String(t.public_url || '').startsWith('https://'),
           );
-          const url = normalizeBaseUrl(httpsTunnel?.public_url || "");
+          const url = normalizeBaseUrl(httpsTunnel?.public_url || '');
           cachedNgrokDiscovery = { url: url || null, at: Date.now() };
           resolve(url || null);
         } catch {
@@ -64,7 +63,7 @@ function discoverNgrokPublicUrl() {
         }
       });
     });
-    req.on("error", () => {
+    req.on('error', () => {
       cachedNgrokDiscovery = { url: null, at: Date.now() };
       resolve(null);
     });
@@ -124,15 +123,15 @@ async function getPublicUrlAsync() {
 
 function isPublicUrlReachableFromMobile(url) {
   const value = url || getPublicUrl();
-  return value.startsWith("https://") && !isLoopbackUrl(value);
+  return value.startsWith('https://') && !isLoopbackUrl(value);
 }
 
 function publicUrlSetupHint(url) {
   const value = url || getPublicUrl();
   if (isPublicUrlReachableFromMobile(value)) return null;
   return (
-    "El enlace salió como localhost. Inicie ngrok (ngrok http 3000) o configure " +
-    "NGROK_URL=https://su-tunel.ngrok-free.dev en backend/.env y reinicie el backend."
+    'El enlace salió como localhost. Inicie ngrok (ngrok http 3000) o configure ' +
+    'NGROK_URL=https://su-tunel.ngrok-free.dev en backend/.env y reinicie el backend.'
   );
 }
 
