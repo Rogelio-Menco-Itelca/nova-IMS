@@ -1243,7 +1243,7 @@
         <button type="button" (click)="showPersonForm.set(false)"
           class="bg-gray-600 text-white px-4 py-2 rounded">Cancelar</button>
         <button type="submit"
-          [disabled]="personForm.invalid || personForm.controls.roleId.value == null"
+          [disabled]="personForm.invalid || personForm.controls.roleId.value === null"
           class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded disabled:opacity-50">
           {{ isEditModePerson() ? 'Guardar Cambios' : 'Registrar Persona' }}
         </button>

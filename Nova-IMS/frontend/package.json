@@ -6,7 +6,8 @@
     "dev": "ng serve",
     "start": "ng serve",
     "build": "ng build",
-    "preview": "ng serve --configuration=production"
+    "preview": "ng serve --configuration=production",
+    "lint": "ng lint"
   },
   "dependencies": {
     "@angular/build": "^20.3.0",
@@ -24,6 +25,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "typescript": "~5.8.2"
+    "angular-eslint": "21.0.1",
+    "eslint": "^9.39.1",
+    "typescript": "~5.8.2",
+    "typescript-eslint": "8.46.4"
   }
 }
