@@ -35,8 +35,8 @@ import { InactivityService } from '../../services/inactivity.service';
             <p class="session-warning-text">
               Cerrando en
               <strong class="session-warning-countdown">{{ inactivity.warningSeconds() }}</strong>
-              {{ inactivity.warningSeconds() === 1 ? 'segundo' : 'segundos' }}. Mueve el mouse o presiona cualquier
-              tecla para continuar.
+              {{ inactivity.warningSeconds() === 1 ? 'segundo' : 'segundos' }}. Mueve el mouse o
+              presiona cualquier tecla para continuar.
             </p>
           </div>
         </div>

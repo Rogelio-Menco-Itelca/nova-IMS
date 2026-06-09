@@ -1,15 +1,29 @@
 <div class="space-y-0">
-
   <!-- ===== SELECTOR DE PESTAÑA ===== -->
   <div class="flex gap-0 mb-6">
     <!-- Botón Analytics -->
-    <button (click)="setTab('analytics')"
-      [class]="'flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-tl-xl rounded-bl-xl border transition-all duration-200 ' +
+    <button
+      (click)="setTab('analytics')"
+      [class]="
+        'flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-tl-xl rounded-bl-xl border transition-all duration-200 ' +
         (activeTab() === 'analytics'
           ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-          : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700')">
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700')
+      "
+    >
+      <svg
+        class="w-4 h-4"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        />
       </svg>
       Reportes y Análisis
     </button>
@@ -18,14 +32,24 @@
     <div class="w-px bg-gray-700"></div>
 
     <!-- Botón PBI -->
-    <button (click)="setTab('pbi')"
-      [class]="'flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-tr-xl rounded-br-xl border transition-all duration-200 ' +
+    <button
+      (click)="setTab('pbi')"
+      [class]="
+        'flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-tr-xl rounded-br-xl border transition-all duration-200 ' +
         (activeTab() === 'pbi'
           ? 'bg-yellow-500 border-yellow-400 text-gray-900 shadow-lg shadow-yellow-500/20'
-          : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700')">
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-        [attr.fill]="activeTab() === 'pbi' ? '#1a1a1a' : '#facc15'">
-        <path d="M21 3H3C1.9 3 1 3.9 1 5v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H5v-2h7v2zm5-4H5v-2h12v2zm0-4H5V7h12v2z"/>
+          : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700')
+      "
+    >
+      <svg
+        class="w-4 h-4"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        [attr.fill]="activeTab() === 'pbi' ? '#1a1a1a' : '#facc15'"
+      >
+        <path
+          d="M21 3H3C1.9 3 1 3.9 1 5v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H5v-2h7v2zm5-4H5v-2h12v2zm0-4H5V7h12v2z"
+        />
       </svg>
       Tablero Power BI
     </button>
@@ -36,17 +60,31 @@
   <!-- ================================================================ -->
   @if (activeTab() === 'analytics') {
     <div class="space-y-6">
-
       <!-- Header -->
       <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <h2 class="text-2xl font-bold text-white">Reportes y Análisis</h2>
-          <p class="text-gray-400 text-sm mt-1">Estadísticas en tiempo real desde la base de datos</p>
+          <p class="text-gray-400 text-sm mt-1">
+            Estadísticas en tiempo real desde la base de datos
+          </p>
         </div>
-        <button (click)="exportCSV()"
-          class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
-          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        <button
+          (click)="exportCSV()"
+          class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+        >
+          <svg
+            class="w-4 h-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+            />
           </svg>
           Exportar CSV
         </button>
@@ -57,45 +95,79 @@
         <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Filtros</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" [formGroup]="filters">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Desde</label>
-            <input type="date" formControlName="from"
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <label for="report-filter-from" class="text-xs text-gray-400">Desde</label>
+            <input
+              id="report-filter-from"
+              type="date"
+              formControlName="from"
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Hasta</label>
-            <input type="date" formControlName="to"
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <label for="report-filter-to" class="text-xs text-gray-400">Hasta</label>
+            <input
+              id="report-filter-to"
+              type="date"
+              formControlName="to"
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Estado</label>
-            <select formControlName="status"
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <label for="report-filter-status" class="text-xs text-gray-400">Estado</label>
+            <select
+              id="report-filter-status"
+              formControlName="status"
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
               <option value="">Todos</option>
-              <option>Nuevo</option><option>Asignado</option><option>En camino</option>
-              <option>En situación</option><option>Resuelto</option><option>Cerrado</option><option>Cancelado</option>
+              <option>Nuevo</option>
+              <option>Asignado</option>
+              <option>En camino</option>
+              <option>En situación</option>
+              <option>Resuelto</option>
+              <option>Cerrado</option>
+              <option>Cerrado con solución</option>
+              <option>Cancelado</option>
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Prioridad</label>
-            <select formControlName="priority"
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <label for="report-filter-priority" class="text-xs text-gray-400">Prioridad</label>
+            <select
+              id="report-filter-priority"
+              formControlName="priority"
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
               <option value="">Todas</option>
-              <option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option>
+              <option>Crítica</option>
+              <option>Alta</option>
+              <option>Media</option>
+              <option>Baja</option>
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-400">Operador</label>
-            <input type="text" formControlName="operator" placeholder="Nombre..."
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <label for="report-filter-operator" class="text-xs text-gray-400">Operador</label>
+            <input
+              id="report-filter-operator"
+              type="text"
+              formControlName="operator"
+              placeholder="Nombre..."
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
           </div>
           <div class="flex flex-col gap-1 justify-end">
             <div class="flex gap-2">
-              <button (click)="load()"
-                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
+              <button
+                (click)="load()"
+                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors"
+              >
                 Aplicar
               </button>
-              <button (click)="resetFilters()"
-                class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-3 rounded-lg text-sm transition-colors">✕</button>
+              <button
+                (click)="resetFilters()"
+                class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-3 rounded-lg text-sm transition-colors"
+              >
+                ✕
+              </button>
             </div>
           </div>
         </div>
@@ -104,19 +176,38 @@
       <!-- Loading -->
       @if (isLoading()) {
         <div class="flex justify-center py-16">
-          <svg class="animate-spin h-10 w-10 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+          <svg
+            class="animate-spin h-10 w-10 text-indigo-400"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
         </div>
       }
 
       @if (error()) {
-        <div class="bg-red-900/40 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm">{{ error() }}</div>
+        <div
+          class="bg-red-900/40 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm"
+        >
+          {{ error() }}
+        </div>
       }
 
       @if (!isLoading() && data()) {
-
         <!-- KPIs -->
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           <div class="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
@@ -149,7 +240,9 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <!-- Por tipo -->
           <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Por tipo</h3>
+            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              Por tipo
+            </h3>
             <div class="space-y-3">
               @for (item of data()!.byType; track item.label; let i = $index) {
                 <div>
@@ -158,8 +251,10 @@
                     <span class="font-semibold text-white ml-2">{{ item.value }}</span>
                   </div>
                   <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div [class]="typeBar(i) + ' h-2 rounded-full'"
-                      [style.width.%]="barWidth(item.value, maxOf(data()!.byType))"></div>
+                    <div
+                      [class]="typeBar(i) + ' h-2 rounded-full'"
+                      [style.width.%]="barWidth(item.value, maxOf(data()!.byType))"
+                    ></div>
                   </div>
                 </div>
               }
@@ -167,7 +262,9 @@
           </div>
           <!-- Por estado -->
           <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Por estado</h3>
+            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              Por estado
+            </h3>
             <div class="space-y-3">
               @for (item of data()!.byStatus; track item.label) {
                 <div>
@@ -176,8 +273,10 @@
                     <span class="font-semibold text-white">{{ item.value }}</span>
                   </div>
                   <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div [class]="statusBar(item.label) + ' h-2 rounded-full'"
-                      [style.width.%]="barWidth(item.value, maxOf(data()!.byStatus))"></div>
+                    <div
+                      [class]="statusBar(item.label) + ' h-2 rounded-full'"
+                      [style.width.%]="barWidth(item.value, maxOf(data()!.byStatus))"
+                    ></div>
                   </div>
                 </div>
               }
@@ -185,17 +284,23 @@
           </div>
           <!-- Por prioridad -->
           <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Por prioridad</h3>
+            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              Por prioridad
+            </h3>
             <div class="space-y-3">
               @for (item of data()!.byPriority; track item.label) {
                 <div>
                   <div class="flex justify-between text-xs mb-1">
-                    <span [class]="priorityColor(item.label) + ' font-medium'">{{ item.label }}</span>
+                    <span [class]="priorityColor(item.label) + ' font-medium'">{{
+                      item.label
+                    }}</span>
                     <span class="font-semibold text-white">{{ item.value }}</span>
                   </div>
                   <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div [class]="priorityBar(item.label) + ' h-2 rounded-full'"
-                      [style.width.%]="barWidth(item.value, maxOf(data()!.byPriority))"></div>
+                    <div
+                      [class]="priorityBar(item.label) + ' h-2 rounded-full'"
+                      [style.width.%]="barWidth(item.value, maxOf(data()!.byPriority))"
+                    ></div>
                   </div>
                 </div>
               }
@@ -207,46 +312,69 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <!-- Evolución diaria -->
           <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Incidentes últimos 30 días</h3>
+            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              Incidentes últimos 30 días
+            </h3>
             @if (data()!.daily.length) {
               <div class="flex items-end gap-1 h-32">
                 @for (d of data()!.daily; track d.day) {
-                  <div class="flex-1 flex flex-col items-center group relative" title="{{ d.day }}: {{ d.total }}">
-                    <div class="w-full bg-indigo-500 hover:bg-indigo-400 rounded-sm transition-all"
+                  <div
+                    class="flex-1 flex flex-col items-center group relative"
+                    title="{{ d.day }}: {{ d.total }}"
+                  >
+                    <div
+                      class="w-full bg-indigo-500 hover:bg-indigo-400 rounded-sm transition-all"
                       [style.height.%]="barWidth(d.total, maxDailyTotal(data()!.daily))"
-                      style="min-height:2px"></div>
-                    <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
-                      {{ d.day | slice:5 }}: {{ d.total }}
+                      style="min-height: 2px"
+                    ></div>
+                    <span
+                      class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10"
+                    >
+                      {{ d.day | slice: 5 }}: {{ d.total }}
                     </span>
                   </div>
                 }
               </div>
-              <p class="text-xs text-gray-500 mt-2 text-center">Cada barra = 1 día (hover para ver fecha)</p>
+              <p class="text-xs text-gray-500 mt-2 text-center">
+                Cada barra = 1 día (hover para ver fecha)
+              </p>
             } @else {
-              <p class="text-gray-500 text-sm text-center py-8">Sin actividad en los últimos 30 días</p>
+              <p class="text-gray-500 text-sm text-center py-8">
+                Sin actividad en los últimos 30 días
+              </p>
             }
           </div>
           <!-- Actividad operadores -->
           <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Actividad por operador</h3>
+            <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">
+              Actividad por operador
+            </h3>
             <table class="w-full text-sm text-left">
-              <thead><tr class="text-xs text-gray-400 border-b border-gray-700">
-                <th class="py-2 pr-4">Operador</th>
-                <th class="py-2 pr-4 text-right">Acciones</th>
-                <th class="py-2 pr-4 text-right">Creados</th>
-                <th class="py-2 text-right">Actualizados</th>
-              </tr></thead>
+              <thead>
+                <tr class="text-xs text-gray-400 border-b border-gray-700">
+                  <th class="py-2 pr-4">Operador</th>
+                  <th class="py-2 pr-4 text-right">Acciones</th>
+                  <th class="py-2 pr-4 text-right">Creados</th>
+                  <th class="py-2 text-right">Actualizados</th>
+                </tr>
+              </thead>
               <tbody>
                 @for (op of data()!.operatorActivity; track op.operator) {
                   <tr class="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td class="py-2 pr-4 text-white font-medium truncate max-w-[140px]">{{ op.operator }}</td>
-                    <td class="py-2 pr-4 text-right text-indigo-400 font-semibold">{{ op.actions }}</td>
+                    <td class="py-2 pr-4 text-white font-medium truncate max-w-[140px]">
+                      {{ op.operator }}
+                    </td>
+                    <td class="py-2 pr-4 text-right text-indigo-400 font-semibold">
+                      {{ op.actions }}
+                    </td>
                     <td class="py-2 pr-4 text-right text-green-400">{{ op.created }}</td>
                     <td class="py-2 text-right text-yellow-400">{{ op.updated }}</td>
                   </tr>
                 }
                 @if (!data()!.operatorActivity.length) {
-                  <tr><td colspan="4" class="py-6 text-center text-gray-500">Sin datos</td></tr>
+                  <tr>
+                    <td colspan="4" class="py-6 text-center text-gray-500">Sin datos</td>
+                  </tr>
                 }
               </tbody>
             </table>
@@ -255,18 +383,27 @@
 
         <!-- Historial -->
         <div class="bg-gray-800 rounded-xl border border-gray-700">
-          <div class="p-5 border-b border-gray-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div
+            class="p-5 border-b border-gray-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3"
+          >
             <div>
-              <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Historial de incidentes</h3>
+              <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                Historial de incidentes
+              </h3>
               <p class="text-xs text-gray-500 mt-0.5">{{ filteredHistory().length }} registros</p>
             </div>
-            <input type="text" placeholder="Buscar por ID, tipo, ubicación, operador..."
+            <input
+              type="text"
+              placeholder="Buscar por ID, tipo, ubicación, operador..."
               (input)="onSearchText($event)"
-              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-full sm:w-72">
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-full sm:w-72"
+            />
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-300">
-              <thead class="text-xs text-gray-400 uppercase bg-gray-700/40 border-b border-gray-700">
+              <thead
+                class="text-xs text-gray-400 uppercase bg-gray-700/40 border-b border-gray-700"
+              >
                 <tr>
                   <th class="px-4 py-3">ID</th>
                   <th class="px-4 py-3">Tipo</th>
@@ -282,23 +419,39 @@
                   <tr class="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">
                     <td class="px-4 py-3 font-mono text-white font-medium">{{ row.id }}</td>
                     <td class="px-4 py-3">{{ row.type || '—' }}</td>
-                    <td class="px-4 py-3"><span [class]="priorityColor(row.priority) + ' font-semibold'">{{ row.priority }}</span></td>
                     <td class="px-4 py-3">
-                      <span [class]="'text-xs font-medium px-2 py-0.5 rounded-full ' + statusColor(row.status)">{{ row.status }}</span>
+                      <span [class]="priorityColor(row.priority) + ' font-semibold'">{{
+                        row.priority
+                      }}</span>
                     </td>
-                    <td class="px-4 py-3 max-w-[200px] truncate text-gray-400">{{ row.location || '—' }}</td>
+                    <td class="px-4 py-3">
+                      <span
+                        [class]="
+                          'text-xs font-medium px-2 py-0.5 rounded-full ' + statusColor(row.status)
+                        "
+                        >{{ row.status }}</span
+                      >
+                    </td>
+                    <td class="px-4 py-3 max-w-[200px] truncate text-gray-400">
+                      {{ row.location || '—' }}
+                    </td>
                     <td class="px-4 py-3 text-gray-400">{{ row.operator || '—' }}</td>
-                    <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{{ formatDate(row.timestamp) }}</td>
+                    <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                      {{ formatDate(row.timestamp) }}
+                    </td>
                   </tr>
                 }
                 @if (!filteredHistory().length) {
-                  <tr><td colspan="7" class="text-center py-10 text-gray-500">No se encontraron incidentes.</td></tr>
+                  <tr>
+                    <td colspan="7" class="text-center py-10 text-gray-500">
+                      No se encontraron incidentes.
+                    </td>
+                  </tr>
                 }
               </tbody>
             </table>
           </div>
         </div>
-
       }
     </div>
   }
@@ -307,22 +460,35 @@
   <!-- PESTAÑA: POWER BI                                                 -->
   <!-- ================================================================ -->
   @if (activeTab() === 'pbi') {
-    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden" style="height: calc(100vh - 200px); min-height: 540px;">
+    <div
+      class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden"
+      style="height: calc(100vh - 200px); min-height: 540px"
+    >
       @if (pbiSafeUrl()) {
         <iframe
           [src]="pbiSafeUrl()!"
           title="PBI IMS NOVA"
-          frameborder="0"
-          allowfullscreen
-          class="w-full h-full">
+          allow="fullscreen"
+          class="w-full h-full border-0"
+        >
         </iframe>
       }
     </div>
   }
-
 </div>
 
 <style>
-@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
 </style>

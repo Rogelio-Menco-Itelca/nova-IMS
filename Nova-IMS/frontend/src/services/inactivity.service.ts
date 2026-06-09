@@ -1,6 +1,14 @@
-import { Injectable, InjectionToken, NgZone, OnDestroy, computed, inject, signal } from '@angular/core';
+import {
+  Injectable,
+  InjectionToken,
+  NgZone,
+  OnDestroy,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { AuthService } from './auth.service';
- 
+
 // ---------------------------------------------------------------------------
 //  Tokens de configuración
 // ---------------------------------------------------------------------------
@@ -18,13 +26,13 @@ import { AuthService } from './auth.service';
 //  En el futuro, cuando el proyecto tenga environment.ts, la factory
 //  puede leer de allí. Hoy usamos valores por defecto razonables.
 // ---------------------------------------------------------------------------
- 
+
 /** Tiempo total de inactividad antes de cerrar sesión (en milisegundos). */
 export const INACTIVITY_TIMEOUT_MS = new InjectionToken<number>('INACTIVITY_TIMEOUT_MS', {
   providedIn: 'root',
   factory: () => 20 * 60 * 1000, // 20 minuto → cierre de sesión
 });
- 
+
 /**
  * Tiempo (al final del timeout) durante el cual se muestra el modal de aviso.
  * Si TIMEOUT=300000 y WARNING=60000, el modal aparece a los 4:00 y la sesión
@@ -37,22 +45,22 @@ export const INACTIVITY_WARNING_MS = new InjectionToken<number>('INACTIVITY_WARN
   //factory: () =>  15 * 60 * 1000, // 60 segundos
   factory: () => 5 * 60 * 1000, // aviso a los 15 minutos
 });
- 
+
 /** Frecuencia máxima a la que procesamos eventos de actividad del usuario. */
 export const ACTIVITY_THROTTLE_MS = new InjectionToken<number>('ACTIVITY_THROTTLE_MS', {
   providedIn: 'root',
   factory: () => 1000, // 1 segundo
 });
- 
+
 // ---------------------------------------------------------------------------
 //  Tipos y constantes internas (no configurables)
 // ---------------------------------------------------------------------------
- 
+
 /** Mensajes intercambiados entre pestañas. Discriminated union para tipado fuerte. */
 type ChannelMessage = { type: 'activity'; at: number } | { type: 'logout' };
- 
+
 /** Eventos del DOM que cuentan como "actividad del usuario". */
-const ACTIVITY_EVENTS: ReadonlyArray<keyof WindowEventMap> = [
+const ACTIVITY_EVENTS: readonly (keyof WindowEventMap)[] = [
   'mousemove',
   'mousedown',
   'keydown',
@@ -60,13 +68,13 @@ const ACTIVITY_EVENTS: ReadonlyArray<keyof WindowEventMap> = [
   'touchstart',
   'wheel',
 ];
- 
+
 /** Nombre del canal de broadcast para sincronizar entre pestañas del mismo origen. */
 const CHANNEL_NAME = 'ims-inactivity';
- 
+
 /** Cadencia de actualización del countdown del modal de aviso. */
 const COUNTDOWN_TICK_MS = 1000;
- 
+
 /**
  * Servicio de cierre de sesión por inactividad con modal de aviso.
  *
@@ -106,7 +114,7 @@ export class InactivityService implements OnDestroy {
   private readonly timeoutMs = inject(INACTIVITY_TIMEOUT_MS);
   private readonly warningMs = inject(INACTIVITY_WARNING_MS);
   private readonly throttleMs = inject(ACTIVITY_THROTTLE_MS);
- 
+
   /**
    * Segundos restantes antes del logout, expuesto al modal vía signal.
    * - null  → no hay aviso visible (fase activa).
@@ -119,14 +127,14 @@ export class InactivityService implements OnDestroy {
   private readonly warningSecondsSig = signal<number | null>(null);
   readonly warningSeconds = this.warningSecondsSig.asReadonly();
   readonly isWarningVisible = computed(() => this.warningSecondsSig() !== null);
- 
+
   private warnTimerId: ReturnType<typeof setTimeout> | null = null;
   private expireTimerId: ReturnType<typeof setTimeout> | null = null;
   private countdownIntervalId: ReturnType<typeof setInterval> | null = null;
   private lastActivityAt = Date.now();
   private channel: BroadcastChannel | null = null;
   private running = false;
- 
+
   /**
    * Inicia el monitoreo. No-op si ya está corriendo o si no hay sesión.
    * Llamar después de un login exitoso o tras restaurar sesión en checkAuth().
@@ -134,18 +142,18 @@ export class InactivityService implements OnDestroy {
   start(): void {
     if (this.running) return;
     if (!this.authService.isAuthenticated()) return;
- 
+
     this.running = true;
     this.lastActivityAt = Date.now();
     this.warningSecondsSig.set(null);
- 
+
     this.zone.runOutsideAngular(() => {
       this.attachActivityListeners();
       this.openChannel();
       this.armTimers();
     });
   }
- 
+
   /**
    * Detiene el monitoreo y libera recursos. Idempotente: seguro llamar
    * varias veces. Llamar al hacer logout (manual o automático).
@@ -153,33 +161,33 @@ export class InactivityService implements OnDestroy {
   stop(): void {
     if (!this.running) return;
     this.running = false;
- 
+
     this.detachActivityListeners();
     this.disarmTimers();
     this.closeChannel();
     this.warningSecondsSig.set(null);
   }
- 
+
   ngOnDestroy(): void {
     this.stop();
   }
- 
+
   // -------------------------------------------------------------------------
   //  Manejo de listeners del DOM
   // -------------------------------------------------------------------------
- 
+
   private attachActivityListeners(): void {
     for (const ev of ACTIVITY_EVENTS) {
-      window.addEventListener(ev, this.onActivity, { passive: true });
+      globalThis.addEventListener(ev, this.onActivity, { passive: true });
     }
   }
- 
+
   private detachActivityListeners(): void {
     for (const ev of ACTIVITY_EVENTS) {
-      window.removeEventListener(ev, this.onActivity);
+      globalThis.removeEventListener(ev, this.onActivity);
     }
   }
- 
+
   /**
    * Handler de eventos de actividad. Está throttled a un evento por throttleMs
    * para no saturar el navegador (mousemove se dispara cientos de veces/s).
@@ -194,7 +202,7 @@ export class InactivityService implements OnDestroy {
     }
     this.registerActivity(now, true);
   };
- 
+
   /**
    * Registra una actividad (local o por el botón Continuar) y resetea timers.
    * @param now Timestamp de la actividad.
@@ -205,22 +213,22 @@ export class InactivityService implements OnDestroy {
   private registerActivity(now: number, doBroadcast: boolean): void {
     this.lastActivityAt = now;
     this.armTimers();
- 
+
     // Si había un modal de aviso visible, ocultarlo en el zone de Angular
     // para que la UI reaccione.
     if (this.warningSecondsSig() !== null) {
       this.zone.run(() => this.warningSecondsSig.set(null));
     }
- 
+
     if (doBroadcast) {
       this.broadcast({ type: 'activity', at: now });
     }
   }
- 
+
   // -------------------------------------------------------------------------
   //  Manejo de timers (warn + expire + countdown)
   // -------------------------------------------------------------------------
- 
+
   /**
    * Programa los dos timers principales:
    *   - warnTimerId    → dispara cuando entramos a la fase de aviso.
@@ -231,12 +239,12 @@ export class InactivityService implements OnDestroy {
    */
   private armTimers(): void {
     this.disarmTimers();
- 
+
     const warnDelay = Math.max(0, this.timeoutMs - this.warningMs);
     this.warnTimerId = setTimeout(() => this.enterWarningPhase(), warnDelay);
     this.expireTimerId = setTimeout(() => this.checkExpiration(), this.timeoutMs);
   }
- 
+
   private disarmTimers(): void {
     if (this.warnTimerId !== null) {
       clearTimeout(this.warnTimerId);
@@ -251,7 +259,7 @@ export class InactivityService implements OnDestroy {
       this.countdownIntervalId = null;
     }
   }
- 
+
   /**
    * Entramos a la fase de aviso: mostrar modal y arrancar countdown
    * que actualiza el signal cada segundo.
@@ -259,7 +267,7 @@ export class InactivityService implements OnDestroy {
   private enterWarningPhase(): void {
     const initialSeconds = Math.ceil(this.warningMs / 1000);
     this.zone.run(() => this.warningSecondsSig.set(initialSeconds));
- 
+
     this.countdownIntervalId = setInterval(() => {
       const elapsed = Date.now() - this.lastActivityAt;
       const remainingMs = this.timeoutMs - elapsed;
@@ -267,7 +275,7 @@ export class InactivityService implements OnDestroy {
       this.zone.run(() => this.warningSecondsSig.set(remainingSec));
     }, COUNTDOWN_TICK_MS);
   }
- 
+
   /**
    * El expireTimer se cumplió. Validamos contra timestamp real porque
    * setTimeout puede dispararse tarde (pestaña en background) o temprano
@@ -284,28 +292,28 @@ export class InactivityService implements OnDestroy {
     }
     this.expireSession();
   }
- 
+
   // -------------------------------------------------------------------------
   //  Comunicación entre pestañas (BroadcastChannel)
   // -------------------------------------------------------------------------
- 
+
   private openChannel(): void {
     if (typeof BroadcastChannel === 'undefined') return; // navegador legacy
     this.channel = new BroadcastChannel(CHANNEL_NAME);
     this.channel.onmessage = (event) => this.onChannelMessage(event);
   }
- 
+
   private closeChannel(): void {
     if (this.channel) {
       this.channel.close();
       this.channel = null;
     }
   }
- 
+
   private broadcast(message: ChannelMessage): void {
     this.channel?.postMessage(message);
   }
- 
+
   /**
    * Mensaje recibido de OTRA pestaña.
    *  - 'activity' → registrar como actividad sin re-broadcastear (evita eco).
@@ -314,7 +322,7 @@ export class InactivityService implements OnDestroy {
   private onChannelMessage(event: MessageEvent<ChannelMessage>): void {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
- 
+
     switch (msg.type) {
       case 'activity':
         this.registerActivity(Date.now(), false);
@@ -324,11 +332,11 @@ export class InactivityService implements OnDestroy {
         break;
     }
   }
- 
+
   // -------------------------------------------------------------------------
   //  Cierre de sesión
   // -------------------------------------------------------------------------
- 
+
   /**
    * Sesión expiró por inactividad: notificar a otras pestañas y cerrar local.
    * Se ejecuta dentro de la zona de Angular para que la UI reaccione (volver
@@ -339,7 +347,7 @@ export class InactivityService implements OnDestroy {
     this.broadcast({ type: 'logout' });
     this.localLogout();
   }
- 
+
   /** Cierra sesión en esta pestaña sin notificar a las demás. */
   private localLogout(): void {
     this.zone.run(() => {

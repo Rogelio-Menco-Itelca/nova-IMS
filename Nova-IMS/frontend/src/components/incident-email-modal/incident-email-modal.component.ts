@@ -8,6 +8,9 @@ import {
   inject,
   effect,
   OnInit,
+  AfterViewInit,
+  ElementRef,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -25,8 +28,28 @@ const PAGE_SIZE = 10;
   imports: [CommonModule, FormsModule],
   templateUrl: './incident-email-modal.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [
+    `
+      dialog.email-modal {
+        margin: auto;
+        padding: 1rem;
+        border: none;
+        background: transparent;
+        max-width: 100%;
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+      }
+
+      dialog.email-modal::backdrop {
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+      }
+    `,
+  ],
 })
-export class IncidentEmailModalComponent implements OnInit {
+export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
+  private dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('emailDialog');
   incident = input.required<Incident>();
   closed = output<void>();
 
@@ -102,14 +125,27 @@ export class IncidentEmailModalComponent implements OnInit {
     });
   }
 
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): void {
     this.loadError.set(null);
-    try {
-      if (!this.allEmails().length) {
-        await this.configService.getNotificationEmails();
-      }
-    } catch {
+    if (this.allEmails().length) return;
+
+    void this.configService.getNotificationEmails().catch(() => {
       this.loadError.set('No se pudo cargar la lista de correos autorizados.');
+    });
+  }
+
+  ngAfterViewInit(): void {
+    this.dialogRef().nativeElement.showModal();
+  }
+
+  onCancel(event: Event): void {
+    event.preventDefault();
+    this.close();
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    if (event.target === this.dialogRef().nativeElement) {
+      this.close();
     }
   }
 
@@ -157,6 +193,10 @@ export class IncidentEmailModalComponent implements OnInit {
 
   close(): void {
     if (this.sending()) return;
+    const dialog = this.dialogRef().nativeElement;
+    if (dialog.open) {
+      dialog.close();
+    }
     this.closed.emit();
   }
 
@@ -177,8 +217,7 @@ export class IncidentEmailModalComponent implements OnInit {
       );
       this.notificationService.addNotification(
         'Correo enviado',
-        resp.message ||
-          `Notificación del incidente ${this.incident().id} enviada.`,
+        resp.message || `Notificación del incidente ${this.incident().id} enviada.`,
       );
       this.closed.emit();
     } catch (err: any) {

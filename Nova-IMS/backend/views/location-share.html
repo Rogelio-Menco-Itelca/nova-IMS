@@ -1,138 +1,174 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Compartir Ubicación - IMS</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f172a;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 1rem;
-    }
-    .card {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 2rem;
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-    }
-    .icon { font-size: 4rem; margin-bottom: 1rem; }
-    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #f1f5f9; }
-    p { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.5; }
-    button {
-      background: #4f46e5;
-      color: white;
-      border: none;
-      padding: 1rem 2rem;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      width: 100%;
-      transition: background 0.2s;
-    }
-    button:hover { background: #4338ca; }
-    button:disabled { background: #334155; cursor: not-allowed; }
-    .status {
-      margin-top: 1rem;
-      padding: 0.75rem;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      display: none;
-    }
-    .status.show { display: block; }
-    .success { background: #064e3b; color: #6ee7b7; }
-    .error { background: #7f1d1d; color: #fca5a5; }
-    .loading { background: #1e3a5f; color: #93c5fd; }
-    .logo {
-      font-size: 0.75rem;
-      color: #475569;
-      margin-top: 2rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">📍</div>
-    <h1>Compartir Ubicación</h1>
-    <p>Un operador de emergencias necesita tu ubicación para atender tu solicitud. Tu ubicación solo será usada para este incidente.</p>
-    <button id="btn" onclick="shareLocation()">
-      📡 Compartir mi ubicación
-    </button>
-    <div id="status" class="status"></div>
-    <div class="logo">IMS Nova · Sistema de Gestión de Incidentes</div>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compartir Ubicación - IMS</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #0f172a;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 1rem;
+      }
+      .card {
+        background: #1e293b;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+      }
+      .icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin-bottom: 0.5rem;
+        color: #f1f5f9;
+      }
+      p {
+        color: #94a3b8;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+      button {
+        background: #4f46e5;
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #4338ca;
+      }
+      button:disabled {
+        background: #334155;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        display: none;
+      }
+      .status.show {
+        display: block;
+      }
+      .success {
+        background: #064e3b;
+        color: #6ee7b7;
+      }
+      .error {
+        background: #7f1d1d;
+        color: #fca5a5;
+      }
+      .loading {
+        background: #1e3a5f;
+        color: #93c5fd;
+      }
+      .logo {
+        font-size: 0.75rem;
+        color: #475569;
+        margin-top: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon">📍</div>
+      <h1>Compartir Ubicación</h1>
+      <p>
+        Un operador de emergencias necesita tu ubicación para atender tu solicitud. Tu ubicación
+        solo será usada para este incidente.
+      </p>
+      <button id="btn" onclick="shareLocation()">📡 Compartir mi ubicación</button>
+      <div id="status" class="status"></div>
+      <div class="logo">IMS Nova · Sistema de Gestión de Incidentes</div>
+    </div>
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const requestId = params.get('request_id');
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const requestId = params.get('request_id');
 
-    function setStatus(type, message) {
-      const el = document.getElementById('status');
-      el.className = `status show ${type}`;
-      el.textContent = message;
-    }
-
-    async function shareLocation() {
-      const btn = document.getElementById('btn');
-      btn.disabled = true;
-      btn.textContent = '⏳ Obteniendo ubicación...';
-      setStatus('loading', 'Solicitando acceso al GPS del dispositivo...');
-
-      if (!navigator.geolocation) {
-        setStatus('error', '❌ Tu navegador no soporta geolocalización.');
-        btn.disabled = false;
-        btn.textContent = '📡 Compartir mi ubicación';
-        return;
+      function setStatus(type, message) {
+        const el = document.getElementById('status');
+        el.className = `status show ${type}`;
+        el.textContent = message;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+      async function shareLocation() {
+        const btn = document.getElementById('btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Obteniendo ubicación...';
+        setStatus('loading', 'Solicitando acceso al GPS del dispositivo...');
 
-          setStatus('loading', '📤 Enviando coordenadas...');
-
-          try {
-            const response = await fetch('/location/submit', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ request_id: requestId, lat, lng })
-            });
-
-            if (response.ok) {
-              setStatus('success', '✅ ¡Ubicación enviada! El operador ya tiene tu posición. Puedes cerrar esta página.');
-              btn.textContent = '✅ ¡Enviado!';
-            } else {
-              throw new Error('Error del servidor');
-            }
-          } catch (err) {
-            setStatus('error', '❌ Error al enviar. Por favor intenta de nuevo.');
-            btn.disabled = false;
-            btn.textContent = '📡 Compartir mi ubicación';
-          }
-        },
-        (error) => {
-          let msg = '❌ No se pudo obtener la ubicación.';
-          if (error.code === 1) msg = '❌ Permiso denegado. Activa la ubicación en tu navegador.';
-          if (error.code === 2) msg = '❌ Ubicación no disponible. Verifica tu GPS.';
-          if (error.code === 3) msg = '❌ Tiempo agotado. Intenta de nuevo.';
-          setStatus('error', msg);
+        if (!navigator.geolocation) {
+          setStatus('error', '❌ Tu navegador no soporta geolocalización.');
           btn.disabled = false;
           btn.textContent = '📡 Compartir mi ubicación';
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    }
-  </script>
-</body>
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            setStatus('loading', '📤 Enviando coordenadas...');
+
+            try {
+              const response = await fetch('/location/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: requestId, lat, lng }),
+              });
+
+              if (response.ok) {
+                setStatus(
+                  'success',
+                  '✅ ¡Ubicación enviada! El operador ya tiene tu posición. Puedes cerrar esta página.',
+                );
+                btn.textContent = '✅ ¡Enviado!';
+              } else {
+                throw new Error('Error del servidor');
+              }
+            } catch (err) {
+              setStatus('error', '❌ Error al enviar. Por favor intenta de nuevo.');
+              btn.disabled = false;
+              btn.textContent = '📡 Compartir mi ubicación';
+            }
+          },
+          (error) => {
+            let msg = '❌ No se pudo obtener la ubicación.';
+            if (error.code === 1) msg = '❌ Permiso denegado. Activa la ubicación en tu navegador.';
+            if (error.code === 2) msg = '❌ Ubicación no disponible. Verifica tu GPS.';
+            if (error.code === 3) msg = '❌ Tiempo agotado. Intenta de nuevo.';
+            setStatus('error', msg);
+            btn.disabled = false;
+            btn.textContent = '📡 Compartir mi ubicación';
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      }
+    </script>
+  </body>
 </html>

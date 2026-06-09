@@ -1,0 +1,884 @@
+const { pool } = require('../../config/db');
+const {
+  mapStatusToGi,
+  mapStatusFromGi,
+  mapPriorityToGi,
+  mapPriorityFromGi,
+  normalizeAgencyCode,
+  PERSON_ROLE_TO_GI,
+  locationChannelToGi,
+  locationChannelFromGi,
+} = require('./maps');
+const { resolveUserContext } = require('./users');
+const { requireAgencyInput } = require('./agencyContext');
+const { resolveDocumentTypeCode } = require('./documentTypes');
+const { insertPersonComment } = require('./people');
+const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
+const { linkLocationToIncident } = require('./location');
+const HttpError = require('../../utils/HttpError');
+
+const INCIDENT_BASE_SELECT = `
+  i.ID_incidente AS internal_id,
+  i.ID_visible AS id,
+  CAST(e.ID_evento AS CHAR) AS event_id,
+  CONCAT('IT-', LPAD(e.ID_evento, 2, '0')) AS incident_type_id,
+  e.TipoEvento AS type_name,
+  pr.Prioridad AS priority,
+  es.Nombre_estado AS status_raw,
+  o.Nombre AS origin,
+  i.ANI AS phone,
+  i.ANI AS ani,
+  i.Direccion AS location,
+  i.id_departamento AS department_id,
+  i.id_municipio AS municipality_id,
+  d.nombre_departamento AS departmentName,
+  m.nombre_municipio AS municipalityName,
+  i.Latitud AS lat,
+  i.Longitud AS lng,
+  i.Comentario_estado AS details,
+  i.IDAgencias AS agency_code,
+  i.FechaHora AS created_at,
+  i.FechaHora AS updated_at`;
+
+const INCIDENT_JOINS = `
+  JOIN eventos e ON e.ID_evento = i.ID_evento
+  JOIN prioridades pr ON pr.ID_prioridad = i.ID_prioridad
+  JOIN estadosincidentes es ON es.ID_estado = i.ID_estado
+  JOIN origen o ON o.ID_Origen = i.ID_Origen
+  LEFT JOIN departamentos d ON d.id_departamento = i.id_departamento
+  LEFT JOIN municipios m ON m.id_municipio = i.id_municipio`;
+
+async function getInternalId(visibleId) {
+  const [rows] = await pool.query(
+    `SELECT ID_incidente FROM incidentes WHERE ID_visible = ? LIMIT 1`,
+    [visibleId],
+  );
+  return rows[0]?.ID_incidente ?? null;
+}
+
+function formatCommentTimestamp(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+/** Guarda solo el texto; quita encabezados [fecha] heredados del frontend. */
+function plainCommentText(raw) {
+  let text = String(raw ?? '').trim();
+  while (/^\[[^\]]+\]\s*(\n|$)/.test(text)) {
+    text = text.replace(/^\[[^\]]+\]\s*\n?/, '').trim();
+  }
+  text = text.replace(/^---\s*\n?/, '').trim();
+  return text;
+}
+
+async function loadComments(internalId) {
+  const [rows] = await pool.query(
+    `SELECT Comentario, FechaHora FROM comentarios_incidentes
+     WHERE ID_Incidente = ?
+     ORDER BY FechaHora ASC, ID_Comentario ASC`,
+    [internalId],
+  );
+  if (!rows.length) return '';
+  return rows
+    .map((r) => {
+      const plain = plainCommentText(r.Comentario);
+      if (!plain) return '';
+      const ts = formatCommentTimestamp(r.FechaHora);
+      return ts ? `[${ts}]\n${plain}` : plain;
+    })
+    .filter(Boolean)
+    .join('\n---\n');
+}
+
+function mapIncidentRow(r, extras = {}) {
+  return {
+    ...r,
+    status: mapStatusFromGi(r.status_raw),
+    internal_id: r.internal_id,
+    comments: extras.comments ?? r.comments ?? '',
+    contact_info: extras.contact_info ?? null,
+    location_phone_number: extras.location_phone ?? null,
+    operator_id: extras.operator_id ?? null,
+    operator_name: extras.operator_name ?? '',
+    received_lat: extras.received_lat ?? null,
+    received_lng: extras.received_lng ?? null,
+    received_at: extras.received_at ?? null,
+    location_phone: extras.location_phone ?? null,
+  };
+}
+
+async function resolveCatalogIds(
+  agencyCode,
+  { status, priority, origin, incidentTypeId, eventId },
+) {
+  const agency = normalizeAgencyCode(agencyCode);
+
+  let eventoId = null;
+  if (eventId && /^\d+$/.test(String(eventId))) {
+    eventoId = Number(eventId);
+  } else if (incidentTypeId) {
+    const m = String(incidentTypeId).match(/(\d+)/);
+    if (m) eventoId = Number(m[1]);
+  }
+  if (!eventoId) {
+    const [ev] = await pool.query(
+      `SELECT ID_evento FROM eventos WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?)) ORDER BY ID_evento LIMIT 1`,
+      [agency, agency],
+    );
+    eventoId = ev[0]?.ID_evento;
+  }
+
+  const statusName = mapStatusToGi(status || 'Abierto');
+  const [est] = await pool.query(
+    `SELECT ID_estado FROM estadosincidentes
+     WHERE Nombre_estado = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     LIMIT 1`,
+    [statusName, agency, agency],
+  );
+  let estadoId = est[0]?.ID_estado;
+  if (!estadoId) {
+    const [fb] = await pool.query(
+      `SELECT ID_estado FROM estadosincidentes
+       WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?)) ORDER BY ID_estado LIMIT 1`,
+      [agency, agency],
+    );
+    estadoId = fb[0]?.ID_estado;
+  }
+
+  const priorityName = mapPriorityToGi(priority || 'Media');
+  const [pri] = await pool.query(
+    `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
+    [priorityName],
+  );
+  const prioridadId = pri[0]?.ID_prioridad || 2;
+
+  const originName = String(origin || '').trim();
+  let origenId = null;
+  if (originName) {
+    const [or] = await pool.query(
+      `SELECT ID_Origen FROM origen
+       WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       LIMIT 1`,
+      [originName, agency, agency],
+    );
+    origenId = or[0]?.ID_Origen;
+  }
+
+  if (!eventoId) {
+    throw new HttpError(400, `No hay tipos de evento configurados para la agencia ${agency}.`);
+  }
+  if (!estadoId) {
+    throw new HttpError(
+      400,
+      `No hay estados de incidente configurados para la agencia ${agency}. Solicite al administrador cargar el catálogo en estadosincidentes.`,
+    );
+  }
+  if (!origenId) {
+    throw new HttpError(
+      400,
+      originName
+        ? `Origen "${originName}" no existe para la agencia ${agency}. Seleccione un origen del catálogo.`
+        : `Origen es requerido. Seleccione un valor del catálogo de la agencia ${agency}.`,
+    );
+  }
+
+  return { eventoId, estadoId, prioridadId, origenId, agency };
+}
+
+/** ID_visible = INC- + ID_incidente con 7 dígitos (p. ej. INC-0000004). */
+function formatVisibleId(internalId) {
+  return `INC-${String(internalId).padStart(7, '0')}`;
+}
+
+async function fetchIncidentRows(whereSql, params, reader = pool) {
+  const [rows] = await reader.query(
+    `SELECT ${INCIDENT_BASE_SELECT}
+     FROM incidentes i
+     ${INCIDENT_JOINS}
+     ${whereSql}`,
+    params,
+  );
+  return rows;
+}
+
+async function latestLocationForIncident(internalId, visibleId, reader = pool) {
+  const [rows] = await reader.query(
+    `SELECT lat AS received_lat, \`long\` AS received_lng,
+            FechaHora_recibido AS received_at, Numero_ubicacion AS location_phone
+     FROM ubicacion
+     WHERE ID_incidente = ?
+     ORDER BY FechaHora_recibido DESC, ID_solicitud DESC
+     LIMIT 1`,
+    [internalId],
+  );
+  if (rows.length) return rows[0];
+  const [byUrl] = await reader.query(
+    `SELECT lat AS received_lat, \`long\` AS received_lng,
+            FechaHora_recibido AS received_at, Numero_ubicacion AS location_phone
+     FROM ubicacion
+     WHERE ID_incidente IS NULL
+     ORDER BY ID_solicitud DESC
+     LIMIT 1`,
+  );
+  return byUrl[0] || null;
+}
+
+async function loadInvolvedPeople(internalIds, reader = pool) {
+  if (!internalIds.length) return {};
+  const ph = internalIds.map(() => '?').join(',');
+  const [rows] = await reader.query(
+    `SELECT p.ID_incidente AS internal_id,
+            CONCAT('PER-', p.ID_persona) AS id,
+            p.Primer_Nombre AS primer_nombre,
+            p.Segundo_Nombre AS segundo_nombre,
+            p.Primer_Apellido AS primer_apellido,
+            p.Segundo_Apellido AS segundo_apellido,
+            TRIM(CONCAT(p.Primer_Nombre, ' ', IFNULL(p.Segundo_Nombre, ''), ' ', p.Primer_Apellido, ' ', IFNULL(p.Segundo_Apellido, ''))) AS name,
+            p.ID_RolP AS role_id,
+            rp.Nombre AS role,
+            p.Contacto AS contact,
+            p.Contacto AS phone,
+            p.Numero_documento AS documentId,
+            p.Tipo_documento AS documentType,
+            p.ID_genero AS gender_id,
+            g.Descripcion_genero AS gender,
+            COALESCE(
+              (SELECT cp.Comentarios FROM comentariospersonas cp
+               WHERE cp.ID_persona = p.ID_persona
+               ORDER BY cp.FechaHora DESC LIMIT 1),
+              p.Comentarios
+            ) AS details
+     FROM personas p
+     LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+     LEFT JOIN genero g ON g.ID_genero = p.ID_genero
+     WHERE p.ID_incidente IN (${ph})`,
+    internalIds,
+  );
+  const map = {};
+  for (const r of rows) {
+    (map[r.internal_id] = map[r.internal_id] || []).push({
+      id: r.id,
+      name: r.name?.replace(/\s+/g, ' ').trim(),
+      primerNombre: r.primer_nombre,
+      segundoNombre: r.segundo_nombre,
+      primerApellido: r.primer_apellido,
+      segundoApellido: r.segundo_apellido,
+      role: r.role || 'Testigo',
+      roleId: r.role_id,
+      contact: r.contact,
+      phone: r.phone,
+      documentId: r.documentId,
+      documentType: r.documentType,
+      gender: r.gender,
+      genderId: r.gender_id,
+      comentarios: r.details,
+      details: r.details,
+    });
+  }
+  return map;
+}
+
+async function loadInvolvedVehicles(internalIds, reader = pool) {
+  if (!internalIds.length) return {};
+  const ph = internalIds.map(() => '?').join(',');
+  const [rows] = await reader.query(
+    `SELECT v.ID_incidente AS internal_id, v.ID_vehiculo AS vehicle_id,
+            v.Placa AS plate, rv.Nombre AS role,
+            v.Marca AS make, v.Modelo_linea AS model, v.Color AS color,
+            v.FechaRegistro AS incidentDate,
+            (SELECT cv.Comentarios FROM comentariosvehiculos cv
+             WHERE cv.ID_vehiculo = v.ID_vehiculo
+             ORDER BY cv.FechaHora DESC LIMIT 1) AS details
+     FROM vehiculos v
+     LEFT JOIN rolesvehiculo rv ON rv.ID_RolVehiculo = v.ID_RolV
+     WHERE v.ID_incidente IN (${ph})`,
+    internalIds,
+  );
+  const map = {};
+  for (const r of rows) {
+    (map[r.internal_id] = map[r.internal_id] || []).push({
+      plate: r.plate,
+      role: r.role || 'Vehículo Involucrado',
+      make: r.make,
+      model: r.model,
+      color: r.color,
+      details: r.details,
+      incidentDate: r.incidentDate,
+    });
+  }
+  return map;
+}
+
+async function loadPlaceComments(lugarIds, reader = pool) {
+  if (!lugarIds.length) return {};
+  const ph = lugarIds.map(() => '?').join(',');
+  const [rows] = await reader.query(
+    `SELECT ID_lugar, Comentario_lugar, FechaHora, ID_Usuario
+     FROM comentarios_lugar
+     WHERE ID_lugar IN (${ph})
+     ORDER BY FechaHora ASC`,
+    lugarIds,
+  );
+  const map = {};
+  for (const r of rows) {
+    (map[r.ID_lugar] = map[r.ID_lugar] || []).push({
+      text: r.Comentario_lugar || '',
+      at: r.FechaHora,
+      user: r.ID_Usuario || '',
+    });
+  }
+  return map;
+}
+
+async function loadInvolvedPlaces(internalIds, reader = pool) {
+  if (!internalIds.length) return {};
+  const ph = internalIds.map(() => '?').join(',');
+  const [rows] = await reader.query(
+    `SELECT l.ID_incidente AS internal_id,
+            l.ID_lugar AS lugar_id,
+            CONCAT('LUG-', l.ID_lugar) AS id,
+            l.Nombre_lugar AS name,
+            l.Direccion_lugar AS address,
+            l.ID_departamento AS department_id,
+            l.ID_municipio AS municipality_id,
+            d.nombre_departamento AS department_name,
+            m.nombre_municipio AS municipality_name,
+            l.Contacto AS contact,
+            l.ID_Rol_lugar AS role_id,
+            rl.Rol_lugar AS role_name
+     FROM lugares l
+     LEFT JOIN departamentos d ON d.id_departamento = l.ID_departamento
+     LEFT JOIN municipios m ON m.id_municipio = l.ID_municipio
+     LEFT JOIN roles_lugar rl ON rl.ID_Rol_Lugar = l.ID_Rol_lugar
+     WHERE l.ID_incidente IN (${ph})
+     ORDER BY l.Fecha_registro ASC`,
+    internalIds,
+  );
+  const lugarIds = rows.map((r) => r.lugar_id).filter(Boolean);
+  const commentsMap = await loadPlaceComments(lugarIds, reader);
+  const map = {};
+  for (const r of rows) {
+    const history = commentsMap[r.lugar_id] || [];
+    const comments = history
+      .map((c) => c.text)
+      .filter(Boolean)
+      .join('\n');
+    (map[r.internal_id] = map[r.internal_id] || []).push({
+      id: r.id,
+      name: r.name,
+      address: r.address,
+      departmentId: r.department_id,
+      municipalityId: r.municipality_id,
+      departmentName: r.department_name || '',
+      municipalityName: r.municipality_name || '',
+      contact: r.contact || '',
+      roleId: r.role_id,
+      roleName: r.role_name || '',
+      comments,
+      commentsHistory: history,
+    });
+  }
+  return map;
+}
+
+async function hydrateIncidents(rows, reader = pool) {
+  if (!rows.length) return [];
+  const internalIds = rows.map((r) => r.internal_id);
+  const [peopleMap, vehMap, placesMap] = await Promise.all([
+    loadInvolvedPeople(internalIds, reader),
+    loadInvolvedVehicles(internalIds, reader),
+    loadInvolvedPlaces(internalIds, reader),
+  ]);
+
+  const out = [];
+  for (const r of rows) {
+    const comments = await loadComments(r.internal_id);
+    const loc = await latestLocationForIncident(r.internal_id, r.id, reader);
+    out.push(
+      mapIncidentRow(r, {
+        comments,
+        ...loc,
+        operator_name: r.operator_name || '',
+      }),
+    );
+    const last = out[out.length - 1];
+    last.involvedPeople = peopleMap[r.internal_id] || [];
+    last.involvedPlaces = placesMap[r.internal_id] || [];
+    last.involvedVehicles = vehMap[r.internal_id] || [];
+  }
+  return out;
+}
+
+async function listIncidents(limit = 100) {
+  const rows = await fetchIncidentRows(
+    `WHERE (i.ID_visible IS NULL OR i.ID_visible NOT LIKE 'CAT-PERS-%')
+     ORDER BY i.FechaHora DESC LIMIT ?`,
+    [limit],
+  );
+  return hydrateIncidents(rows);
+}
+
+async function getIncident(visibleId) {
+  const rows = await fetchIncidentRows(`WHERE i.ID_visible = ?`, [visibleId]);
+  if (!rows.length) return null;
+  const [inc] = await hydrateIncidents(rows);
+  return inc;
+}
+
+async function insertComment(conn, internalId, text, userCtx) {
+  if (!String(text || '').trim()) return;
+  await conn.query(
+    `INSERT INTO comentarios_incidentes (ID_Incidente, Comentario, ID_Usuario, ID_Agencia)
+     VALUES (?,?,?,?)`,
+    [internalId, text, userCtx.userId, userCtx.agencyCode],
+  );
+}
+
+async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCode) {
+  await conn.query(
+    `DELETE cl FROM comentarios_lugar cl
+     INNER JOIN lugares l ON l.ID_lugar = cl.ID_lugar
+     WHERE l.ID_incidente = ?`,
+    [internalId],
+  );
+  await conn.query(`DELETE FROM lugares WHERE ID_incidente = ?`, [internalId]);
+
+  for (const place of places || []) {
+    const name = String(place.name || place.nombre || '').trim();
+    const address = String(place.address || place.direccion || place.direccion_lugar || '').trim();
+    if (!name || !address) continue;
+
+    let roleId = place.roleId ?? place.role_id ?? null;
+    if (!roleId && place.roleName) {
+      const [roles] = await conn.query(
+        `SELECT ID_Rol_Lugar FROM roles_lugar
+         WHERE Rol_lugar = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         LIMIT 1`,
+        [place.roleName, agencyCode, agencyCode],
+      );
+      roleId = roles[0]?.ID_Rol_Lugar;
+    }
+    if (!roleId) {
+      const [fb] = await conn.query(
+        `SELECT ID_Rol_Lugar FROM roles_lugar
+         WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         ORDER BY ID_Rol_Lugar LIMIT 1`,
+        [agencyCode, agencyCode],
+      );
+      roleId = fb[0]?.ID_Rol_Lugar || 1;
+    }
+
+    const [result] = await conn.query(
+      `INSERT INTO lugares
+        (Nombre_lugar, Direccion_lugar, ID_departamento, ID_municipio, Contacto, ID_Rol_lugar, ID_incidente)
+       VALUES (?,?,?,?,?,?,?)`,
+      [
+        name.substring(0, 100),
+        address.substring(0, 100),
+        place.departmentId ?? place.department_id ?? null,
+        place.municipalityId ?? place.municipality_id ?? null,
+        place.contact || place.contacto || null,
+        roleId,
+        internalId,
+      ],
+    );
+
+    const commentText = String(place.comments || place.comentario || '').trim();
+    if (commentText && userCtx.userId) {
+      await conn.query(
+        `INSERT INTO comentarios_lugar (ID_lugar, ID_Usuario, ID_Agencia, Comentario_lugar)
+         VALUES (?,?,?,?)`,
+        [result.insertId, userCtx.userId, agencyCode, commentText.substring(0, 200)],
+      );
+    }
+  }
+}
+
+async function replaceInvolved(conn, internalId, people, vehicles, places, userCtx, agencyCode) {
+  await conn.query(
+    `DELETE cp FROM comentariospersonas cp
+     INNER JOIN personas p ON p.ID_persona = cp.ID_persona
+     WHERE p.ID_incidente = ?`,
+    [internalId],
+  );
+  await conn.query(`DELETE FROM personas WHERE ID_incidente = ? AND ID_incidente IS NOT NULL`, [
+    internalId,
+  ]);
+  await deleteVehicleCommentsForIncident(conn, internalId);
+  await conn.query(`DELETE FROM vehiculos WHERE ID_incidente = ?`, [internalId]);
+  await replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCode);
+
+  for (const p of people || []) {
+    let primerNombre = String(p.primerNombre || p.primer_nombre || '').trim();
+    let segundoNombre = String(p.segundoNombre || p.segundo_nombre || '').trim() || null;
+    let primerApellido = String(p.primerApellido || p.primer_apellido || '').trim();
+    let segundoApellido = String(p.segundoApellido || p.segundo_apellido || '').trim() || null;
+
+    if (!primerNombre && String(p.name || '').trim()) {
+      const names = String(p.name).trim().split(/\s+/);
+      primerNombre = names[0] || '';
+      segundoNombre = names.length > 3 ? names[1] : null;
+      primerApellido = names.length > 2 ? names[names.length - 2] : names[1] || '';
+      segundoApellido = names.length > 2 ? names[names.length - 1] : null;
+    }
+
+    if (!primerNombre || !primerApellido) continue;
+
+    let rolP = p.roleId ?? p.role_id ?? null;
+    if (!rolP) {
+      const [roles] = await conn.query(
+        `SELECT ID_RolP FROM rolpersonas
+         WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         LIMIT 1`,
+        [PERSON_ROLE_TO_GI[p.role] || p.role || 'Testigo', agencyCode, agencyCode],
+      );
+      rolP = roles[0]?.ID_RolP;
+    }
+    if (!rolP) {
+      const [fb] = await conn.query(`SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`);
+      rolP = fb[0]?.ID_RolP || 1;
+    }
+
+    const comentarios = p.comentarios ?? p.details ?? null;
+    const genderId = p.genderId ?? p.gender_id ?? null;
+    const tipoDocumento = await resolveDocumentTypeCode(p.documentType || p.tipo_documento, conn);
+
+    const [personResult] = await conn.query(
+      `INSERT INTO personas
+        (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
+         Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
+         ID_Agencia, ID_Usuario, ID_genero)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        primerNombre,
+        segundoNombre,
+        primerApellido,
+        segundoApellido,
+        rolP,
+        p.contact || p.phone || null,
+        tipoDocumento,
+        p.documentId || null,
+        null,
+        internalId,
+        agencyCode,
+        userCtx.userId,
+        genderId,
+      ],
+    );
+
+    const commentText = String(comentarios || '').trim();
+    if (commentText && userCtx.userId && personResult.insertId) {
+      await insertPersonComment(
+        conn,
+        personResult.insertId,
+        commentText,
+        userCtx.userId,
+        agencyCode,
+      );
+    }
+  }
+
+  for (const v of vehicles || []) {
+    const plate = String(v.plate || '').trim();
+    const roleName = String(v.role || '').trim();
+    const hasCatalog =
+      !!String(v.color || '').trim() ||
+      !!String(v.make || '').trim() ||
+      !!String(v.model || '').trim() ||
+      !!String(v.details || '').trim();
+    if (!roleName && !plate && !hasCatalog) continue;
+
+    let rolV = null;
+    if (roleName) {
+      const [roles] = await conn.query(
+        `SELECT ID_RolVehiculo FROM rolesvehiculo
+         WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         LIMIT 1`,
+        [roleName, agencyCode, agencyCode],
+      );
+      rolV = roles[0]?.ID_RolVehiculo;
+    }
+    if (!rolV) {
+      const [fb] = await conn.query(
+        `SELECT ID_RolVehiculo FROM rolesvehiculo
+         WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         ORDER BY ID_RolVehiculo LIMIT 1`,
+        [agencyCode, agencyCode],
+      );
+      rolV = fb[0]?.ID_RolVehiculo || 1;
+    }
+
+    const [types] = await conn.query(
+      `SELECT ID_TipoVehi FROM tipovehiculo ORDER BY ID_TipoVehi LIMIT 1`,
+    );
+    const [vehResult] = await conn.query(
+      `INSERT INTO vehiculos
+        (ID_RolV, ID_TipoVehi, Placa, Color, Marca, Modelo_linea, ID_incidente, ID_Agencia, ID_Usuario)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [
+        rolV,
+        types[0]?.ID_TipoVehi || 1,
+        plate ? plate.toUpperCase() : null,
+        v.color || null,
+        v.make || null,
+        v.model || null,
+        internalId,
+        agencyCode,
+        userCtx.userId,
+      ],
+    );
+
+    const commentText = String(v.details || '').trim();
+    if (commentText && vehResult.insertId && userCtx.userId) {
+      await insertVehicleComment(conn, vehResult.insertId, commentText, userCtx.userId, agencyCode);
+    }
+  }
+}
+
+async function createIncident(body, user) {
+  const agencyCode = requireAgencyInput(body.agency, user);
+  const userCtx = await resolveUserContext(user?.sub, agencyCode);
+  const cats = await resolveCatalogIds(agencyCode, body);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.query(
+      `INSERT INTO incidentes
+        (FechaHora, ID_evento, ID_Origen, ANI, Direccion, Latitud, Longitud,
+         IDAgencias, ID_visible, id_departamento, id_municipio, ID_estado, ID_prioridad)
+       VALUES (NOW(),?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        cats.eventoId,
+        cats.origenId,
+        body.phone || body.ani || null,
+        body.location || 'Sin dirección',
+        body.lat ?? 0,
+        body.lng ?? 0,
+        cats.agency,
+        null,
+        body.departmentId ?? body.department_id ?? null,
+        body.municipalityId ?? body.municipality_id ?? null,
+        cats.estadoId,
+        cats.prioridadId,
+      ],
+    );
+    const internalId = result.insertId;
+    const visibleId = formatVisibleId(internalId);
+    await conn.query(`UPDATE incidentes SET ID_visible = ? WHERE ID_incidente = ?`, [
+      visibleId,
+      internalId,
+    ]);
+    if (body.comments) {
+      const plain = plainCommentText(body.comments);
+      if (plain) await insertComment(conn, internalId, plain, userCtx);
+    }
+    await replaceInvolved(
+      conn,
+      internalId,
+      body.involvedPeople,
+      body.involvedVehicles,
+      body.involvedPlaces,
+      userCtx,
+      cats.agency,
+    );
+    await linkLocationToIncident(
+      internalId,
+      {
+        requestId: body.locationRequestId ?? body.location_request_id,
+        solicitudId: body.locationSolicitudId ?? body.location_solicitud_id,
+        phone: body.locationPhoneNumber ?? body.phone ?? body.ani,
+      },
+      conn,
+    );
+    await conn.commit();
+    return visibleId;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+async function updateIncident(visibleId, body, user) {
+  const internalId = await getInternalId(visibleId);
+  if (!internalId) return null;
+  const agencyCode = requireAgencyInput(null, user);
+  const userCtx = await resolveUserContext(user?.sub, agencyCode);
+  const cats = await resolveCatalogIds(agencyCode, body);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(
+      `UPDATE incidentes SET
+         ID_evento = ?, ID_Origen = ?, ANI = ?, Direccion = ?,
+         Latitud = ?, Longitud = ?, id_departamento = ?, id_municipio = ?,
+         ID_estado = ?, ID_prioridad = ?
+       WHERE ID_incidente = ?`,
+      [
+        cats.eventoId,
+        cats.origenId,
+        body.phone ?? body.ani ?? null,
+        body.location ?? 'Sin dirección',
+        body.lat ?? 0,
+        body.lng ?? 0,
+        body.departmentId ?? body.department_id ?? null,
+        body.municipalityId ?? body.municipality_id ?? null,
+        cats.estadoId,
+        cats.prioridadId,
+        internalId,
+      ],
+    );
+    if (body.comments) {
+      const prev = await loadComments(internalId);
+      if (body.comments !== prev) {
+        const added = body.comments.replace(prev, '').trim();
+        const plain = plainCommentText(added);
+        if (plain) await insertComment(conn, internalId, plain, userCtx);
+      }
+    }
+    await replaceInvolved(
+      conn,
+      internalId,
+      body.involvedPeople,
+      body.involvedVehicles,
+      body.involvedPlaces,
+      userCtx,
+      cats.agency,
+    );
+    await conn.commit();
+    return visibleId;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+async function deleteIncident(visibleId) {
+  const internalId = await getInternalId(visibleId);
+  if (!internalId) return 0;
+  await pool.query(
+    `DELETE cl FROM comentarios_lugar cl
+     INNER JOIN lugares l ON l.ID_lugar = cl.ID_lugar
+     WHERE l.ID_incidente = ?`,
+    [internalId],
+  );
+  await pool.query(`DELETE FROM lugares WHERE ID_incidente = ?`, [internalId]);
+  await pool.query(
+    `DELETE cp FROM comentariospersonas cp
+     INNER JOIN personas p ON p.ID_persona = cp.ID_persona
+     WHERE p.ID_incidente = ?`,
+    [internalId],
+  );
+  await pool.query(`DELETE FROM personas WHERE ID_incidente = ?`, [internalId]);
+  await deleteVehicleCommentsForIncident(pool, internalId);
+  await pool.query(`DELETE FROM vehiculos WHERE ID_incidente = ?`, [internalId]);
+  await pool.query(`DELETE FROM comentarios_incidentes WHERE ID_Incidente = ?`, [internalId]);
+  await pool.query(`DELETE FROM auditoria_incidente WHERE incidentes_id = ?`, [internalId]);
+  const [r] = await pool.query(`DELETE FROM incidentes WHERE ID_incidente = ?`, [internalId]);
+  return r.affectedRows;
+}
+
+async function lookupVehicleByPlate(plate) {
+  const normalized = String(plate)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  const [rows] = await pool.query(
+    `SELECT v.Placa AS plate, v.Marca AS make, v.Modelo_linea AS model, v.Color AS color,
+            i.ID_visible AS incidentId
+     FROM vehiculos v
+     JOIN incidentes i ON i.ID_incidente = v.ID_incidente
+     WHERE REPLACE(UPPER(v.Placa), '-', '') = ?
+     ORDER BY i.FechaHora DESC, v.ID_vehiculo DESC
+     LIMIT 1`,
+    [normalized],
+  );
+  return rows[0] || null;
+}
+
+async function writeAudit(conn, { incidentId, user, action, changes, details }) {
+  const internalId = await getInternalId(incidentId);
+  if (!internalId) return;
+  const agencyCode = requireAgencyInput(null, user);
+  const userCtx = await resolveUserContext(user?.sub, agencyCode);
+  const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  await conn.query(
+    `INSERT INTO auditoria_incidente
+      (id_transaccion_incidentes, incidentes_id, usuarios_id, Id_agencia, accion, Numero_de_Cambios, detalles)
+     VALUES (?,?,?,?,?,?,?)`,
+    [
+      id,
+      internalId,
+      userCtx.userId,
+      userCtx.agencyCode,
+      action,
+      changes || null,
+      details ? JSON.stringify(details) : null,
+    ],
+  );
+}
+
+async function loadAuditLogs(visibleId) {
+  const internalId = await getInternalId(visibleId);
+  if (!internalId) return [];
+  const [rows] = await pool.query(
+    `SELECT id_transaccion_incidentes AS id, accion AS action,
+            Numero_de_Cambios AS changes, detalles AS details_json, fecha AS timestamp
+     FROM auditoria_incidente
+     WHERE incidentes_id = ?
+     ORDER BY fecha ASC, id_transaccion_incidentes ASC`,
+    [internalId],
+  );
+  return rows;
+}
+
+async function listNotificationEmails() {
+  const [rows] = await pool.query(
+    `SELECT Correo AS email FROM correosincidentes GROUP BY Correo ORDER BY Correo`,
+  );
+  return rows;
+}
+
+async function emailAllowed(recipients) {
+  const ph = recipients.map(() => '?').join(',');
+  const [rows] = await pool.query(
+    `SELECT DISTINCT LOWER(Correo) AS email FROM correosincidentes WHERE LOWER(Correo) IN (${ph})`,
+    recipients.map((e) => e.toLowerCase()),
+  );
+  return new Set(rows.map((r) => r.email));
+}
+
+module.exports = {
+  getInternalId,
+  listIncidents,
+  getIncident,
+  createIncident,
+  updateIncident,
+  deleteIncident,
+  lookupVehicleByPlate,
+  writeAudit,
+  loadAuditLogs,
+  listNotificationEmails,
+  emailAllowed,
+  mapIncidentRow,
+  latestLocationForIncident,
+  fetchIncidentRows,
+  hydrateIncidents,
+  loadComments,
+  mapPriorityFromGi,
+  mapStatusFromGi,
+  locationChannelToGi,
+  locationChannelFromGi,
+};

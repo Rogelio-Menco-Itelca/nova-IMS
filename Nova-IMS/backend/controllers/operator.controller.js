@@ -1,172 +1,165 @@
-const bcrypt = require('bcryptjs');
-const { pool } = require('../config/db');
 const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
-const { nextId } = require('../utils/ids');
 const { writeAdminLog } = require('../utils/adminLog');
 const { generateUniqueUsername } = require('../utils/usernameGenerator');
 const { validatePassword } = require('../utils/passwordPolicy');
 const { sendWelcomeEmail } = require('../services/email.service');
+const { resolveAgency } = require('../db/gestionincidentes/agencies');
+const giUsers = require('../db/gestionincidentes/users');
 
 function mapOperator(r) {
   return {
     id: r.id,
+    username: r.username || r.id,
     name: r.name,
+    primerNombre: r.primer_nombre || '',
+    segundoNombre: r.segundo_nombre || '',
+    primerApellido: r.primer_apellido || '',
+    segundoApellido: r.segundo_apellido || '',
     email: r.email,
+    telefono: r.telefono || '',
+    agency: r.agency_code || '',
+    agencyName: r.agency_name || '',
     role: r.role_name,
     status: r.status,
   };
 }
 
-// GET /api/operators
+function buildDisplayName(body) {
+  return [body.primerNombre, body.segundoNombre, body.primerApellido, body.segundoApellido]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function assertRequiredNames(body) {
+  if (!String(body.primerNombre || '').trim()) {
+    throw new HttpError(400, 'Primer nombre es requerido');
+  }
+  if (!String(body.primerApellido || '').trim()) {
+    throw new HttpError(400, 'Primer apellido es requerido');
+  }
+}
+
 exports.list = asyncHandler(async (req, res) => {
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.status, r.name AS role_name
-       FROM users u JOIN roles r ON r.id = u.role_id
-      ORDER BY u.created_at DESC`);
+  const rows = await giUsers.listOperators();
   res.json(rows.map(mapOperator));
 });
 
-// POST /api/operators
 exports.create = asyncHandler(async (req, res) => {
   const b = req.body || {};
-  if (!b.name || !b.email || !b.role) throw new HttpError(400, 'name, email y role son requeridos');
+  assertRequiredNames(b);
 
-  // Encontrar role_id a partir del nombre
-  const [roleRows] = await pool.query(`SELECT id FROM roles WHERE name = ? LIMIT 1`, [b.role]);
-  if (!roleRows.length) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
-
-  const id = await nextId('users', 'id', 'OP');
-  // generar username automático
-const username = await generateUniqueUsername(b.name);
-
-// 🔥 NORMALIZAR EMAIL
-const email = b.email.trim().toLowerCase();
-
-// 🔍 VALIDAR EMAIL DUPLICADO
-const [emailExists] = await pool.query(
-  `SELECT id FROM users WHERE email = ? LIMIT 1`,
-  [email]
-);
-
-if (emailExists.length) {
-  throw new HttpError(409, 'Ya existe un usuario con ese correo');
-}
-
-// 🔍 VALIDAR USERNAME DUPLICADO
-const [userExists] = await pool.query(
-  `SELECT id FROM users WHERE username = ? LIMIT 1`,
-  [username]
-);
-
-if (userExists.length) {
-  throw new HttpError(409, 'El nombre de usuario ya existe');
-}
-
-// validar que venga contraseña
-if (!b.password) {
-  throw new HttpError(400, 'La contraseña es requerida');
-}
-
-// validar política de contraseña
-const check = validatePassword(b.password);
-if (!check.ok) {
-  throw new HttpError(400, check.errors.join(' '));
-}
-
-// hashear contraseña
-const hash = await bcrypt.hash(b.password, 12);
-
-  try {
-    await pool.query(
-      `INSERT INTO users (id, username, name, email, password_hash, auth_source, must_change_password, role_id, agency_id, status)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [
-        id,
-        username,
-        b.name,
-        email,
-        hash,
-        "local",
-        1,
-        roleRows[0].id,
-        1,
-        b.status || "Activo",
-      ],
-    );
-  } catch (err) {
-    if (err.code !== "ER_BAD_FIELD_ERROR") throw err;
-    await pool.query(
-      `INSERT INTO users (id, username, name, email, password_hash, must_change_password, role_id, agency_id, status)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [
-        id,
-        username,
-        b.name,
-        email,
-        hash,
-        1,
-        roleRows[0].id,
-        1,
-        b.status || "Activo",
-      ],
-    );
+  if (!b.email || !b.role) {
+    throw new HttpError(400, 'email y role son requeridos');
   }
-  // No bloquear la respuesta por demoras SMTP
-  sendWelcomeEmail({
-    to: email,
-    name: b.name,
-    username,
-    password: b.password,
-  }).catch((err) => {
-    console.warn('[MAIL] No se pudo enviar correo de bienvenida:', err.message);
+  if (!String(b.agency || '').trim()) {
+    throw new HttpError(400, 'La agencia es requerida');
+  }
+
+  const agency = await resolveAgency(b.agency);
+  if (!agency) throw new HttpError(400, `Agencia no encontrada: ${b.agency}`);
+  const agencyCode = agency.code;
+
+  const roleId = await giUsers.findRoleIdByName(b.role, agencyCode);
+  if (!roleId) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
+
+  const displayName = buildDisplayName(b);
+  let loginId = String(b.username || '').trim();
+  if (!loginId) {
+    loginId = await generateUniqueUsername(`${b.primerNombre} ${b.primerApellido}`);
+  }
+  loginId = loginId.toUpperCase();
+
+  const email = b.email.trim().toLowerCase();
+
+  if (await giUsers.emailExists(email)) {
+    throw new HttpError(409, 'Ya existe un usuario con ese correo');
+  }
+  if (await giUsers.usernameExists(loginId, agencyCode)) {
+    throw new HttpError(409, 'El nombre de usuario ya existe en esta agencia');
+  }
+  if (!b.password) {
+    throw new HttpError(400, 'La contraseña es requerida');
+  }
+
+  const check = validatePassword(b.password);
+  if (!check.ok) {
+    throw new HttpError(400, check.errors.join(' '));
+  }
+
+  await giUsers.createOperator({
+    id: loginId,
+    primerNombre: b.primerNombre,
+    segundoNombre: b.segundoNombre,
+    primerApellido: b.primerApellido,
+    segundoApellido: b.segundoApellido,
+    email,
+    telefono: b.telefono,
+    passwordHash: b.password,
+    roleId,
+    agencyCode,
+    status: b.status || 'Activo',
   });
 
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.status, r.name AS role_name
-       FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?`, [id]);
+  sendWelcomeEmail({
+    to: email,
+    name: displayName,
+    username: loginId,
+    password: b.password,
+    agencyName: agency.name,
+    agencyCode: agency.code,
+    role: b.role,
+    telefono: b.telefono,
+  }).catch((err) => console.warn('[MAIL] No se pudo enviar correo de bienvenida:', err.message));
 
-  await writeAdminLog(req.user, 'Creación de Operador', `Se creó el operador ${b.name} (${id})`);
-  res.status(201).json(mapOperator(rows[0]));
+  const user = await giUsers.findUserById(loginId, agencyCode);
+  await writeAdminLog(
+    req.user,
+    'Creación de Operador',
+    `Se creó el operador ${displayName} (${loginId})`,
+  );
+  res.status(201).json(mapOperator(user));
 });
 
-// PUT /api/operators/:id
 exports.update = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const b = req.body || {};
-  const [existing] = await pool.query(`SELECT id FROM users WHERE id = ?`, [id]);
-  if (!existing.length) throw new HttpError(404, 'Operador no encontrado');
+  const existing = await giUsers.findUserById(id);
+  if (!existing) throw new HttpError(404, 'Operador no encontrado');
+
+  assertRequiredNames({
+    primerNombre: b.primerNombre ?? existing.primer_nombre,
+    primerApellido: b.primerApellido ?? existing.primer_apellido,
+  });
 
   let roleId = null;
   if (b.role) {
-    const [rr] = await pool.query(`SELECT id FROM roles WHERE name = ? LIMIT 1`, [b.role]);
-    if (!rr.length) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
-    roleId = rr[0].id;
+    roleId = await giUsers.findRoleIdByName(b.role, existing.agency_code);
+    if (!roleId) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
   }
 
-  await pool.query(
-    `UPDATE users SET
-        name    = COALESCE(?, name),
-        email   = COALESCE(?, email),
-        role_id = COALESCE(?, role_id),
-        status  = COALESCE(?, status)
-      WHERE id = ?`,
-    [b.name ?? null, b.email ?? null, roleId, b.status ?? null, id]
-  );
+  await giUsers.updateOperator(id, {
+    primerNombre: b.primerNombre,
+    segundoNombre: b.segundoNombre,
+    primerApellido: b.primerApellido,
+    segundoApellido: b.segundoApellido,
+    email: b.email,
+    telefono: b.telefono,
+    roleId,
+    status: b.status,
+    agencyCode: existing.agency_code,
+  });
 
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.status, r.name AS role_name
-       FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?`, [id]);
-
+  const user = await giUsers.findUserById(id, existing.agency_code);
   await writeAdminLog(req.user, 'Actualización de Operador', `Se actualizó el operador ${id}`);
-  res.json(mapOperator(rows[0]));
+  res.json(mapOperator(user));
 });
 
-// DELETE /api/operators/:id
 exports.remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const [result] = await pool.query(`DELETE FROM users WHERE id = ?`, [id]);
-  if (!result.affectedRows) throw new HttpError(404, 'Operador no encontrado');
+  const affected = await giUsers.deleteOperator(id);
+  if (!affected) throw new HttpError(404, 'Operador no encontrado');
   await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`);
   res.status(204).send();
 });

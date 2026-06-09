@@ -1,7 +1,25 @@
-export type UserRole = 'admin' | 'supervisor' | 'operator' | 'field_unit' | 'analyst' | 'viewer' | string;
+export type UserRole =
+  | 'admin'
+  | 'supervisor'
+  | 'operator'
+  | 'field_unit'
+  | 'analyst'
+  | 'viewer'
+  | string;
 
 /** Origen de la sesión actual */
 export type AuthSource = 'ldap' | 'local';
+
+export interface Agency {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface RoleOption {
+  id: string;
+  name: string;
+}
 
 export interface User {
   id: string;
@@ -9,6 +27,7 @@ export interface User {
   role: UserRole;
   email: string;
   agency?: string;
+  agencyName?: string;
   permissions?: string[];
   /** ldap = directorio activo; local = cuenta en base de datos */
   authSource?: AuthSource;

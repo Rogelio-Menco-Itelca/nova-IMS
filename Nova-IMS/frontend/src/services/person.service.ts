@@ -1,12 +1,16 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Person } from '../models/incident.model';
-import { SocketService } from './socket.service';
+import { firstValueFrom } from 'rxjs';
+import {
+  Person,
+  PersonFormPayload,
+  CatalogOption,
+  DocumentTypeOption,
+} from '../models/incident.model';
 
 @Injectable({ providedIn: 'root' })
 export class PersonService {
   private http = inject(HttpClient);
-  private socketService = inject(SocketService);
   private apiUrl = '/api/people';
 
   people = signal<Person[]>([]);
@@ -23,32 +27,41 @@ export class PersonService {
         this.people.set(data);
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false)
+      error: () => this.isLoading.set(false),
     });
   }
 
-  addPerson(person: Omit<Person, 'id' | 'createdAt'>): void {
-    this.http.post<Person>(this.apiUrl, person).subscribe({
-      next: (newPerson) => {
-        this.people.update(list => [newPerson, ...list]);
-      }
+  getPersonRoles(agencyCode: string) {
+    return this.http.get<CatalogOption[]>('/api/person-roles', {
+      params: { agency: agencyCode },
     });
   }
 
-  updatePerson(id: string, person: Partial<Person>): void {
-    this.http.put<Person>(`${this.apiUrl}/${id}`, person).subscribe({
-      next: (updated) => {
-        this.people.update(list => list.map(p => p.id === id ? updated : p));
-      }
+  getGenders(agencyCode: string) {
+    return this.http.get<CatalogOption[]>('/api/genders', {
+      params: { agency: agencyCode },
     });
   }
 
-  deletePerson(id: string): void {
-    this.http.delete(`${this.apiUrl}/${id}`).subscribe({
-      next: () => {
-        this.people.update(list => list.filter(p => p.id !== id));
-      }
-    });
+  getDocumentTypes() {
+    return this.http.get<DocumentTypeOption[]>('/api/document-types');
+  }
+
+  async addPerson(person: PersonFormPayload): Promise<Person> {
+    const created = await firstValueFrom(this.http.post<Person>(this.apiUrl, person));
+    this.people.update((list) => [created, ...list]);
+    return created;
+  }
+
+  async updatePerson(id: string, person: PersonFormPayload): Promise<Person> {
+    const updated = await firstValueFrom(this.http.put<Person>(`${this.apiUrl}/${id}`, person));
+    this.people.update((list) => list.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  }
+
+  async deletePerson(id: string): Promise<void> {
+    await firstValueFrom(this.http.delete(`${this.apiUrl}/${id}`));
+    this.people.update((list) => list.filter((p) => p.id !== id));
   }
 
   lookupByPhone(phone: string) {

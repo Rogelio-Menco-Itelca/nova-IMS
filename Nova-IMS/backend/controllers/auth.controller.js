@@ -1,30 +1,88 @@
-const asyncHandler = require("../utils/asyncHandler");
-const authService = require("../services/auth.service");
-const ldapConfig = require("../config/ldap");
-const ldapService = require("../services/ldap.service");
-const otpService = require("../services/otp.service");
-const { sendOtpEmail } = require("../services/email.service");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
-const { pool } = require("../config/db");
-const HttpError = require("../utils/HttpError");
+const asyncHandler = require('../utils/asyncHandler');
+const logger = require('../utils/logger');
+const authService = require('../services/auth.service');
+const ldapConfig = require('../config/ldap');
+const ldapService = require('../services/ldap.service');
+const otpService = require('../services/otp.service');
+const { sendOtpEmail } = require('../services/email.service');
+const jwt = require('jsonwebtoken');
+const HttpError = require('../utils/HttpError');
+const giUsers = require('../db/gestionincidentes/users');
+const loginLogs = require('../db/gestionincidentes/loginLogs');
 
 function maskEmail(email) {
-  if (!email) return "****";
-  const [local, domain] = email.split("@");
+  if (!email) return '****';
+  const [local, domain] = email.split('@');
   const visible = local.slice(0, 2);
-  return `${visible}${"*".repeat(Math.max(1, local.length - 2))}@${domain}`;
+  return `${visible}${'*'.repeat(Math.max(1, local.length - 2))}@${domain}`;
 }
 
-/**
- * POST /api/auth/login
- * - Usuarios LDAP/AD  → authService.login() → JWT directo (sin OTP)
- * - Usuarios locales  → bcrypt + OTP → requiere /verify-otp
- */
-exports.login = asyncHandler(async (req, res) => {
-  const { agencia, usuario, password } = req.body || {};
+const OTP_FAIL_REASONS = {
+  expired: 'Código OTP expirado',
+  too_many_attempts: 'Demasiados intentos fallidos de OTP',
+  invalid_code: 'Código OTP incorrecto',
+  no_code: 'No hay código OTP activo',
+};
 
-  // Intentar LDAP primero (authService.login lo maneja internamente)
+async function startOtpFlow(user, rememberUser, resend = false) {
+  let registroId =
+    otpService.getLoginRegistroId(user.id) ||
+    (await loginLogs.findPendingRegistro(user.id, user.agency_code));
+
+  if (registroId) {
+    await loginLogs.safeLog(() =>
+      loginLogs.updateLoginStatus(
+        registroId,
+        'Pendiente',
+        resend
+          ? 'Reenvío de código OTP solicitado'
+          : 'Contraseña validada, pendiente verificación 2FA',
+      ),
+    );
+  } else {
+    registroId = await loginLogs.safeLog(() =>
+      loginLogs.insertLoginRecord({
+        action: 'Inicio de sesión',
+        description: 'Contraseña validada, pendiente verificación 2FA',
+        userId: user.id,
+        agencyCode: user.agency_code,
+        roleId: user.role_id,
+        rememberUser,
+        status: 'Pendiente',
+      }),
+    );
+  }
+
+  const code = otpService.generate(user.id, { loginRegistroId: registroId });
+  try {
+    await sendOtpEmail({ to: user.email, name: user.name, code });
+  } catch (err) {
+    logger.error('[2FA] Error enviando OTP:', err.message);
+  }
+
+  await loginLogs.safeLog(() =>
+    loginLogs.insert2faRecord({
+      action: resend
+        ? 'Reenvío de código OTP al correo electrónico'
+        : 'Envío código OTP al correo electrónico',
+      userId: user.id,
+      agencyCode: user.agency_code,
+      email: user.email,
+      registroId,
+    }),
+  );
+
+  return {
+    requiresOtp: true,
+    userId: user.id,
+    otpTarget: maskEmail(user.email),
+  };
+}
+
+exports.login = asyncHandler(async (req, res) => {
+  const { agencia, usuario, password, rememberMe } = req.body || {};
+  const rememberUser = !!rememberMe;
+
   if (ldapConfig.enabled) {
     const directoryResult = await ldapService.tryAuthenticate(usuario, password);
 
@@ -33,124 +91,153 @@ exports.login = asyncHandler(async (req, res) => {
     }
 
     if (directoryResult.ok) {
-      // Usuario AD → JWT directo
-      const result = await authService.login(req.body || {});
+      const result = await authService.login(req.body || {}, { logSuccess: true });
       return res.json(result);
     }
   }
 
-  // Usuario local → validar con bcrypt + enviar OTP
-  const result = await authService.login(req.body || {});
-  // Si authService retornó token = usuario local autenticado correctamente
-  // Ahora enviamos OTP en lugar de retornar el token directamente
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email FROM users u
-      JOIN agencies a ON a.id = u.agency_id
-     WHERE u.username = ? AND a.code = ?`,
-    [usuario, agencia],
-  );
+  await authService.login(req.body || {}, { logSuccess: false });
 
-  if (!rows.length) throw new HttpError(401, "Credenciales incorrectas.");
-  const user = rows[0];
-
-  const code = otpService.generate(user.id);
-  try {
-    await sendOtpEmail({ to: user.email, name: user.name, code });
-  } catch (err) {
-    console.error("[2FA] Error enviando OTP:", err.message);
+  const user = await giUsers.findUserByLogin(usuario, agencia);
+  if (!user) {
+    const elsewhere = await giUsers.findUserByLogin(usuario, null);
+    if (elsewhere) {
+      await authService.recordFailedLogin(
+        elsewhere,
+        elsewhere.agency_code,
+        `Intento en agencia incorrecta (${String(agencia).toUpperCase()})`,
+        rememberUser,
+      );
+      throw new HttpError(
+        401,
+        `El usuario no pertenece a la agencia ${String(agencia).toUpperCase()}. Seleccione ${elsewhere.agency_code}.`,
+      );
+    }
+    throw new HttpError(401, 'Credenciales incorrectas.');
   }
 
-  res.json({
-    requiresOtp: true,
-    userId: user.id,
-    otpTarget: maskEmail(user.email),
-  });
+  res.json(await startOtpFlow(user, rememberUser, false));
 });
 
-/**
- * POST /api/auth/verify-otp
- * Solo usuarios locales — verifica OTP y emite JWT
- */
 exports.verifyOtp = asyncHandler(async (req, res) => {
-  const { userId, code } = req.body || {};
+  const { userId, code, agencia } = req.body || {};
   if (!userId || !code) {
-    throw new HttpError(400, "userId y code son requeridos");
+    throw new HttpError(400, 'userId y code son requeridos');
   }
+
+  const user = await giUsers.findUserById(userId, agencia);
+  if (!user) {
+    throw new HttpError(
+      401,
+      'Usuario no encontrado en la agencia seleccionada. Inicie sesión de nuevo.',
+    );
+  }
+
+  const registroId =
+    otpService.getLoginRegistroId(userId) ||
+    (await loginLogs.findPendingRegistro(userId, user.agency_code));
 
   const result = otpService.verify(userId, code);
 
   if (!result.ok) {
     const messages = {
-      expired:           "El código ha expirado. Inicie sesión de nuevo.",
-      too_many_attempts: "Demasiados intentos fallidos. Inicie sesión de nuevo.",
-      invalid_code:      "Código incorrecto. Verifique el correo e intente de nuevo.",
-      no_code:           "No hay código activo. Inicie sesión de nuevo.",
+      expired: 'El código ha expirado. Inicie sesión de nuevo.',
+      too_many_attempts: 'Demasiados intentos fallidos. Inicie sesión de nuevo.',
+      invalid_code: 'Código incorrecto. Verifique el correo e intente de nuevo.',
+      no_code: 'No hay código activo. Inicie sesión de nuevo.',
     };
-    throw new HttpError(401, messages[result.reason] || "Código inválido.");
+
+    await loginLogs.safeLog(() =>
+      loginLogs.insert2faRecord({
+        action: OTP_FAIL_REASONS[result.reason] || 'Verificación OTP fallida',
+        userId: user.id,
+        agencyCode: user.agency_code,
+        email: user.email,
+        registroId,
+      }),
+    );
+
+    if (registroId && (result.reason === 'expired' || result.reason === 'too_many_attempts')) {
+      await loginLogs.safeLog(() =>
+        loginLogs.updateLoginStatus(registroId, 'Fallido', OTP_FAIL_REASONS[result.reason]),
+      );
+    }
+
+    throw new HttpError(401, messages[result.reason] || 'Código inválido.');
   }
 
-  const [rows] = await pool.query(
-    `SELECT u.id, u.username, u.name, u.email, u.must_change_password,
-            u.auth_source, u.role_id, r.name AS role_name,
-            a.id AS agency_id, a.code AS agency_code
-       FROM users u
-       JOIN roles r    ON r.id = u.role_id
-       JOIN agencies a ON a.id = u.agency_id
-      WHERE u.id = ?`,
-    [userId],
-  );
-  if (!rows.length) throw new HttpError(404, "Usuario no encontrado");
-  const user = rows[0];
+  await loginLogs.safeLog(async () => {
+    if (registroId) {
+      await loginLogs.updateLoginStatus(
+        registroId,
+        'Exitoso',
+        'Autenticación de dos factores completada',
+      );
+      await loginLogs.insert2faRecord({
+        action: 'Verificación OTP exitosa',
+        userId: user.id,
+        agencyCode: user.agency_code,
+        email: user.email,
+        registroId,
+      });
+      return;
+    }
 
-  pool.query("UPDATE users SET last_login = NOW() WHERE id = ?", [user.id]).catch(() => {});
+    await loginLogs.insertLoginRecord({
+      action: 'Inicio de sesión',
+      description: 'Autenticación 2FA completada',
+      userId: user.id,
+      agencyCode: user.agency_code,
+      roleId: user.role_id,
+      status: 'Exitoso',
+    });
+  });
 
   const payload = {
-    sub:         user.id,
-    username:    user.username,
-    name:        user.name,
-    email:       user.email,
-    role_id:     user.role_id,
-    role_name:   user.role_name,
-    agency_id:   user.agency_id,
+    sub: user.id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    role_id: user.role_id,
+    role_name: user.role_name,
+    agency_id: user.agency_id,
     agency_code: user.agency_code,
-    auth_source: "local",
+    auth_source: 'local',
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "8h",
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
   });
 
   res.json({
     token,
     mustChangePassword: !!user.must_change_password,
     user: {
-      id:       user.id,
-      name:     user.name,
-      email:    user.email,
-      role:     user.role_name,
-      role_id:  user.role_id,
-      agency:   user.agency_code,
-      authSource: "local",
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role_name,
+      role_id: user.role_id,
+      agency: user.agency_code,
+      agencyName: user.agency_name || null,
+      authSource: 'local',
     },
   });
 });
 
-// GET /api/auth/me — igual que el base
 exports.me = asyncHandler(async (req, res) => {
   res.json(await authService.getProfile(req.user));
 });
 
-// POST /api/auth/change-password — igual que el base
 exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   const result = await authService.changePassword(req.user, currentPassword, newPassword);
   res.json(result);
 });
 
-// GET /api/auth/ldap-health — igual que el base
 exports.ldapHealth = asyncHandler(async (req, res) => {
   if (!ldapConfig.enabled) {
-    return res.json({ enabled: false, ok: false, error: "LDAP deshabilitado" });
+    return res.json({ enabled: false, ok: false, error: 'LDAP deshabilitado' });
   }
   const result = await ldapService.isAvailable();
   res.json({ enabled: true, ...result });

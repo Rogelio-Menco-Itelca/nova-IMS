@@ -2,8 +2,13 @@ import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
-  IncidentType, ResponseProtocol, Operator, AuditLog,
-  RolePermission, AdminActionLog
+  IncidentType,
+  ResponseProtocol,
+  Operator,
+  OperatorFormPayload,
+  AuditLog,
+  RolePermission,
+  AdminActionLog,
 } from '../models/admin.model';
 import { SocketService } from './socket.service';
 
@@ -13,24 +18,24 @@ export class ConfigurationService {
   private socketService = inject(SocketService);
 
   // ---------- Señales públicas ----------
-  adminLogs          = signal<AdminActionLog[]>([]);
-  operators          = signal<Operator[]>([]);
-  incidentTypes      = signal<IncidentType[]>([]);
-  responseProtocols  = signal<ResponseProtocol[]>([]);
+  adminLogs = signal<AdminActionLog[]>([]);
+  operators = signal<Operator[]>([]);
+  incidentTypes = signal<IncidentType[]>([]);
+  responseProtocols = signal<ResponseProtocol[]>([]);
   notificationEmails = signal<string[]>([]);
-  auditLogs          = signal<AuditLog[]>([]);
-  rolePermissions    = signal<RolePermission[]>([]);
+  auditLogs = signal<AuditLog[]>([]);
+  rolePermissions = signal<RolePermission[]>([]);
 
   constructor() {
     // Eventos de tiempo real
     this.socketService.on('admin:log', (log: AdminActionLog) => {
-      this.adminLogs.update(logs => [log, ...logs]);
+      this.adminLogs.update((logs) => [log, ...logs]);
     });
   }
 
   // ---------- Admin logs ----------
   getAdminLogs(): void {
-    this.http.get<AdminActionLog[]>('/api/admin-logs').subscribe(logs => {
+    this.http.get<AdminActionLog[]>('/api/admin-logs').subscribe((logs) => {
       this.adminLogs.set(logs);
     });
   }
@@ -41,19 +46,21 @@ export class ConfigurationService {
     this.operators.set(ops);
   }
 
-  async addOperator(operatorData: Omit<Operator, 'id'>): Promise<void> {
+  async addOperator(operatorData: OperatorFormPayload): Promise<void> {
     const created = await firstValueFrom(this.http.post<Operator>('/api/operators', operatorData));
-    this.operators.update(ops => [created, ...ops]);
+    this.operators.update((ops) => [created, ...ops]);
   }
 
-  async updateOperator(operatorId: string, updates: Partial<Operator>): Promise<void> {
-    const updated = await firstValueFrom(this.http.put<Operator>(`/api/operators/${operatorId}`, updates));
-    this.operators.update(ops => ops.map(o => o.id === operatorId ? updated : o));
+  async updateOperator(operatorId: string, updates: OperatorFormPayload): Promise<void> {
+    const updated = await firstValueFrom(
+      this.http.put<Operator>(`/api/operators/${operatorId}`, updates),
+    );
+    this.operators.update((ops) => ops.map((o) => (o.id === operatorId ? updated : o)));
   }
 
   async deleteOperator(operatorId: string): Promise<void> {
     await firstValueFrom(this.http.delete(`/api/operators/${operatorId}`));
-    this.operators.update(ops => ops.filter(o => o.id !== operatorId));
+    this.operators.update((ops) => ops.filter((o) => o.id !== operatorId));
   }
 
   // ---------- Tipos de incidente ----------
@@ -64,28 +71,39 @@ export class ConfigurationService {
 
   async addIncidentType(data: Omit<IncidentType, 'id'>): Promise<void> {
     const created = await firstValueFrom(this.http.post<IncidentType>('/api/incident-types', data));
-    this.incidentTypes.update(list => [created, ...list]);
+    this.incidentTypes.update((list) => [created, ...list]);
   }
 
   async updateIncidentType(typeId: string, updates: Partial<IncidentType>): Promise<void> {
-    const updated = await firstValueFrom(this.http.put<IncidentType>(`/api/incident-types/${typeId}`, updates));
-    this.incidentTypes.update(list => list.map(t => t.id === typeId ? updated : t));
+    const updated = await firstValueFrom(
+      this.http.put<IncidentType>(`/api/incident-types/${typeId}`, updates),
+    );
+    this.incidentTypes.update((list) => list.map((t) => (t.id === typeId ? updated : t)));
   }
 
   // ---------- Protocolos ----------
   async getResponseProtocols(): Promise<void> {
-    const protos = await firstValueFrom(this.http.get<ResponseProtocol[]>('/api/response-protocols'));
+    const protos = await firstValueFrom(
+      this.http.get<ResponseProtocol[]>('/api/response-protocols'),
+    );
     this.responseProtocols.set(protos);
   }
 
   async addResponseProtocol(data: Omit<ResponseProtocol, 'id'>): Promise<void> {
-    const created = await firstValueFrom(this.http.post<ResponseProtocol>('/api/response-protocols', data));
-    this.responseProtocols.update(list => [created, ...list]);
+    const created = await firstValueFrom(
+      this.http.post<ResponseProtocol>('/api/response-protocols', data),
+    );
+    this.responseProtocols.update((list) => [created, ...list]);
   }
 
-  async updateResponseProtocol(protocolId: string, updates: Partial<ResponseProtocol>): Promise<void> {
-    const updated = await firstValueFrom(this.http.put<ResponseProtocol>(`/api/response-protocols/${protocolId}`, updates));
-    this.responseProtocols.update(list => list.map(p => p.id === protocolId ? updated : p));
+  async updateResponseProtocol(
+    protocolId: string,
+    updates: Partial<ResponseProtocol>,
+  ): Promise<void> {
+    const updated = await firstValueFrom(
+      this.http.put<ResponseProtocol>(`/api/response-protocols/${protocolId}`, updates),
+    );
+    this.responseProtocols.update((list) => list.map((p) => (p.id === protocolId ? updated : p)));
   }
 
   // ---------- Emails de notificación ----------
@@ -95,13 +113,16 @@ export class ConfigurationService {
   }
 
   async addNotificationEmail(email: string): Promise<void> {
-    const list = await firstValueFrom(this.http.post<string[]>('/api/notification-emails', { email }));
+    const list = await firstValueFrom(
+      this.http.post<string[]>('/api/notification-emails', { email }),
+    );
     this.notificationEmails.set(list);
   }
 
   async removeNotificationEmail(email: string): Promise<void> {
     const list = await firstValueFrom(
-      this.http.delete<string[]>(`/api/notification-emails/${encodeURIComponent(email)}`));
+      this.http.delete<string[]>(`/api/notification-emails/${encodeURIComponent(email)}`),
+    );
     this.notificationEmails.set(list);
   }
 
@@ -118,18 +139,21 @@ export class ConfigurationService {
   }
 
   async addRolePermission(roleName: string): Promise<void> {
-    const roles = await firstValueFrom(this.http.post<RolePermission[]>('/api/roles', { role: roleName }));
+    const roles = await firstValueFrom(
+      this.http.post<RolePermission[]>('/api/roles', { role: roleName }),
+    );
     this.rolePermissions.set(roles);
   }
 
   async deleteRolePermission(id: string): Promise<void> {
     await firstValueFrom(this.http.delete(`/api/roles/${id}`));
-    this.rolePermissions.update(list => list.filter(r => r.id !== id));
+    this.rolePermissions.update((list) => list.filter((r) => r.id !== id));
   }
 
   async updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<void> {
     const roles = await firstValueFrom(
-      this.http.put<RolePermission[]>(`/api/roles/${id}`, updates));
+      this.http.put<RolePermission[]>(`/api/roles/${id}`, updates),
+    );
     this.rolePermissions.set(roles);
   }
 }

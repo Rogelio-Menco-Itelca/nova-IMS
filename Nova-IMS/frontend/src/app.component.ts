@@ -8,26 +8,26 @@ import {
   ElementRef,
   ViewChild,
   effect,
-} from "@angular/core";
-import { CommonModule } from "@angular/common";
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
 
-import { IncidentsComponent } from "./components/incidents/incidents.component";
-import { AdminComponent } from "./components/admin/admin.component";
-import { ReportsComponent } from "./components/reports/reports.component";
-import { IncidentListComponent } from "./components/incident-list/incident-list.component";
-import { NotificationService } from "./services/notification.service";
-import { LoginComponent } from "./components/login/login.component";
-import { LocationRequestService } from "./services/location-request.service";
-import { AuthService } from "./services/auth.service";
-import { ChangePasswordComponent } from "./components/change-password/change-password.component";
-import { InactivityService } from "./services/inactivity.service";
-import { SessionWarningComponent } from "./components/session-warning/session-warning.component";
+import { IncidentsComponent } from './components/incidents/incidents.component';
+import { AdminComponent } from './components/admin/admin.component';
+import { ReportsComponent } from './components/reports/reports.component';
+import { IncidentListComponent } from './components/incident-list/incident-list.component';
+import { NotificationService } from './services/notification.service';
+import { LoginComponent } from './components/login/login.component';
+import { LocationRequestService } from './services/location-request.service';
+import { AuthService } from './services/auth.service';
+import { ChangePasswordComponent } from './components/change-password/change-password.component';
+import { InactivityService } from './services/inactivity.service';
+import { SessionWarningComponent } from './components/session-warning/session-warning.component';
 
-type View = "dashboard" | "incidents" | "reports" | "admin" | "change-password";
+type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
 
 @Component({
-  selector: "app-root",
-  templateUrl: "./app.component.html",
+  selector: 'app-root',
+  templateUrl: './app.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
@@ -48,10 +48,10 @@ export class AppComponent implements OnInit {
 
   private readonly elementRef = inject(ElementRef);
 
-  @ViewChild("notificationContainer")
+  @ViewChild('notificationContainer')
   notificationContainer!: ElementRef;
 
-  @ViewChild("profileContainer")
+  @ViewChild('profileContainer')
   profileContainer!: ElementRef;
 
   isAuthenticated = this.authService.isAuthenticated;
@@ -63,7 +63,7 @@ export class AppComponent implements OnInit {
   isProfileOpen = signal(false);
   isNotificationsOpen = signal(false);
   isDarkTheme = signal(true);
-  phoneNumber = signal("");
+  phoneNumber = signal('');
   toastNotification = signal<any | null>(null);
 
   constructor() {
@@ -88,28 +88,16 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.authService.checkAuth();
-    if (
-      this.authService.isAuthenticated() &&
-      this.authService.mustChangePassword()
-    ) {
-      this.authService.currentView.set("dashboard");
-    }
   }
-  @HostListener("document:click", ["$event"])
+  @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-  
-    if (
-      this.notificationContainer &&
-      !this.notificationContainer.nativeElement.contains(target)
-    ) {
+
+    if (this.notificationContainer && !this.notificationContainer.nativeElement.contains(target)) {
       this.isNotificationsOpen.set(false);
     }
-  
-    if (
-      this.profileContainer &&
-      !this.profileContainer.nativeElement.contains(target)
-    ) {
+
+    if (this.profileContainer && !this.profileContainer.nativeElement.contains(target)) {
       this.isProfileOpen.set(false);
     }
   }
@@ -120,12 +108,12 @@ export class AppComponent implements OnInit {
     this.authService.logout();
     this.isProfileOpen.set(false);
     this.isNotificationsOpen.set(false);
-    this.authService.currentView.set("dashboard");
+    this.authService.currentView.set('dashboard');
   }
 
   setView(view: View): void {
     if (this.authService.mustChangePassword()) {
-      this.authService.currentView.set("change-password");
+      this.authService.currentView.set('change-password');
       return;
     }
     this.authService.currentView.set(view);
@@ -162,7 +150,7 @@ export class AppComponent implements OnInit {
   sendLocationRequest(): void {
     const number = this.phoneNumber();
     if (number) {
-      this.authService.currentView.set("incidents");
+      this.authService.currentView.set('incidents');
       void this.locationRequestService.requestLocation(number);
     }
   }
@@ -170,7 +158,7 @@ export class AppComponent implements OnInit {
   sendLocationRequestViaSms(): void {
     const number = this.phoneNumber();
     if (number) {
-      this.authService.currentView.set("incidents");
+      this.authService.currentView.set('incidents');
       void this.locationRequestService.requestLocationViaSms(number);
     }
   }

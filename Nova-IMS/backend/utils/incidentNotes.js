@@ -110,8 +110,7 @@ function diffNewCommentEntries(beforeRaw, afterRaw) {
   const after = parseIncidentNotes(afterRaw);
   if (after.length <= before.length) {
     const same =
-      JSON.stringify(before.map((e) => e.text)) ===
-      JSON.stringify(after.map((e) => e.text));
+      JSON.stringify(before.map((e) => e.text)) === JSON.stringify(after.map((e) => e.text));
     return { added: [], bulkChanged: !same && before.length === after.length };
   }
   return { added: after.slice(before.length), bulkChanged: false };

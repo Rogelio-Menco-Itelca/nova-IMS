@@ -30,10 +30,11 @@ export function parseIncidentNotes(raw: string | null | undefined): IncidentNote
       }
       const author = match[2].trim();
       const body = lines.slice(1).join('\n').trim();
+      const cleanBody = body.replace(/^\[[^\]]+\]\s*\n?/gm, '').trim();
       return {
         timestamp: match[1].trim(),
-        author,
-        text: body || (author && !body ? author : ''),
+        author: author || 'Operador',
+        text: cleanBody || (author && !body ? author : ''),
       };
     });
 }
@@ -64,7 +65,8 @@ export function appendIncidentNote(
 }
 
 export function formatNoteForDisplay(entry: IncidentNoteEntry): string {
-  return entry.timestamp ? entry.timestamp : 'Sin fecha';
+  if (!entry.timestamp) return 'Sin fecha';
+  return entry.timestamp;
 }
 
 /** Última entrada del historial (campo details legado en API/correo). */
@@ -89,8 +91,5 @@ export function buildCommentHistoryView(
     (e) => e.text.trim() === legacy || legacy.includes(e.text.trim()),
   );
   if (alreadyThere) return fromComments;
-  return [
-    { timestamp: null, author: 'Descripción inicial', text: legacy },
-    ...fromComments,
-  ];
+  return [{ timestamp: null, author: 'Descripción inicial', text: legacy }, ...fromComments];
 }

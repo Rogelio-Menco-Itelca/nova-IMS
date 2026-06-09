@@ -18,19 +18,21 @@ export class IncidentService {
   constructor() {
     // Punto Rojo: Escuchando actualizaciones del backend en tiempo real
     this.socketService.on('incident:created', (newIncident: Incident) => {
-      this.incidents.update(list => [newIncident, ...list]);
+      this.incidents.update((list) => [newIncident, ...list]);
     });
 
     this.socketService.on('incident:updated', (updatedIncident: Incident) => {
-      this.incidents.update(list => list.map(i => i.id === updatedIncident.id ? updatedIncident : i));
+      this.incidents.update((list) =>
+        list.map((i) => (i.id === updatedIncident.id ? updatedIncident : i)),
+      );
     });
   }
 
   private dedupeIncidents(list: Incident[]): Incident[] {
     const byId = new Map<string, Incident>();
     const pickCoord = (a: number | null | undefined, b: number | null | undefined) => {
-      const na = a != null ? Number(a) : NaN;
-      const nb = b != null ? Number(b) : NaN;
+      const na = a == null ? Number.NaN : Number(a);
+      const nb = b == null ? Number.NaN : Number(b);
       const ok = (n: number) => Number.isFinite(n) && Math.abs(n) > 0.0001;
       if (ok(na)) return na;
       if (ok(nb)) return nb;
@@ -64,7 +66,7 @@ export class IncidentService {
       error: (err) => {
         console.error('Error al conectar con el backend:', err);
         this.isLoading.set(false);
-      }
+      },
     });
   }
 
@@ -82,34 +84,29 @@ export class IncidentService {
   }
 
   handleCreateError(err: unknown): void {
-    console.error("Error al crear incidente:", err);
+    console.error('Error al crear incidente:', err);
     const e = err as { error?: { error?: { message?: string }; message?: string } };
     const msg =
       e?.error?.error?.message ||
       e?.error?.message ||
-      "No se pudo guardar el incidente en el servidor.";
-    this.notificationService.addNotification("Error al guardar", msg);
+      'No se pudo guardar el incidente en el servidor.';
+    this.notificationService.addNotification('Error al guardar', msg);
   }
 
-  updateIncident(
-    updatedIncident: Incident,
-    onSuccess?: (saved: Incident) => void,
-  ): void {
-    this.http
-      .put<Incident>(`${this.apiUrl}/${updatedIncident.id}`, updatedIncident)
-      .subscribe({
-        next: (saved) => {
-          onSuccess?.(saved);
-        },
-        error: (err) => {
-          console.error("Error al actualizar incidente:", err);
-          const msg =
-            err?.error?.error?.message ||
-            err?.error?.message ||
-            "No se pudo actualizar el incidente en el servidor.";
-          this.notificationService.addNotification("Error al guardar", msg);
-        },
-      });
+  updateIncident(updatedIncident: Incident, onSuccess?: (saved: Incident) => void): void {
+    this.http.put<Incident>(`${this.apiUrl}/${updatedIncident.id}`, updatedIncident).subscribe({
+      next: (saved) => {
+        onSuccess?.(saved);
+      },
+      error: (err) => {
+        console.error('Error al actualizar incidente:', err);
+        const msg =
+          err?.error?.error?.message ||
+          err?.error?.message ||
+          'No se pudo actualizar el incidente en el servidor.';
+        this.notificationService.addNotification('Error al guardar', msg);
+      },
+    });
   }
 
   lookupVehicleByPlate(plate: string) {
@@ -129,4 +126,3 @@ export class IncidentService {
     });
   }
 }
-

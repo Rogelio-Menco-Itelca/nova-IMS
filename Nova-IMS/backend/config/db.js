@@ -1,12 +1,13 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'ims_db',
+  database: process.env.DB_NAME || 'gestionincidentes',
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
@@ -18,7 +19,7 @@ async function testConnection() {
   const conn = await pool.getConnection();
   try {
     await conn.ping();
-    console.log(`[DB] Conectado a MySQL → ${process.env.DB_NAME}@${process.env.DB_HOST}`);
+    logger.info(`[DB] Conectado a MySQL → ${process.env.DB_NAME}@${process.env.DB_HOST}`);
   } finally {
     conn.release();
   }
