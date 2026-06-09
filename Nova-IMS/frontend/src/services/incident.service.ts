@@ -14,6 +14,8 @@ export class IncidentService {
 
   incidents = signal<Incident[]>([]);
   isLoading = signal(false);
+  /** Incidente a abrir al entrar en la vista Incidentes (desde el dashboard). */
+  pendingOpenIncidentId = signal<string | null>(null);
 
   constructor() {
     // Punto Rojo: Escuchando actualizaciones del backend en tiempo real
@@ -124,5 +126,13 @@ export class IncidentService {
     }>(`${this.apiUrl}/${encodeURIComponent(incidentId)}/send-email`, {
       recipients,
     });
+  }
+
+  requestOpenIncident(incidentId: string): void {
+    this.pendingOpenIncidentId.set(incidentId);
+  }
+
+  clearPendingOpenIncident(): void {
+    this.pendingOpenIncidentId.set(null);
   }
 }
