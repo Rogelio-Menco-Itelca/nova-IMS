@@ -52,7 +52,7 @@ export const ACTIVITY_THROTTLE_MS = new InjectionToken<number>('ACTIVITY_THROTTL
 type ChannelMessage = { type: 'activity'; at: number } | { type: 'logout' };
  
 /** Eventos del DOM que cuentan como "actividad del usuario". */
-const ACTIVITY_EVENTS: ReadonlyArray<keyof WindowEventMap> = [
+const ACTIVITY_EVENTS: readonly (keyof WindowEventMap)[] = [
   'mousemove',
   'mousedown',
   'keydown',

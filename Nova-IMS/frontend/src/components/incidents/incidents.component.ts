@@ -55,7 +55,7 @@ import {
   PlaceAutocompleteControl,
 } from "../../utils/google-maps-legacy";
 
-declare var google: any;
+declare let google: any;
 
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,

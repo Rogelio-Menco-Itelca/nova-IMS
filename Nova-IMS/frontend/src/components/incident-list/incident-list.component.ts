@@ -69,7 +69,7 @@ import {
   buildCommentHistoryView,
 } from "../../utils/incident-notes";
 
-declare var google: any;
+declare let google: any;
 
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,
