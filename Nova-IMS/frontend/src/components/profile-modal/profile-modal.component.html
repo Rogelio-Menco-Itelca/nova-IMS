@@ -148,7 +148,9 @@
             </div>
             <div class="profile-modal-row">
               <dt>Teléfono</dt>
-              <dd class="profile-modal-muted italic">No registrado</dd>
+              <dd [class.profile-modal-muted]="!hasPhone()" [class.italic]="!hasPhone()">
+                {{ phoneLabel() }}
+              </dd>
             </div>
           </dl>
         </section>

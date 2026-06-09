@@ -1,6 +1,6 @@
 import { Injectable, signal, inject, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, catchError, throwError } from 'rxjs';
+import { Observable, tap, catchError, throwError, map } from 'rxjs';
 import { AuthSource, User, Agency, RoleOption } from '../models/user.model';
 
 interface LoginPayload {
@@ -11,19 +11,22 @@ interface LoginPayload {
   rememberMe?: boolean;
 }
 
+interface ApiUserPayload {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  role_id?: string;
+  agency: string;
+  agencyName?: string | null;
+  authSource?: AuthSource;
+}
+
 interface LoginResponse {
   token: string;
   mustChangePassword: boolean;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    role_id: string;
-    agency: string;
-    agencyName?: string | null;
-    authSource?: AuthSource;
-  };
+  user: ApiUserPayload;
 }
 
 // Respuesta cuando el backend pide OTP (usuarios locales)
@@ -37,16 +40,7 @@ interface LoginOtpResponse {
 interface VerifyOtpResponse {
   token: string;
   mustChangePassword: boolean;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    role_id: string;
-    agency: string;
-    agencyName?: string | null;
-    authSource?: AuthSource;
-  };
+  user: ApiUserPayload;
 }
 
 const TOKEN_KEY = 'ims_token';
@@ -84,6 +78,24 @@ function authSourceFromToken(token: string): AuthSource | null {
     /* ignore */
   }
   return null;
+}
+
+function mapApiUser(apiUser: ApiUserPayload): User {
+  const phone = String(apiUser.phone ?? '').trim();
+  return {
+    id: apiUser.id,
+    name: apiUser.name,
+    email: apiUser.email,
+    phone: phone || undefined,
+    role: apiUser.role,
+    agency: apiUser.agency,
+    agencyName: apiUser.agencyName ?? undefined,
+    authSource: normalizeAuthSource(apiUser.authSource),
+  };
+}
+
+function persistCurrentUser(user: User): void {
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 @Injectable({ providedIn: 'root' })
@@ -135,17 +147,9 @@ export class AuthService {
       tap((resp) => {
         // Solo guardar sesión si es respuesta LDAP (token directo)
         if ('token' in resp) {
-          const user: User = {
-            id: resp.user.id,
-            name: resp.user.name,
-            email: resp.user.email,
-            role: resp.user.role,
-            agency: resp.user.agency,
-            agencyName: resp.user.agencyName ?? undefined,
-            authSource: normalizeAuthSource(resp.user.authSource),
-          };
+          const user = mapApiUser(resp.user);
           sessionStorage.setItem(TOKEN_KEY, resp.token);
-          sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+          persistCurrentUser(user);
           this.token.set(resp.token);
           this.currentUser.set(user);
           this.isAuthenticated.set(true);
@@ -173,17 +177,9 @@ export class AuthService {
       .post<VerifyOtpResponse>(`${this.apiUrl}/verify-otp`, { userId, code, agencia })
       .pipe(
         tap((resp) => {
-          const user: User = {
-            id: resp.user.id,
-            name: resp.user.name,
-            email: resp.user.email,
-            role: resp.user.role,
-            agency: resp.user.agency,
-            agencyName: resp.user.agencyName ?? undefined,
-            authSource: normalizeAuthSource(resp.user.authSource ?? 'local'),
-          };
+          const user = mapApiUser(resp.user);
           sessionStorage.setItem(TOKEN_KEY, resp.token);
-          sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+          persistCurrentUser(user);
           this.token.set(resp.token);
           this.currentUser.set(user);
           this.isAuthenticated.set(true);
@@ -235,5 +231,22 @@ export class AuthService {
     return this.http.get<RoleOption[]>('/api/roles/list', {
       params: { agency: agencyCode },
     });
+  }
+
+  /** Actualiza el usuario en sesión desde el servidor (teléfono, agencia, etc.). */
+  refreshProfile(): Observable<User> {
+    return this.http.get<ApiUserPayload>(`${this.apiUrl}/me`).pipe(
+      map((apiUser) => {
+        const current = this.currentUser();
+        const user = mapApiUser({
+          ...apiUser,
+          authSource: apiUser.authSource ?? current?.authSource,
+        });
+        this.currentUser.set(user);
+        persistCurrentUser(user);
+        return user;
+      }),
+      catchError((err) => throwError(() => err)),
+    );
   }
 }

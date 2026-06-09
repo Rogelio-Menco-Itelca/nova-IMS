@@ -4,6 +4,7 @@ import {
   ElementRef,
   HostListener,
   inject,
+  OnInit,
   output,
   signal,
   viewChild,
@@ -309,7 +310,7 @@ const SESSION_STARTED_KEY = 'ims_session_started_at';
     `,
   ],
 })
-export class ProfileModalComponent {
+export class ProfileModalComponent implements OnInit {
   readonly closed = output<void>();
 
   protected readonly authService = inject(AuthService);
@@ -319,6 +320,14 @@ export class ProfileModalComponent {
 
   photoError = signal<string | null>(null);
   isUpdatingPhoto = signal(false);
+  isLoadingProfile = signal(true);
+
+  ngOnInit(): void {
+    this.authService.refreshProfile().subscribe({
+      next: () => this.isLoadingProfile.set(false),
+      error: () => this.isLoadingProfile.set(false),
+    });
+  }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
@@ -389,6 +398,15 @@ export class ProfileModalComponent {
   roleLabel(): string {
     const role = String(this.authService.currentUser()?.role || '').trim();
     return role || '—';
+  }
+
+  phoneLabel(): string {
+    const phone = String(this.authService.currentUser()?.phone || '').trim();
+    return phone || 'No registrado';
+  }
+
+  hasPhone(): boolean {
+    return !!String(this.authService.currentUser()?.phone || '').trim();
   }
 
   sessionTypeLabel(): string {
