@@ -66,7 +66,7 @@ class LdapAuthError extends Error {
  * @returns {string}
  */
 function escapeFilter(value) {
-  return String(value).replace(/[\\*()\u0000]/g, (c) =>
+  return String(value).replace(/[\\*()\u0000]/g, (c) => // eslint-disable-line no-control-regex
     '\\' + c.charCodeAt(0).toString(16).padStart(2, '0')
   );
 }
