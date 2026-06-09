@@ -10,6 +10,7 @@ API REST + Socket.IO + MySQL para el sistema de gestión de incidentes.
 - **MySQL 8.x** con mysql2/promise
 - **Socket.IO 4** para eventos en tiempo real
 - **JWT** (jsonwebtoken) + **bcryptjs** para auth
+- **pnpm 11** como package manager
 
 ---
 
@@ -17,29 +18,30 @@ API REST + Socket.IO + MySQL para el sistema de gestión de incidentes.
 
 ```bash
 cp .env.example .env       # edita con tus credenciales MySQL
-npm install
-npm run dev                # http://localhost:3000
+pnpm install
+pnpm dev                   # http://localhost:3000
 ```
 
 Importa la base **`gestionincidentes`** desde `backend/sql/` (extraído de `Dump20260607.sql`):
 
 ```bash
-npm run db:import        # esquema + catálogos + geo
+pnpm run db:import        # esquema + catálogos + geo
 # o
-npm run db:import:full   # dump completo
+pnpm run db:import:full   # dump completo
 ```
 
 Ver `sql/README.md` para detalle de archivos.
 
 ---
 
-## 🔧 Scripts npm
+## 🔧 Scripts pnpm
 
-| Script              | Descripción                      |
-| ------------------- | -------------------------------- |
-| `npm run dev`       | Arranca con nodemon (hot reload) |
-| `npm start`         | Arranca en modo producción       |
-| `npm run ldap:test` | Prueba login contra LDAP         |
+| Script               | Descripción                      |
+| -------------------- | -------------------------------- |
+| `pnpm dev`           | Arranca con nodemon (hot reload) |
+| `pnpm start`         | Arranca en modo producción       |
+| `pnpm run ldap:test` | Prueba login contra LDAP         |
+| `pnpm audit`         | Verifica vulnerabilidades        |
 
 ---
 
@@ -75,18 +77,16 @@ LDAP_DEFAULT_AGENCY_CODE=CENTRAL
 | `uid` del directorio (p. ej. `rmenco`) | OpenLDAP / AD           | No obligatoria    |
 | Cuenta local (panel Administración)    | bcrypt en MySQL         | Sí                |
 
-Código: `services/auth.service.js` (lógica) · `services/ldap.service.js` (directorio) · `controllers/auth.controller.js` (rutas HTTP).
+Código: `services/auth.service.js` · `services/ldap.service.js` · `controllers/auth.controller.js`
 
-Diagnóstico: `GET /api/auth/ldap-health` · `npm run ldap:test -- rmenco pass123`
+Diagnóstico: `GET /api/auth/ldap-health` · `pnpm run ldap:test -- rmenco pass123`
 
 ---
 
 ## 🗄️ Base de datos
 
-El esquema y catálogos están en **`backend/sql/`** (origen: `Dump20260607.sql`).
-
 ```bash
-npm run db:import
+pnpm run db:import
 ```
 
 Ver `sql/README.md` para la política del proyecto respecto a MySQL.
@@ -134,8 +134,6 @@ Authorization: Bearer <token>
 
 ## 📡 Eventos Socket.IO
 
-Path `/socket.io`:
-
 | Evento              | Payload                         | Cuándo                    |
 | ------------------- | ------------------------------- | ------------------------- |
 | `incident:created`  | `Incident`                      | Se crea un incidente      |
@@ -147,69 +145,3 @@ Path `/socket.io`:
 ---
 
 ## 📂 Estructura
-
-```
-backend/
-├── config/
-│   ├── db.js
-│   └── ldap.js                        # Variables LDAP_*
-├── controllers/
-├── services/
-│   ├── auth.service.js                # Login híbrido (directorio + local)
-│   └── ldap.service.js                # Cliente OpenLDAP / AD
-├── middleware/
-│   ├── auth.js                        # JWT + requireRole
-│   └── errorHandler.js
-├── realtime/socket.js                 # Socket.IO singleton
-├── routes/index.js                    # Cableado de rutas
-├── sql/
-│   ├── 01_schema.sql
-│   ├── 02_seed_catalogs.sql
-│   ├── 03_seed_geo.sql
-│   ├── gestionincidentes_dump.sql
-│   ├── import-db.js
-│   └── README.md
-├── utils/
-│   ├── asyncHandler.js
-│   ├── HttpError.js
-│   └── ids.js
-├── .env.example
-├── package.json
-└── server.js
-```
-
----
-
-## 🛡️ Seguridad
-
-Para producción asegúrate de:
-
-- Cambiar `JWT_SECRET` por un string largo y aleatorio (64+ chars)
-- No usar contraseñas débiles en cuentas locales de MySQL
-- Habilitar HTTPS (terminar TLS en un reverse proxy como nginx)
-- Añadir **express-rate-limit** al endpoint `/api/auth/login`
-- Añadir **helmet** para cabeceras de seguridad
-- Considerar refresh tokens
-- Activar permisos por rol con `requireRole('RP-1','RP-2')` en rutas sensibles (helper ya disponible en `middleware/auth.js`)
-
----
-
-## 🛠️ Troubleshooting
-
-**`ER_ACCESS_DENIED_ERROR`** → revisa `DB_USER` y `DB_PASSWORD` en `.env`.
-
-**Login da 401** → verifica `LDAP_ENABLED`, credenciales del directorio (`npm run ldap:test -- uid clave`) o cuenta local en MySQL.
-
-**CORS bloqueado** → ajusta `CORS_ORIGIN` en `.env` al origen del frontend.
-
-**Quiero cambiar una contraseña manualmente**:
-
-```bash
-node -e "console.log(require('bcryptjs').hashSync('nuevaClave', 10))"
-```
-
-Luego en MySQL:
-
-```sql
-UPDATE users SET password_hash = '<hash>' WHERE username = 'admin';
-```

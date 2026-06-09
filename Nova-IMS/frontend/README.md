@@ -1,4 +1,4 @@
-# Incident Management System — Frontend
+## Incident Management System — Frontend
 
 Cliente **Angular 20** conectado al backend Node.js + MySQL.
 
@@ -12,22 +12,22 @@ El backend debe estar activo en `http://localhost:3000`. Si aún no lo iniciaste
 
 ```bash
 cd ../backend
-npm install
-npm run db:init
-npm run dev
+pnpm install
+pnpm run db:init
+pnpm dev
 ```
 
 ### 2. Instala el frontend
 
 ```bash
 cd frontend
-npm install
+pnpm install
 ```
 
 ### 3. Arranca el dev server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Abre [http://localhost:4200](http://localhost:4200) en tu navegador.
@@ -64,35 +64,46 @@ El servicio `src/services/socket.service.ts` se conecta a `ws://localhost:3000/s
 ---
 
 ## 📂 Estructura principal
-
-```
 frontend/
 ├── index.html             ← Usa importmap + Tailwind CDN
 ├── index.tsx              ← Bootstrap con interceptor JWT
 ├── proxy.conf.json        ← Proxy dev /api y /socket.io → :3000
 ├── angular.json           ← Build/serve config (puerto 4200, proxy)
+├── eslint.config.js       ← ESLint + Angular accessibility rules
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml    ← Builds aprobados (esbuild, parcel, lmdb)
 ├── package.json
 ├── tsconfig.json
 └── src/
-    ├── app.component.{ts,html}
-    ├── models/{incident,user,admin}.model.ts
-    ├── services/
-    │   ├── auth.service.ts               ← JWT login real
-    │   ├── configuration.service.ts      ← CRUD HTTP real
-    │   ├── incident.service.ts
-    │   ├── person.service.ts
-    │   ├── notification.service.ts
-    │   ├── socket.service.ts
-    │   └── location-request.service.ts
-    ├── interceptors/
-    │   └── auth.interceptor.ts
-    └── components/
-        ├── login/
-        ├── admin/
-        ├── incidents/
-        ├── incident-list/
-        └── reports/
-```
+├── app.component.{ts,html}
+├── models/{incident,user,admin}.model.ts
+├── services/
+│   ├── auth.service.ts
+│   ├── configuration.service.ts
+│   ├── incident.service.ts
+│   ├── person.service.ts
+│   ├── notification.service.ts
+│   ├── socket.service.ts
+│   └── location-request.service.ts
+├── interceptors/
+│   └── auth.interceptor.ts
+└── components/
+├── login/
+├── admin/
+├── incidents/
+├── incident-list/
+└── reports/
+
+---
+
+## 🛡️ Herramientas de calidad y seguridad
+
+| Herramienta | Comando | Descripción |
+| ----------- | ------- | ----------- |
+| ESLint | `pnpm run lint` | Análisis estático Angular + TypeScript |
+| Prettier | `prettier --write src/` | Formato de código |
+| pnpm audit | `pnpm audit` | Vulnerabilidades en dependencias |
+| Dependabot | Automático (GitHub) | Alertas semanales |
 
 ---
 
@@ -100,7 +111,7 @@ frontend/
 
 **Error: `ECONNREFUSED 127.0.0.1:3000`** → El backend no está corriendo.
 
-**Login no funciona / da 401** → Asegúrate de haber ejecutado `npm run db:init` en el backend para sembrar los usuarios demo.
+**Login no funciona / da 401** → Asegúrate de haber ejecutado `pnpm run db:init` en el backend para sembrar los usuarios demo.
 
 **Socket.IO no conecta** → Revisa que el proxy esté activo (`proxy.conf.json`) y que el backend esté en el puerto 3000.
 
@@ -116,5 +127,7 @@ frontend/
 2. **Se añadió el interceptor JWT** — no tienes que preocuparte por añadir tokens manualmente.
 3. **Se eliminó `server.ts`** del frontend — el backend vive en una carpeta aparte.
 4. **Se añadió `proxy.conf.json`** — el dev server redirige automáticamente al backend.
-5. **Se eliminaron** los componentes muertos `operators/` y `history/` (no estaban conectados a la navegación del `app.component`).
+5. **Se eliminaron** los componentes muertos `operators/` y `history/`.
 6. **Dev server ahora corre en 4200** (antes 3000, que colisionaba con el backend).
+7. **Migrado a pnpm 11** con supply-chain policy.
+8. **ESLint configurado** con reglas Angular + accesibilidad.
