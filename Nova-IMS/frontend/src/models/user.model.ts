@@ -1,4 +1,11 @@
-export type UserRole = 'admin' | 'supervisor' | 'operator' | 'field_unit' | 'analyst' | 'viewer' | string;
+export type UserRole =
+  | 'admin'
+  | 'supervisor'
+  | 'operator'
+  | 'field_unit'
+  | 'analyst'
+  | 'viewer'
+  | string;
 
 /** Origen de la sesión actual */
 export type AuthSource = 'ldap' | 'local';

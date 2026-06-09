@@ -48,17 +48,13 @@ export class PersonService {
   }
 
   async addPerson(person: PersonFormPayload): Promise<Person> {
-    const created = await firstValueFrom(
-      this.http.post<Person>(this.apiUrl, person),
-    );
+    const created = await firstValueFrom(this.http.post<Person>(this.apiUrl, person));
     this.people.update((list) => [created, ...list]);
     return created;
   }
 
   async updatePerson(id: string, person: PersonFormPayload): Promise<Person> {
-    const updated = await firstValueFrom(
-      this.http.put<Person>(`${this.apiUrl}/${id}`, person),
-    );
+    const updated = await firstValueFrom(this.http.put<Person>(`${this.apiUrl}/${id}`, person));
     this.people.update((list) => list.map((p) => (p.id === id ? updated : p)));
     return updated;
   }

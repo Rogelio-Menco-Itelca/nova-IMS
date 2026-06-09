@@ -1,9 +1,9 @@
-import { Injectable, signal, inject } from "@angular/core";
-import { io, Socket } from "socket.io-client";
-import { AuthService } from "./auth.service";
-import { socketUrl } from "../utils/api-base";
+import { Injectable, signal, inject } from '@angular/core';
+import { io, Socket } from 'socket.io-client';
+import { AuthService } from './auth.service';
+import { socketUrl } from '../utils/api-base';
 
-@Injectable({ providedIn: "root" })
+@Injectable({ providedIn: 'root' })
 export class SocketService {
   private socket: Socket;
   private authService = inject(AuthService);
@@ -12,24 +12,24 @@ export class SocketService {
 
   constructor() {
     this.socket = io(socketUrl(), {
-      path: "/socket.io",
-      transports: ["polling", "websocket"],
+      path: '/socket.io',
+      transports: ['polling', 'websocket'],
       auth: {
-        token: this.authService.getToken() || "",
+        token: this.authService.getToken() || '',
       },
       autoConnect: true,
     });
 
-    this.socket.on("connect", () => {
+    this.socket.on('connect', () => {
       this.isConnected.set(true);
     });
 
-    this.socket.on("disconnect", () => {
+    this.socket.on('disconnect', () => {
       this.isConnected.set(false);
     });
 
-    this.socket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err);
+    this.socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
     });
   }
 

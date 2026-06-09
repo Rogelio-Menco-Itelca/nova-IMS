@@ -1,13 +1,10 @@
-import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
-import { firstValueFrom } from "rxjs";
-import {
-  ColombiaDepartment,
-  ColombiaMunicipality,
-} from "../models/incident.model";
-import { AuthService } from "./auth.service";
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { ColombiaDepartment, ColombiaMunicipality } from '../models/incident.model';
+import { AuthService } from './auth.service';
 
-@Injectable({ providedIn: "root" })
+@Injectable({ providedIn: 'root' })
 export class ColombiaGeoService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
@@ -26,7 +23,7 @@ export class ColombiaGeoService {
       return this.departmentsCache.get(agency)!;
     }
     const rows = await firstValueFrom(
-      this.http.get<ColombiaDepartment[]>("/api/departments", {
+      this.http.get<ColombiaDepartment[]>('/api/departments', {
         params: { agency },
       }),
     );
@@ -36,7 +33,7 @@ export class ColombiaGeoService {
 
   getMunicipalities(departmentId: number) {
     const agency = this.sessionAgency();
-    return this.http.get<ColombiaMunicipality[]>("/api/municipalities", {
+    return this.http.get<ColombiaMunicipality[]>('/api/municipalities', {
       params: {
         departmentId: String(departmentId),
         ...(agency ? { agency } : {}),

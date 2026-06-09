@@ -1,4 +1,12 @@
-import { Component, ChangeDetectionStrategy, signal, inject, computed, OnInit, effect } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  signal,
+  inject,
+  computed,
+  OnInit,
+  effect,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray } from '@angular/forms';
 import { NotificationService } from '../../services/notification.service';
@@ -9,14 +17,27 @@ import {
   CatalogOption,
   DocumentTypeOption,
 } from '../../models/incident.model';
-import { Operator, OperatorFormPayload, IncidentType, ResponseProtocol } from '../../models/admin.model';
+import {
+  Operator,
+  OperatorFormPayload,
+  IncidentType,
+  ResponseProtocol,
+} from '../../models/admin.model';
 import { ConfigurationService } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { Agency, RoleOption } from '../../models/user.model';
 
-type AdminTab = 'users' | 'people' | 'incidents' | 'responses' | 'notifications' | 'admin_logs' | 'permissions' | 'incident_history';
+type AdminTab =
+  | 'users'
+  | 'people'
+  | 'incidents'
+  | 'responses'
+  | 'notifications'
+  | 'admin_logs'
+  | 'permissions'
+  | 'incident_history';
 
 const NOTIFICATION_EMAIL_PAGE_SIZE = 10;
 
@@ -66,10 +87,11 @@ export class AdminComponent implements OnInit {
   filteredAdminLogs = computed(() => {
     const term = this.adminLogSearch().toLowerCase();
     if (!term) return this.adminLogs();
-    return this.adminLogs().filter(log => 
-      log.user.toLowerCase().includes(term) ||
-      log.action.toLowerCase().includes(term) ||
-      log.details.toLowerCase().includes(term)
+    return this.adminLogs().filter(
+      (log) =>
+        log.user.toLowerCase().includes(term) ||
+        log.action.toLowerCase().includes(term) ||
+        log.details.toLowerCase().includes(term),
     );
   });
 
@@ -98,7 +120,7 @@ export class AdminComponent implements OnInit {
   userSearchTerm = signal('');
   pageSize = signal(10);
   currentPage = signal(1);
-  
+
   operatorForm = this.fb.group({
     primerNombre: ['', Validators.required],
     segundoNombre: [''],
@@ -131,7 +153,7 @@ export class AdminComponent implements OnInit {
   responseProtocolForm = this.fb.group({
     name: ['', Validators.required],
     incidentTypeName: ['', Validators.required],
-    steps: this.fb.array([this.fb.control('', Validators.required)])
+    steps: this.fb.array([this.fb.control('', Validators.required)]),
   });
 
   newEmailControl = this.fb.control('', [Validators.email]);
@@ -169,10 +191,7 @@ export class AdminComponent implements OnInit {
   notificationEmailPageRangeLabel = computed(() => {
     const total = this.displayedNotificationEmails().length;
     if (!total) return '';
-    const page = Math.min(
-      this.notificationEmailPage(),
-      this.notificationEmailTotalPages() || 1,
-    );
+    const page = Math.min(this.notificationEmailPage(), this.notificationEmailTotalPages() || 1);
     const start = (page - 1) * NOTIFICATION_EMAIL_PAGE_SIZE + 1;
     const end = Math.min(page * NOTIFICATION_EMAIL_PAGE_SIZE, total);
     return `${start}-${end} de ${total}`;
@@ -249,7 +268,8 @@ export class AdminComponent implements OnInit {
 
   suggestUsername(primerNombre: string, primerApellido: string): string {
     const normalize = (s: string) =>
-      s.normalize('NFD')
+      s
+        .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
@@ -335,17 +355,21 @@ export class AdminComponent implements OnInit {
     try {
       if (this.isEditModePerson()) {
         await this.personService.updatePerson(this.selectedPerson()!.id, payload);
-        this.notificationService.addNotification('Persona Actualizada', 'Los datos han sido guardados.');
+        this.notificationService.addNotification(
+          'Persona Actualizada',
+          'Los datos han sido guardados.',
+        );
       } else {
         await this.personService.addPerson(payload);
-        this.notificationService.addNotification('Persona Registrada', 'Se ha guardado el nuevo registro.');
+        this.notificationService.addNotification(
+          'Persona Registrada',
+          'Se ha guardado el nuevo registro.',
+        );
       }
       this.showPersonForm.set(false);
     } catch (err: any) {
       const msg =
-        err?.error?.error?.message ||
-        err?.error?.message ||
-        'No se pudo guardar la persona.';
+        err?.error?.error?.message || err?.error?.message || 'No se pudo guardar la persona.';
       this.notificationService.addNotification('Error', msg);
     }
   }
@@ -353,7 +377,10 @@ export class AdminComponent implements OnInit {
   async deletePerson(id: string): Promise<void> {
     if (confirm('¿Está seguro de eliminar este registro de persona?')) {
       await this.personService.deletePerson(id);
-      this.notificationService.addNotification('Registro Eliminado', 'La persona ha sido removida del sistema.');
+      this.notificationService.addNotification(
+        'Registro Eliminado',
+        'La persona ha sido removida del sistema.',
+      );
     }
   }
 
@@ -375,33 +402,35 @@ export class AdminComponent implements OnInit {
     const selectedId = this.selectedIncidentIdForHistory();
     const logs = this.auditLogs();
     if (selectedId === 'all') return logs;
-    return logs.filter(log => log.incidentId === selectedId);
+    return logs.filter((log) => log.incidentId === selectedId);
   });
 
   selectedIncidentForHistory = computed(() => {
     const id = this.selectedIncidentIdForHistory();
     if (id === 'all') return null;
-    return this.allIncidents().find(i => i.id === id) || null;
+    return this.allIncidents().find((i) => i.id === id) || null;
   });
 
   filteredIncidentsForHistory = computed(() => {
     const term = this.incidentHistorySearchTerm().toLowerCase();
     if (!term) return this.allIncidents();
-    return this.allIncidents().filter(i => 
-      i.id.toLowerCase().includes(term) ||
-      i.type.toLowerCase().includes(term) ||
-      i.location.toLowerCase().includes(term)
+    return this.allIncidents().filter(
+      (i) =>
+        i.id.toLowerCase().includes(term) ||
+        i.type.toLowerCase().includes(term) ||
+        i.location.toLowerCase().includes(term),
     );
   });
 
   searchedOperators = computed(() => {
     const term = this.userSearchTerm().toLowerCase();
     if (!term) return this.operators();
-    return this.operators().filter(op => 
-      op.name.toLowerCase().includes(term) ||
-      op.email.toLowerCase().includes(term) ||
-      op.id.toLowerCase().includes(term) ||
-      op.role.toLowerCase().includes(term)
+    return this.operators().filter(
+      (op) =>
+        op.name.toLowerCase().includes(term) ||
+        op.email.toLowerCase().includes(term) ||
+        op.id.toLowerCase().includes(term) ||
+        op.role.toLowerCase().includes(term),
     );
   });
 
@@ -419,11 +448,23 @@ export class AdminComponent implements OnInit {
       void this.refreshIncidentHistoryView();
     }
   }
-  onSearch(event: Event): void { this.userSearchTerm.set((event.target as HTMLInputElement).value); this.currentPage.set(1); }
-  changePageSize(event: Event): void { this.pageSize.set(Number((event.target as HTMLSelectElement).value)); this.currentPage.set(1); }
-  goToPage(page: number): void { if (page >= 1 && page <= this.totalPages()) this.currentPage.set(page); }
-  nextPage(): void { this.goToPage(this.currentPage() + 1); }
-  previousPage(): void { this.goToPage(this.currentPage() - 1); }
+  onSearch(event: Event): void {
+    this.userSearchTerm.set((event.target as HTMLInputElement).value);
+    this.currentPage.set(1);
+  }
+  changePageSize(event: Event): void {
+    this.pageSize.set(Number((event.target as HTMLSelectElement).value));
+    this.currentPage.set(1);
+  }
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages()) this.currentPage.set(page);
+  }
+  nextPage(): void {
+    this.goToPage(this.currentPage() + 1);
+  }
+  previousPage(): void {
+    this.goToPage(this.currentPage() - 1);
+  }
 
   async refreshIncidentHistoryView(): Promise<void> {
     await this.configService.getAuditLogs();
@@ -475,7 +516,9 @@ export class AdminComponent implements OnInit {
   }
 
   async saveOperator(): Promise<void> {
-    const formValue = this.operatorForm.getRawValue() as OperatorFormPayload & { password?: string };
+    const formValue = this.operatorForm.getRawValue() as OperatorFormPayload & {
+      password?: string;
+    };
     if (
       this.operatorForm.invalid ||
       !formValue.agency ||
@@ -489,9 +532,7 @@ export class AdminComponent implements OnInit {
     this.operatorPasswordError.set(null);
     this.operatorFormError.set(null);
     if (!this.isEditMode()) {
-      const passwordError = this.validateOperatorPassword(
-        String(formValue.password || ''),
-      );
+      const passwordError = this.validateOperatorPassword(String(formValue.password || ''));
       if (passwordError) {
         this.operatorPasswordError.set(passwordError);
         this.operatorForm.controls.password.markAsTouched();
@@ -523,9 +564,7 @@ export class AdminComponent implements OnInit {
       this.closeForm();
     } catch (err: any) {
       const msg =
-        err?.error?.error?.message ||
-        err?.error?.message ||
-        'No se pudo guardar el usuario.';
+        err?.error?.error?.message || err?.error?.message || 'No se pudo guardar el usuario.';
       if (/contraseña|password/i.test(msg)) {
         this.operatorPasswordError.set(msg);
         this.operatorFormError.set(null);
@@ -583,17 +622,26 @@ export class AdminComponent implements OnInit {
     this.closeIncidentTypeForm();
   }
 
-  closeIncidentTypeForm(): void { this.showIncidentTypeForm.set(false); }
+  closeIncidentTypeForm(): void {
+    this.showIncidentTypeForm.set(false);
+  }
 
-  get steps() { return this.responseProtocolForm.get('steps') as FormArray; }
-  addStep() { this.steps.push(this.fb.control('', Validators.required)); }
-  removeStep(index: number) { if (this.steps.length > 1) this.steps.removeAt(index); }
+  get steps() {
+    return this.responseProtocolForm.get('steps') as FormArray;
+  }
+  addStep() {
+    this.steps.push(this.fb.control('', Validators.required));
+  }
+  removeStep(index: number) {
+    if (this.steps.length > 1) this.steps.removeAt(index);
+  }
 
   openAddResponseProtocolForm(): void {
     this.isEditModeResponseProtocol.set(false);
     this.selectedResponseProtocolId.set(null);
     this.responseProtocolForm.reset({ incidentTypeName: '' });
-    this.steps.clear(); this.addStep();
+    this.steps.clear();
+    this.addStep();
     this.showResponseProtocolForm.set(true);
   }
 
@@ -602,14 +650,18 @@ export class AdminComponent implements OnInit {
     this.selectedResponseProtocolId.set(protocol.id);
     this.responseProtocolForm.patchValue(protocol);
     this.steps.clear();
-    protocol.steps.forEach(step => this.steps.push(this.fb.control(step, Validators.required)));
+    protocol.steps.forEach((step) => this.steps.push(this.fb.control(step, Validators.required)));
     this.showResponseProtocolForm.set(true);
   }
 
   async saveResponseProtocol(): Promise<void> {
     if (this.responseProtocolForm.invalid) return;
     const formValue = this.responseProtocolForm.value;
-    const protocolData = { name: formValue.name!, incidentTypeName: formValue.incidentTypeName!, steps: formValue.steps! };
+    const protocolData = {
+      name: formValue.name!,
+      incidentTypeName: formValue.incidentTypeName!,
+      steps: formValue.steps!,
+    };
     if (this.isEditModeResponseProtocol()) {
       const protocolId = this.selectedResponseProtocolId()!;
       await this.configService.updateResponseProtocol(protocolId, protocolData);
@@ -619,7 +671,9 @@ export class AdminComponent implements OnInit {
     this.closeResponseProtocolForm();
   }
 
-  closeResponseProtocolForm(): void { this.showResponseProtocolForm.set(false); }
+  closeResponseProtocolForm(): void {
+    this.showResponseProtocolForm.set(false);
+  }
 
   async createNotificationEmail(): Promise<void> {
     this.newEmailControl.markAsTouched();
@@ -638,9 +692,7 @@ export class AdminComponent implements OnInit {
       });
       return;
     }
-    const exists = this.notificationEmails().some(
-      (e) => e.toLowerCase() === raw,
-    );
+    const exists = this.notificationEmails().some((e) => e.toLowerCase() === raw);
     if (exists) {
       this.notificationEmailFeedback.set({
         type: 'warn',
@@ -734,16 +786,23 @@ export class AdminComponent implements OnInit {
 
   async deleteRole(id: string): Promise<void> {
     await this.configService.deleteRolePermission(id);
-    this.notificationService.addNotification('Rol Eliminado', 'Se ha eliminado el rol correctamente');
+    this.notificationService.addNotification(
+      'Rol Eliminado',
+      'Se ha eliminado el rol correctamente',
+    );
   }
 
-  async togglePermission(roleId: string, moduleIndex: number, action: 'view' | 'create' | 'edit' | 'delete' | 'enabled'): Promise<void> {
-    const role = this.rolePermissions().find(r => r.id === roleId);
+  async togglePermission(
+    roleId: string,
+    moduleIndex: number,
+    action: 'view' | 'create' | 'edit' | 'delete' | 'enabled',
+  ): Promise<void> {
+    const role = this.rolePermissions().find((r) => r.id === roleId);
     if (!role) return;
 
     const updatedPermissions = [...role.permissions];
     const modulePerm = { ...updatedPermissions[moduleIndex] };
-    
+
     if (action === 'enabled') {
       modulePerm.enabled = !modulePerm.enabled;
     } else {
@@ -752,6 +811,9 @@ export class AdminComponent implements OnInit {
 
     updatedPermissions[moduleIndex] = modulePerm;
     await this.configService.updateRolePermission(roleId, { permissions: updatedPermissions });
-    this.notificationService.addNotification('Permisos Actualizados', `Se han actualizado los permisos para el rol ${role.role}`);
+    this.notificationService.addNotification(
+      'Permisos Actualizados',
+      `Se han actualizado los permisos para el rol ${role.role}`,
+    );
   }
 }

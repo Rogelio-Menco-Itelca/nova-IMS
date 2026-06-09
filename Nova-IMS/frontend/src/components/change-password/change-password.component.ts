@@ -27,9 +27,7 @@ export class ChangePasswordComponent {
     this.error.set(null);
     if (this.form.invalid || this.isSubmitting()) return;
 
-    const passwordError = this.validateNewPassword(
-      String(this.form.value.newPassword || ''),
-    );
+    const passwordError = this.validateNewPassword(String(this.form.value.newPassword || ''));
     if (passwordError) {
       this.error.set(passwordError);
       return;
@@ -37,26 +35,26 @@ export class ChangePasswordComponent {
 
     this.isSubmitting.set(true);
 
-    this.authService.changePassword({
-      currentPassword: this.form.value.currentPassword!,
-      newPassword: this.form.value.newPassword!,
-    }).subscribe({
-      next: () => {
-        sessionStorage.setItem(
-          LOGIN_NOTICE_KEY,
-          'Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña.',
-        );
-        this.authService.logout();
-      },
-      error: (err) => {
-        this.isSubmitting.set(false);
-        this.error.set(
-          err?.error?.error?.message ||
-            err?.error?.message ||
-            'Error al cambiar contraseña',
-        );
-      },
-    });
+    this.authService
+      .changePassword({
+        currentPassword: this.form.value.currentPassword!,
+        newPassword: this.form.value.newPassword!,
+      })
+      .subscribe({
+        next: () => {
+          sessionStorage.setItem(
+            LOGIN_NOTICE_KEY,
+            'Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña.',
+          );
+          this.authService.logout();
+        },
+        error: (err) => {
+          this.isSubmitting.set(false);
+          this.error.set(
+            err?.error?.error?.message || err?.error?.message || 'Error al cambiar contraseña',
+          );
+        },
+      });
   }
 
   private validateNewPassword(password: string): string | null {

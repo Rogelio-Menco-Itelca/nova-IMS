@@ -1,25 +1,25 @@
-import { Injectable, signal, inject } from "@angular/core";
-import { SocketService } from "./socket.service";
-import { NotificationService } from "./notification.service";
-import { apiUrl } from "../utils/api-base";
+import { Injectable, signal, inject } from '@angular/core';
+import { SocketService } from './socket.service';
+import { NotificationService } from './notification.service';
+import { apiUrl } from '../utils/api-base';
 import {
   resolvePublicShareUrl,
   isMobileShareUrl,
   buildLocationShareMessage,
-} from "../utils/public-share-url";
+} from '../utils/public-share-url';
 
 export interface LocationData {
   lat: number;
   lng: number;
   timestamp: number;
   phoneNumber?: string;
-  channel?: "whatsapp" | "sms";
+  channel?: 'whatsapp' | 'sms';
   requestId?: string;
   solicitudId?: number;
   address?: string;
 }
 
-@Injectable({ providedIn: "root" })
+@Injectable({ providedIn: 'root' })
 export class LocationRequestService {
   locationReceived = signal<LocationData | null>(null);
 
@@ -28,11 +28,8 @@ export class LocationRequestService {
 
   openNewIncidentForm(phone?: string): void {
     if (phone) {
-      const digits = phone.replace(/\D/g, "");
-      const localNumber =
-        digits.startsWith("57") && digits.length > 10
-          ? digits.slice(2)
-          : digits;
+      const digits = phone.replace(/\D/g, '');
+      const localNumber = digits.startsWith('57') && digits.length > 10 ? digits.slice(2) : digits;
       this.pendingPhone.set(localNumber);
       this.lastRequestedNumber.set(localNumber);
     }
@@ -48,14 +45,14 @@ export class LocationRequestService {
   }
 
   private lastRequestedNumber = signal<string | null>(null);
-  private lastRequestChannel = signal<"whatsapp" | "sms">("whatsapp");
+  private lastRequestChannel = signal<'whatsapp' | 'sms'>('whatsapp');
   private lastRequestId = signal<string | null>(null);
   private lastSolicitudId = signal<number | null>(null);
   private socketService = inject(SocketService);
   private notificationService = inject(NotificationService);
 
   constructor() {
-    this.socketService.on("location:received", (data: any) => {
+    this.socketService.on('location:received', (data: any) => {
       const processedData: LocationData = {
         lat: data.lat,
         lng: data.lng,
@@ -83,9 +80,9 @@ export class LocationRequestService {
   //   "573026172447"    → indicativo sin +              ✓
   // Cualquier otro formato se rechaza con notificación de error.
   validateColombianPhone(phone: string): { valid: boolean; error?: string } {
-    const digits = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, '');
 
-    if (digits.startsWith("57")) {
+    if (digits.startsWith('57')) {
       // Formato internacional: "57" + 10 dígitos = 12 total
       if (digits.length !== 12) {
         return {
@@ -112,24 +109,18 @@ export class LocationRequestService {
   // "+573026172447" → "573026172447"
   // "573026172447"  → "573026172447"  (ya correcto, no duplicar)
   private toInternationalCo(phone: string): string {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.startsWith("57")) return digits;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('57')) return digits;
     return `57${digits}`;
   }
 
-  private async createLocationRequest(
-    phone: string,
-    channel: "whatsapp" | "sms",
-  ): Promise<string> {
+  private async createLocationRequest(phone: string, channel: 'whatsapp' | 'sms'): Promise<string> {
     this.lastRequestChannel.set(channel);
-    const token =
-      sessionStorage.getItem("ims_token") ||
-      localStorage.getItem("ims_token") ||
-      "";
-    const response = await fetch(apiUrl("/api/location-requests"), {
-      method: "POST",
+    const token = sessionStorage.getItem('ims_token') || localStorage.getItem('ims_token') || '';
+    const response = await fetch(apiUrl('/api/location-requests'), {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ phone, channel }),
@@ -138,18 +129,18 @@ export class LocationRequestService {
     const data = await response.json();
 
     if (!data?.requestUrl) {
-      throw new Error("No se recibió requestUrl del backend");
+      throw new Error('No se recibió requestUrl del backend');
     }
 
     if (data.publicUrlWarning) {
       this.notificationService.addNotification(
-        "Configurar URL pública",
+        'Configurar URL pública',
         String(data.publicUrlWarning),
       );
     }
 
     const urlParams = new URL(data.requestUrl).searchParams;
-    const requestId = urlParams.get("request_id");
+    const requestId = urlParams.get('request_id');
     if (requestId) {
       this.lastRequestId.set(requestId);
     }
@@ -174,8 +165,8 @@ export class LocationRequestService {
   private warnIfShareUrlNotPublic(shareUrl: string): void {
     if (isMobileShareUrl(shareUrl)) return;
     this.notificationService.addNotification(
-      "Enlace no público",
-      "El enlace sigue siendo localhost. En backend/.env agregue NGROK_URL=https://su-tunel.ngrok-free.dev y reinicie el backend (o publicShareBaseUrl en environment.ts).",
+      'Enlace no público',
+      'El enlace sigue siendo localhost. En backend/.env agregue NGROK_URL=https://su-tunel.ngrok-free.dev y reinicie el backend (o publicShareBaseUrl en environment.ts).',
     );
   }
 
@@ -184,23 +175,17 @@ export class LocationRequestService {
     // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
-      this.notificationService.addNotification(
-        "Número Inválido",
-        validation.error!,
-      );
+      this.notificationService.addNotification('Número Inválido', validation.error!);
       return;
     }
 
-    const digits = phoneNumber.replace(/\D/g, "");
-    const localNumber = digits.startsWith("57") ? digits.slice(2) : digits;
+    const digits = phoneNumber.replace(/\D/g, '');
+    const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
 
     this.openNewIncidentForm(localNumber);
 
     try {
-      const shareUrl = await this.createLocationRequest(
-        localNumber,
-        "whatsapp",
-      );
+      const shareUrl = await this.createLocationRequest(localNumber, 'whatsapp');
       this.warnIfShareUrlNotPublic(shareUrl);
 
       const message = buildLocationShareMessage(shareUrl);
@@ -208,17 +193,17 @@ export class LocationRequestService {
       const waPhone = this.toInternationalCo(localNumber);
 
       const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, "_blank");
+      window.open(whatsappUrl, '_blank');
 
       this.notificationService.addNotification(
-        "Solicitud Enviada",
+        'Solicitud Enviada',
         `Se envió un enlace de ubicación a ${localNumber} por WhatsApp.`,
       );
     } catch (error) {
-      console.error("Error WhatsApp:", error);
+      console.error('Error WhatsApp:', error);
       this.notificationService.addNotification(
-        "Error al Enviar",
-        "No se pudo enviar la solicitud por WhatsApp. Intente de nuevo.",
+        'Error al Enviar',
+        'No se pudo enviar la solicitud por WhatsApp. Intente de nuevo.',
       );
     }
   }
@@ -228,23 +213,17 @@ export class LocationRequestService {
     // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
-      this.notificationService.addNotification(
-        "Número Inválido",
-        validation.error!,
-      );
+      this.notificationService.addNotification('Número Inválido', validation.error!);
       return;
     }
 
-    const digits = phoneNumber.replace(/\D/g, "");
-    const localNumber = digits.startsWith("57") ? digits.slice(2) : digits;
+    const digits = phoneNumber.replace(/\D/g, '');
+    const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
 
     this.openNewIncidentForm(localNumber);
 
     try {
-      const shareUrl = await this.createLocationRequest(
-        localNumber,
-        "sms",
-      );
+      const shareUrl = await this.createLocationRequest(localNumber, 'sms');
       this.warnIfShareUrlNotPublic(shareUrl);
 
       const message = buildLocationShareMessage(shareUrl);
@@ -252,17 +231,17 @@ export class LocationRequestService {
       const smsPhone = this.toInternationalCo(localNumber);
 
       const smsUrl = `sms:+${smsPhone}?body=${encodeURIComponent(message)}`;
-      window.open(smsUrl, "_blank");
+      window.open(smsUrl, '_blank');
 
       this.notificationService.addNotification(
-        "Solicitud Enviada",
+        'Solicitud Enviada',
         `Se envió un enlace de ubicación a ${localNumber} por SMS.`,
       );
     } catch (error) {
-      console.error("Error SMS:", error);
+      console.error('Error SMS:', error);
       this.notificationService.addNotification(
-        "Error al Enviar",
-        "No se pudo enviar la solicitud por SMS. Intente de nuevo.",
+        'Error al Enviar',
+        'No se pudo enviar la solicitud por SMS. Intente de nuevo.',
       );
     }
   }

@@ -217,8 +217,7 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
       );
       this.notificationService.addNotification(
         'Correo enviado',
-        resp.message ||
-          `Notificación del incidente ${this.incident().id} enviada.`,
+        resp.message || `Notificación del incidente ${this.incident().id} enviada.`,
       );
       this.closed.emit();
     } catch (err: any) {

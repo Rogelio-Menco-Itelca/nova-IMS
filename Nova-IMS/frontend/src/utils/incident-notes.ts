@@ -91,8 +91,5 @@ export function buildCommentHistoryView(
     (e) => e.text.trim() === legacy || legacy.includes(e.text.trim()),
   );
   if (alreadyThere) return fromComments;
-  return [
-    { timestamp: null, author: 'Descripción inicial', text: legacy },
-    ...fromComments,
-  ];
+  return [{ timestamp: null, author: 'Descripción inicial', text: legacy }, ...fromComments];
 }

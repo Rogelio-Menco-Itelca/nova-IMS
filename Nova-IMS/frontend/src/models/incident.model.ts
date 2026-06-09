@@ -85,17 +85,13 @@ export const INCIDENT_LIST_HIDDEN_BY_DEFAULT: readonly IncidentStatus[] = [
   'Cancelado',
 ] as const;
 
-export function isHiddenByDefaultInIncidentList(
-  status: string | null | undefined,
-): boolean {
+export function isHiddenByDefaultInIncidentList(status: string | null | undefined): boolean {
   const ui = catalogStatusToUiStatus(String(status ?? '').trim());
   return (INCIDENT_LIST_HIDDEN_BY_DEFAULT as readonly string[]).includes(ui);
 }
 
 /** Incidentes visibles en dashboard y lista por defecto (todos excepto los 3 cerrados CSJ). */
-export function isVisibleInActiveViews(
-  status: string | null | undefined,
-): boolean {
+export function isVisibleInActiveViews(status: string | null | undefined): boolean {
   return !isHiddenByDefaultInIncidentList(status);
 }
 export type IncidentPriority = 'Baja' | 'Media' | 'Alta' | 'Crítica';
@@ -120,10 +116,7 @@ export type VehicleRole = 'Vehículo Víctima' | 'Vehículo Victimario' | 'Vehí
 
 export type PersonGender = 'Masculino' | 'Femenino';
 
-export const PERSON_GENDER_OPTIONS: readonly PersonGender[] = [
-  'Masculino',
-  'Femenino',
-] as const;
+export const PERSON_GENDER_OPTIONS: readonly PersonGender[] = ['Masculino', 'Femenino'] as const;
 
 export interface ColombiaDepartment {
   id: number;
@@ -161,35 +154,26 @@ export interface InvolvedPerson {
 }
 
 export function joinPersonName(
-  p: Pick<
-    InvolvedPerson,
-    "primerNombre" | "segundoNombre" | "primerApellido" | "segundoApellido"
-  >,
+  p: Pick<InvolvedPerson, 'primerNombre' | 'segundoNombre' | 'primerApellido' | 'segundoApellido'>,
 ): string {
-  return [
-    p.primerNombre,
-    p.segundoNombre,
-    p.primerApellido,
-    p.segundoApellido,
-  ]
-    .map((s) => String(s ?? "").trim())
+  return [p.primerNombre, p.segundoNombre, p.primerApellido, p.segundoApellido]
+    .map((s) => String(s ?? '').trim())
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 }
 
-export function splitPersonName(full: string): Pick<
-  InvolvedPerson,
-  "primerNombre" | "segundoNombre" | "primerApellido" | "segundoApellido"
-> {
-  const parts = String(full || "")
+export function splitPersonName(
+  full: string,
+): Pick<InvolvedPerson, 'primerNombre' | 'segundoNombre' | 'primerApellido' | 'segundoApellido'> {
+  const parts = String(full || '')
     .trim()
     .split(/\s+/)
     .filter(Boolean);
   if (!parts.length) {
-    return { primerNombre: "", primerApellido: "" };
+    return { primerNombre: '', primerApellido: '' };
   }
   if (parts.length === 1) {
-    return { primerNombre: parts[0], primerApellido: "" };
+    return { primerNombre: parts[0], primerApellido: '' };
   }
   if (parts.length === 2) {
     return { primerNombre: parts[0], primerApellido: parts[1] };
@@ -204,8 +188,8 @@ export function splitPersonName(full: string): Pick<
   return {
     primerNombre: parts[0],
     segundoNombre: parts[1],
-    primerApellido: parts.at(-2) ?? "",
-    segundoApellido: parts.at(-1) ?? "",
+    primerApellido: parts.at(-2) ?? '',
+    segundoApellido: parts.at(-1) ?? '',
   };
 }
 
@@ -289,22 +273,22 @@ export interface Incident {
   id: string;
   timestamp: string;
   status: IncidentStatus;
-  event_id: string;      // ID_evento
+  event_id: string; // ID_evento
   incident_type_id?: string;
-  priority_id: string;   // ID_prioridad
+  priority_id: string; // ID_prioridad
   origin: string;
-  phone: string;        // Telefono
-  location: string;     // Direccion
+  phone: string; // Telefono
+  location: string; // Direccion
   /** Ubicación del Incidente (no confundir con domicilio de personas involucradas). */
   departmentId?: number | null;
   municipalityId?: number | null;
   departmentName?: string;
   municipalityName?: string;
-  comments: string;     /** Historial operador → comentarios_incidentes */
+  comments: string; /** Historial operador → comentarios_incidentes */
   lat: number;
   lng: number;
-  details: string;      // Descripcion
-  
+  details: string; // Descripcion
+
   // Legacy/Additional
   type: string;
   priority: IncidentPriority;

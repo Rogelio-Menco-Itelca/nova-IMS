@@ -12,10 +12,7 @@ function isTrustedPowerBiHost(hostname: string): boolean {
  * Marca como segura una URL de embed de Power BI ya validada (HTTPS + dominio Microsoft).
  * Solo usar con valores de configuración (`environment`), nunca con entrada del usuario.
  */
-export function trustedPowerBiEmbedUrl(
-  sanitizer: DomSanitizer,
-  embedUrl: string,
-): SafeResourceUrl {
+export function trustedPowerBiEmbedUrl(sanitizer: DomSanitizer, embedUrl: string): SafeResourceUrl {
   const parsed = new URL(embedUrl);
   if (parsed.protocol !== 'https:' || !isTrustedPowerBiHost(parsed.hostname)) {
     throw new Error('URL de embed Power BI no permitida');

@@ -10,7 +10,9 @@ export function resolvePublicShareUrl(rawUrl: string): string {
     const parsed = new URL(url);
     if (!isLoopbackUrl(parsed.href)) return url;
 
-    const base = String(environment.publicShareBaseUrl || '').trim().replace(/\/+$/, '');
+    const base = String(environment.publicShareBaseUrl || '')
+      .trim()
+      .replace(/\/+$/, '');
     if (!base) return url;
 
     const publicBase = new URL(base);
@@ -33,6 +35,6 @@ export function isMobileShareUrl(url: string): boolean {
 }
 
 export function buildLocationShareMessage(shareUrl: string): string {
-  const url = String(shareUrl || "").trim();
+  const url = String(shareUrl || '').trim();
   return `${url}\n\nHaz clic en el enlace y permite el acceso para compartir tu ubicación de forma automática.`;
 }
