@@ -22,8 +22,12 @@ import { AuthService } from './services/auth.service';
 import { ChangePasswordComponent } from './components/change-password/change-password.component';
 import { InactivityService } from './services/inactivity.service';
 import { SessionWarningComponent } from './components/session-warning/session-warning.component';
+import { ProfileModalComponent } from './components/profile-modal/profile-modal.component';
+import { ProfilePhotoService } from './services/profile-photo.service';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
+
+const THEME_KEY = 'ims_theme';
 
 @Component({
   selector: 'app-root',
@@ -38,6 +42,7 @@ type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
     LoginComponent,
     ChangePasswordComponent,
     SessionWarningComponent,
+    ProfileModalComponent,
   ],
 })
 export class AppComponent implements OnInit {
@@ -45,6 +50,7 @@ export class AppComponent implements OnInit {
   locationRequestService = inject(LocationRequestService);
   authService = inject(AuthService);
   inactivityService = inject(InactivityService);
+  profilePhotoService = inject(ProfilePhotoService);
 
   private readonly elementRef = inject(ElementRef);
 
@@ -61,12 +67,18 @@ export class AppComponent implements OnInit {
   activeView = this.authService.currentView;
   isSidebarOpen = signal(true);
   isProfileOpen = signal(false);
+  isProfileModalOpen = signal(false);
   isNotificationsOpen = signal(false);
   isDarkTheme = signal(true);
   phoneNumber = signal('');
   toastNotification = signal<any | null>(null);
 
   constructor() {
+    effect(() => {
+      const isDark = this.isDarkTheme();
+      this.applyTheme(isDark);
+    });
+
     effect(() => {
       const last = this.notificationService.lastNotification();
       if (last) {
@@ -80,15 +92,34 @@ export class AppComponent implements OnInit {
     effect(() => {
       if (this.authService.isAuthenticated()) {
         this.inactivityService.start();
+        this.profilePhotoService.loadForUser(this.authService.currentUser()?.id);
       } else {
         this.inactivityService.stop();
+        this.profilePhotoService.loadForUser(null);
       }
     });
   }
 
   ngOnInit() {
     this.authService.checkAuth();
+    this.profilePhotoService.loadForUser(this.authService.currentUser()?.id);
+    if (localStorage.getItem(THEME_KEY) === 'light') {
+      this.isDarkTheme.set(false);
+    }
+    this.applyTheme(this.isDarkTheme());
   }
+
+  private applyTheme(isDark: boolean): void {
+    const isLight = !isDark;
+    const root = document.documentElement;
+    const body = document.body;
+    root.classList.toggle('theme-light', isLight);
+    root.classList.toggle('dark', isDark);
+    body.classList.toggle('theme-light', isLight);
+    body.classList.toggle('bg-gray-900', isDark);
+    body.classList.toggle('text-gray-100', isDark);
+  }
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
@@ -107,6 +138,7 @@ export class AppComponent implements OnInit {
     this.inactivityService.stop();
     this.authService.logout();
     this.isProfileOpen.set(false);
+    this.isProfileModalOpen.set(false);
     this.isNotificationsOpen.set(false);
     this.authService.currentView.set('dashboard');
   }
@@ -143,8 +175,20 @@ export class AppComponent implements OnInit {
     }
   }
 
+  openProfileModal(): void {
+    this.isProfileOpen.set(false);
+    this.isProfileModalOpen.set(true);
+  }
+
+  closeProfileModal(): void {
+    this.isProfileModalOpen.set(false);
+  }
+
   toggleTheme(): void {
-    this.isDarkTheme.update((dark) => !dark);
+    const next = !this.isDarkTheme();
+    this.isDarkTheme.set(next);
+    localStorage.setItem(THEME_KEY, next ? 'dark' : 'light');
+    this.applyTheme(next);
   }
 
   sendLocationRequest(): void {

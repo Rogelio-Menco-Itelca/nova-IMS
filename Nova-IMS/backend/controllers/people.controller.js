@@ -25,6 +25,7 @@ function mapPerson(r) {
     gender: r.gender_name || '',
     comentarios: r.comentarios || '',
     agency: r.id_agencia || '',
+    status: r.estado || 'Activo',
     createdAt: r.created_at,
   };
 }
@@ -51,6 +52,7 @@ exports.create = asyncHandler(async (req, res) => {
     numeroDocumento: b.numeroDocumento ?? b.documentId,
     comentarios: b.comentarios ?? b.notes,
     genderId: b.genderId,
+    status: b.status,
     agencyCode,
     userId,
   });
@@ -81,6 +83,7 @@ exports.update = asyncHandler(async (req, res) => {
     numeroDocumento: b.numeroDocumento ?? b.documentId,
     comentarios: b.comentarios ?? b.notes,
     genderId: b.genderId,
+    status: b.status,
     agencyCode: existing.id_agencia || requireSessionAgency(req),
     userId: await resolveDbUserId(req.user),
   });
@@ -92,12 +95,22 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(mapPerson(row));
 });
 
-exports.remove = asyncHandler(async (req, res) => {
+exports.setStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const affected = await giPeople.deletePerson(id);
-  if (!affected) throw new HttpError(404, 'Persona no encontrada');
-  await writeAdminLog(req.user, 'Eliminación de Persona', `Se eliminó la persona ID: ${id}`);
-  res.status(204).send();
+  const status = req.body?.status;
+  if (!status) {
+    throw new HttpError(400, 'status es requerido (Activo o Inactivo)');
+  }
+  const row = await giPeople.setPersonStatus(id, status);
+  if (!row) throw new HttpError(404, 'Persona no encontrada');
+  const person = mapPerson(row);
+  const action = person.status === 'Inactivo' ? 'Desactivación de Persona' : 'Activación de Persona';
+  await writeAdminLog(
+    req.user,
+    action,
+    `Persona ${person.name} (${person.id}) → ${person.status}`,
+  );
+  res.json(person);
 });
 
 exports.lookupByPhone = asyncHandler(async (req, res) => {

@@ -1,0 +1,215 @@
+@if (authService.currentUser(); as user) {
+  <div
+    class="profile-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="profile-modal-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="profile-modal-panel w-full max-w-lg animate-fadeInUp" (click)="$event.stopPropagation()">
+      <!-- Cabecera con avatar -->
+      <div class="profile-modal-hero relative px-6 pt-5 pb-6 rounded-t-xl">
+        <button
+          type="button"
+          (click)="close()"
+          class="absolute top-3 right-3 p-2 rounded-lg profile-modal-close transition-colors"
+          aria-label="Cerrar"
+        >
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div class="flex flex-col items-center text-center pt-2">
+          <button
+            type="button"
+            class="profile-modal-avatar-wrap relative group"
+            (click)="triggerPhotoPicker()"
+            [disabled]="isUpdatingPhoto()"
+            aria-label="Cambiar foto de perfil"
+          >
+            @if (photoService.photoUrl(); as photo) {
+              <img [src]="photo" alt="" class="profile-modal-avatar-img" />
+            } @else {
+              <div class="profile-modal-avatar-fallback">
+                {{ photoService.initials(user.name) }}
+              </div>
+            }
+            <span class="profile-modal-avatar-overlay">
+              @if (isUpdatingPhoto()) {
+                <span class="text-xs font-medium">…</span>
+              } @else {
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              }
+            </span>
+          </button>
+
+          <input
+            #photoInput
+            type="file"
+            accept="image/*"
+            class="hidden"
+            (change)="onPhotoSelected($event)"
+          />
+
+          <h2 id="profile-modal-title" class="mt-4 text-lg font-semibold profile-modal-name leading-snug">
+            {{ user.name }}
+          </h2>
+          <p class="mt-1 text-sm profile-modal-subtitle">{{ roleLabel() }}</p>
+          <p class="mt-0.5 text-xs profile-modal-meta">{{ agencyShortLabel() }}</p>
+
+          <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              (click)="triggerPhotoPicker()"
+              [disabled]="isUpdatingPhoto()"
+              class="profile-modal-btn-primary text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50"
+            >
+              Cambiar foto
+            </button>
+            @if (photoService.photoUrl()) {
+              <button
+                type="button"
+                (click)="removePhoto()"
+                [disabled]="isUpdatingPhoto()"
+                class="profile-modal-btn-ghost text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
+              >
+                Quitar
+              </button>
+            }
+          </div>
+          @if (photoError(); as err) {
+            <p class="mt-2 text-xs text-red-400">{{ err }}</p>
+          }
+        </div>
+      </div>
+
+      <!-- Contenido -->
+      <div class="profile-modal-body px-5 py-4 space-y-4 max-h-[min(52vh,420px)] overflow-y-auto">
+        <!-- Información básica -->
+        <section class="profile-modal-card rounded-xl p-4">
+          <h3 class="profile-modal-section-title flex items-center gap-2 mb-3">
+            <svg class="h-4 w-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+            Información básica
+          </h3>
+          <dl class="profile-modal-rows">
+            <div class="profile-modal-row">
+              <dt>Nombre completo</dt>
+              <dd>{{ user.name }}</dd>
+            </div>
+            <div class="profile-modal-row">
+              <dt>Cargo / Rol</dt>
+              <dd>{{ roleLabel() }}</dd>
+            </div>
+            <div class="profile-modal-row">
+              <dt>Agencia / Dependencia</dt>
+              <dd>{{ agencyLabel() }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <!-- Contacto -->
+        <section class="profile-modal-card rounded-xl p-4">
+          <h3 class="profile-modal-section-title flex items-center gap-2 mb-3">
+            <svg class="h-4 w-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            Datos de contacto
+          </h3>
+          <dl class="profile-modal-rows">
+            <div class="profile-modal-row">
+              <dt>Correo electrónico</dt>
+              <dd class="break-all">{{ user.email || '—' }}</dd>
+            </div>
+            <div class="profile-modal-row">
+              <dt>Teléfono</dt>
+              <dd [class.profile-modal-muted]="!hasPhone()" [class.italic]="!hasPhone()">
+                {{ phoneLabel() }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <!-- Cuenta -->
+        <section class="profile-modal-card rounded-xl p-4">
+          <h3 class="profile-modal-section-title flex items-center gap-2 mb-3">
+            <svg class="h-4 w-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+            Información de cuenta
+          </h3>
+          <dl class="profile-modal-rows">
+            <div class="profile-modal-row">
+              <dt>Usuario</dt>
+              <dd class="font-mono text-sm">{{ user.id }}</dd>
+            </div>
+            <div class="profile-modal-row">
+              <dt>Tipo de sesión</dt>
+              <dd>
+                <span
+                  class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full profile-modal-session-badge"
+                  [class.profile-modal-session-ldap]="authService.isDirectorySession()"
+                  [class.profile-modal-session-local]="!authService.isDirectorySession()"
+                >
+                  {{ sessionTypeLabel() }}
+                </span>
+              </dd>
+            </div>
+            <div class="profile-modal-row">
+              <dt>Último acceso</dt>
+              <dd>{{ lastAccessLabel() }}</dd>
+            </div>
+            <div class="profile-modal-row profile-modal-row-last">
+              <dt>Estado</dt>
+              <dd>
+                <span class="profile-modal-status">
+                  <span class="profile-modal-status-dot"></span>
+                  {{ accountStatusLabel() }}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <div class="profile-modal-footer px-5 py-3 rounded-b-xl">
+        <p class="text-[11px] text-center profile-modal-footer-hint mb-2">
+          Solo puede actualizar su foto de perfil. Los demás datos los administra su organización.
+        </p>
+        <button type="button" (click)="close()" class="profile-modal-btn-close w-full py-2.5 rounded-lg text-sm font-medium">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+}

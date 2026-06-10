@@ -7,8 +7,11 @@ import {
   inject,
   OnDestroy,
   OnInit,
+  AfterViewInit,
   effect,
   NgZone,
+  ElementRef,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormGroup } from '@angular/forms';
@@ -34,6 +37,7 @@ import { ConfigurationService } from '../../services/configuration.service';
 import { LocationRequestService } from '../../services/location-request.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
+import { AuthService } from '../../services/auth.service';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import {
   createMapPin,
@@ -111,7 +115,7 @@ const BOGOTA_BOUNDS = {
   templateUrl: './incidents.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentsComponent implements OnInit, OnDestroy {
+export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
   private inferDocumentType(documentId: string): DocumentType | '' {
@@ -136,6 +140,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   private configService = inject(ConfigurationService);
   private locationService = inject(LocationRequestService);
   incidentService = inject(IncidentService);
+  private authService = inject(AuthService);
   private ngZone = inject(NgZone);
   private cdr = inject(ChangeDetectorRef);
 
@@ -167,6 +172,9 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   private geocoder: google.maps.Geocoder | null = null;
   private autocomplete: PlaceAutocompleteControl | null = null;
+  private dashboardMapResizeObserver: ResizeObserver | null = null;
+
+  @ViewChild('dashboardMapHost') dashboardMapHost?: ElementRef<HTMLElement>;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -175,7 +183,8 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   incidents = this.incidentService.incidents;
   auditLogs = this.configService.auditLogs;
   filterText = signal('');
-  filterStatus = signal<IncidentStatus | ''>('');
+  readonly dashboardPageSize = 10;
+  dashboardCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   statuses: IncidentStatus[] = [...DASHBOARD_ACTIVE_STATUSES];
   incidentTypes = this.configService.incidentTypes;
@@ -277,6 +286,28 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       if (!this.dashboardMap) return;
       this.renderDashboardIncidents();
     });
+
+    effect(() => {
+      this.paginatedDashboardIncidents().length;
+      this.dashboardCurrentPage();
+      this.filterText();
+      queueMicrotask(() => this.triggerDashboardMapResize());
+    });
+  }
+
+  private triggerDashboardMapResize(): void {
+    if (!this.dashboardMap) return;
+    google.maps.event.trigger(this.dashboardMap, 'resize');
+  }
+
+  private attachDashboardMapResizeObserver(): void {
+    const el = this.dashboardMapHost?.nativeElement;
+    if (!el || this.dashboardMapResizeObserver) return;
+
+    this.dashboardMapResizeObserver = new ResizeObserver(() => {
+      this.triggerDashboardMapResize();
+    });
+    this.dashboardMapResizeObserver.observe(el);
   }
 
   private scheduleNewIncidentMapInit(
@@ -428,6 +459,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       google.maps.event.trigger(this.dashboardMap, 'resize');
       this.renderDashboardIncidents();
+      this.attachDashboardMapResizeObserver();
     }, 100);
   }
 
@@ -1057,19 +1089,28 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   filteredIncidents = computed(() => {
     const text = this.filterText().toLowerCase();
-    const status = this.filterStatus();
-    const sourceIncidents = status ? this.incidents() : this.getDashboardActiveIncidents();
-    const incidents = sourceIncidents.filter((incident) => {
-      const textMatch =
-        !text ||
+    const incidents = this.getDashboardActiveIncidents().filter((incident) => {
+      if (!text) return true;
+      return (
         incident.id.toLowerCase().includes(text) ||
         incident.type.toLowerCase().includes(text) ||
         incident.location.toLowerCase().includes(text) ||
-        (incident.operator || '').toLowerCase().includes(text);
-      const statusMatch = !status || incident.status === status;
-      return textMatch && statusMatch;
+        (incident.operator || '').toLowerCase().includes(text)
+      );
     });
     return this.sortIncidents(incidents);
+  });
+
+  dashboardTotalPages = computed(() => {
+    const total = this.filteredIncidents().length;
+    return Math.max(1, Math.ceil(total / this.dashboardPageSize));
+  });
+
+  paginatedDashboardIncidents = computed(() => {
+    const all = this.filteredIncidents();
+    const page = Math.min(this.dashboardCurrentPage(), this.dashboardTotalPages());
+    const start = (page - 1) * this.dashboardPageSize;
+    return all.slice(start, start + this.dashboardPageSize);
   });
 
   activeIncidentsCount = computed(() => this.dashboardActiveIncidents().length);
@@ -1080,6 +1121,11 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     () => this.incidents().filter((inc) => isHiddenByDefaultInIncidentList(inc.status)).length,
   );
 
+  private incidentSortTime(incident: Incident): number {
+    const parsed = Date.parse(incident.timestamp || '');
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
   private sortIncidents(incidents: Incident[]): Incident[] {
     const sorted = incidents.slice();
     const column = this.sortColumn();
@@ -1087,6 +1133,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     if (column === 'default') {
       return sorted.sort(
         (a, b) =>
+          this.incidentSortTime(b) - this.incidentSortTime(a) ||
           priorityOrder[b.priority] - priorityOrder[a.priority] ||
           statusOrder[b.status] - statusOrder[a.status],
       );
@@ -1119,6 +1166,10 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
     this.setupPhoneLookup();
     setTimeout(() => this.initDashboardMap(), 300);
+  }
+
+  ngAfterViewInit(): void {
+    this.attachDashboardMapResizeObserver();
   }
 
   private normalizePhone(phone: string): string {
@@ -1268,7 +1319,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       comments: formValue.comments ?? '',
       type: formValue.event_id ?? '',
       priority: coerceIncidentPriority(formValue.priority ?? formValue.priority_id),
-      operator: 'N/A',
+      operator: this.authService.currentUser()?.name ?? 'Sistema',
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: formValue.locationPhoneNumber ?? '',
       involvedPeople: formValue.involvedPeople ?? [],
@@ -1309,11 +1360,11 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       involvedPeople: updatedData.involvedPeople ?? [],
       involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
     };
-    this.incidentService.updateIncident(finalData, () => {
+    this.incidentService.updateIncident(finalData, (saved) => {
+      this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       void this.configService.getAuditLogs();
       this.cdr.markForCheck();
     });
-    this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? finalData : t)));
     this.notificationService.addNotification(
       'Incidente Actualizado',
       `Se guardaron los cambios para #${incidentId}.`,
@@ -1404,11 +1455,29 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     this.openIncidentEmailModal(incident);
   }
 
+  viewIncident(incident: Incident): void {
+    this.incidentService.requestOpenIncident(incident.id);
+    this.authService.currentView.set('incidents');
+  }
+
   onFilterText(event: Event) {
     this.filterText.set((event.target as HTMLInputElement).value);
+    this.dashboardCurrentPage.set(1);
   }
-  onFilterStatus(event: Event) {
-    this.filterStatus.set((event.target as HTMLSelectElement).value as IncidentStatus | '');
+
+  goToDashboardPage(page: number): void {
+    const total = this.dashboardTotalPages();
+    if (page >= 1 && page <= total) {
+      this.dashboardCurrentPage.set(page);
+    }
+  }
+
+  previousDashboardPage(): void {
+    this.goToDashboardPage(this.dashboardCurrentPage() - 1);
+  }
+
+  nextDashboardPage(): void {
+    this.goToDashboardPage(this.dashboardCurrentPage() + 1);
   }
 
   setSort(column: 'priority' | 'status'): void {
@@ -1418,6 +1487,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       this.sortColumn.set(column);
       this.sortDirection.set('desc');
     }
+    this.dashboardCurrentPage.set(1);
   }
 
   getStatusColor(status: IncidentStatus): string {
@@ -1473,6 +1543,8 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.dashboardMapResizeObserver?.disconnect();
+    this.dashboardMapResizeObserver = null;
     if (this.dashboardMapClickListener) {
       google.maps.event.removeListener(this.dashboardMapClickListener);
       this.dashboardMapClickListener = null;

@@ -48,7 +48,7 @@ router.delete('/incidents/:id', incCtrl.remove);
 router.get('/people', peopleCtrl.list);
 router.post('/people', peopleCtrl.create);
 router.put('/people/:id', peopleCtrl.update);
-router.delete('/people/:id', peopleCtrl.remove);
+router.patch('/people/:id/status', peopleCtrl.setStatus);
 router.get('/person-roles', peopleCtrl.personRoles);
 router.get('/genders', peopleCtrl.genders);
 router.get('/document-types', peopleCtrl.documentTypes);
@@ -77,7 +77,7 @@ router.delete('/response-protocols/:id', protoCtrl.remove);
 // ---------- Emails de notificación ----------
 router.get('/notification-emails', notifCtrl.list);
 router.post('/notification-emails', notifCtrl.add);
-router.delete('/notification-emails/:email', notifCtrl.remove);
+router.patch('/notification-emails/:email/status', notifCtrl.setStatus);
 
 // ---------- Roles / Permisos ----------
 router.get('/roles', roleCtrl.list);

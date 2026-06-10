@@ -216,6 +216,7 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.telefono || null,
       role: user.role_name,
       role_id: user.role_id,
       agency: user.agency_code,

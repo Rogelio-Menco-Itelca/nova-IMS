@@ -183,6 +183,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   auditLogs = this.configService.auditLogs;
   filterText = signal('');
   filterStatus = signal('');
+  readonly listPageSize = 15;
+  listCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   incidentTypes = this.configService.incidentTypes;
   personRoles = signal<CatalogOption[]>([]);
@@ -228,6 +230,16 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.setActiveTab('new');
         this.locationService.clearNewIncidentTrigger();
       }
+    });
+
+    effect(() => {
+      const pendingId = this.incidentService.pendingOpenIncidentId();
+      const view = this.authService.currentView();
+      if (!pendingId || view !== 'incidents') return;
+      const incident = this.incidents().find((i) => i.id === pendingId);
+      if (!incident) return;
+      this.openIncidentTab(incident);
+      this.incidentService.clearPendingOpenIncident();
     });
 
     effect(() => {
@@ -1164,6 +1176,18 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return this.sortIncidents(incidents);
   });
 
+  listTotalPages = computed(() => {
+    const total = this.filteredIncidents().length;
+    return Math.max(1, Math.ceil(total / this.listPageSize));
+  });
+
+  paginatedListIncidents = computed(() => {
+    const all = this.filteredIncidents();
+    const page = Math.min(this.listCurrentPage(), this.listTotalPages());
+    const start = (page - 1) * this.listPageSize;
+    return all.slice(start, start + this.listPageSize);
+  });
+
   private sortIncidents(incidents: Incident[]): Incident[] {
     const sorted = incidents.slice();
     const column = this.sortColumn();
@@ -1546,7 +1570,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       comments,
       type: selectedType?.name ?? formValue.event_id ?? '',
       priority: (formValue.priority_id ?? 'Media') as IncidentPriority,
-      operator: 'N/A',
+      operator: this.noteAuthor(),
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: this.resolveLocationPhoneForSave(formValue.locationPhoneNumber),
       locationRequestId: this.locationService.getLastLocationRequestId() ?? undefined,
@@ -1726,9 +1750,26 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   onFilterText(event: Event) {
     this.filterText.set((event.target as HTMLInputElement).value);
+    this.listCurrentPage.set(1);
   }
   onFilterStatus(event: Event) {
     this.filterStatus.set((event.target as HTMLSelectElement).value);
+    this.listCurrentPage.set(1);
+  }
+
+  goToListPage(page: number): void {
+    const total = this.listTotalPages();
+    if (page >= 1 && page <= total) {
+      this.listCurrentPage.set(page);
+    }
+  }
+
+  previousListPage(): void {
+    this.goToListPage(this.listCurrentPage() - 1);
+  }
+
+  nextListPage(): void {
+    this.goToListPage(this.listCurrentPage() + 1);
   }
 
   setSort(column: 'priority' | 'status'): void {
@@ -1738,6 +1779,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.sortColumn.set(column);
       this.sortDirection.set('desc');
     }
+    this.listCurrentPage.set(1);
   }
 
   getStatusColor(status: IncidentStatus): string {

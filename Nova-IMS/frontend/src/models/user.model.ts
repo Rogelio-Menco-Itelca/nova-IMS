@@ -26,6 +26,7 @@ export interface User {
   name: string;
   role: UserRole;
   email: string;
+  phone?: string;
   agency?: string;
   agencyName?: string;
   permissions?: string[];

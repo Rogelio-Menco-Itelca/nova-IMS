@@ -23,11 +23,12 @@ import {
   IncidentType,
   ResponseProtocol,
 } from '../../models/admin.model';
-import { ConfigurationService } from '../../services/configuration.service';
+import { ConfigurationService, NotificationEmailEntry } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { Agency, RoleOption } from '../../models/user.model';
+import { AdminPaginationComponent } from './admin-pagination.component';
 
 type AdminTab =
   | 'users'
@@ -39,14 +40,27 @@ type AdminTab =
   | 'permissions'
   | 'incident_history';
 
-const NOTIFICATION_EMAIL_PAGE_SIZE = 10;
+const ADMIN_PAGE_SIZE = 15;
+
+function adminTotalPages(count: number): number {
+  return count > 0 ? Math.max(1, Math.ceil(count / ADMIN_PAGE_SIZE)) : 1;
+}
+
+function adminSlicePage<T>(items: T[], page: number): T[] {
+  if (!items.length) return items;
+  const totalPages = adminTotalPages(items.length);
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * ADMIN_PAGE_SIZE;
+  return items.slice(start, start + ADMIN_PAGE_SIZE);
+}
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AdminPaginationComponent],
   templateUrl: './admin.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class AdminComponent implements OnInit {
   private fb = inject(FormBuilder);
@@ -78,6 +92,7 @@ export class AdminComponent implements OnInit {
     roleId: [null as number | null, Validators.required],
     genderId: [null as number | null],
     comentarios: [''],
+    status: ['Activo' as 'Activo' | 'Inactivo', Validators.required],
   });
 
   // Admin Logs
@@ -118,8 +133,14 @@ export class AdminComponent implements OnInit {
 
   // Delete confirmation
   userSearchTerm = signal('');
-  pageSize = signal(10);
-  currentPage = signal(1);
+  operatorsPage = signal(1);
+  incidentTypesPage = signal(1);
+  peoplePage = signal(1);
+  responseProtocolsPage = signal(1);
+  adminLogsPage = signal(1);
+  incidentHistoryPage = signal(1);
+  permissionsPage = signal(1);
+  readonly adminPageSize = ADMIN_PAGE_SIZE;
 
   operatorForm = this.fb.group({
     primerNombre: ['', Validators.required],
@@ -164,38 +185,78 @@ export class AdminComponent implements OnInit {
     message: string;
   } | null>(null);
 
-  readonly notificationEmailPageSize = NOTIFICATION_EMAIL_PAGE_SIZE;
+  readonly notificationEmailPageSize = ADMIN_PAGE_SIZE;
 
   displayedNotificationEmails = computed(() => {
     const term = this.notificationEmailFilter().trim().toLowerCase();
     const all = this.notificationEmails();
     if (!term) return all;
-    return all.filter((e) => e.toLowerCase().includes(term));
+    return all.filter((entry) => entry.email.toLowerCase().includes(term));
   });
 
-  notificationEmailTotalPages = computed(() => {
-    const total = this.displayedNotificationEmails().length;
-    return total ? Math.ceil(total / NOTIFICATION_EMAIL_PAGE_SIZE) : 0;
+  notificationEmailTotalPages = computed(() =>
+    adminTotalPages(this.displayedNotificationEmails().length),
+  );
+
+  paginatedNotificationEmails = computed(() =>
+    adminSlicePage(this.displayedNotificationEmails(), this.notificationEmailPage()),
+  );
+
+  searchedOperators = computed(() => {
+    const term = this.userSearchTerm().toLowerCase();
+    if (!term) return this.operators();
+    return this.operators().filter(
+      (op) =>
+        op.name.toLowerCase().includes(term) ||
+        op.email.toLowerCase().includes(term) ||
+        op.id.toLowerCase().includes(term) ||
+        op.role.toLowerCase().includes(term),
+    );
   });
 
-  paginatedNotificationEmails = computed(() => {
-    const list = this.displayedNotificationEmails();
-    const pages = this.notificationEmailTotalPages();
-    let page = this.notificationEmailPage();
-    if (pages > 0 && page > pages) page = pages;
-    if (page < 1) page = 1;
-    const start = (page - 1) * NOTIFICATION_EMAIL_PAGE_SIZE;
-    return list.slice(start, start + NOTIFICATION_EMAIL_PAGE_SIZE);
-  });
+  operatorsTotalPages = computed(() => adminTotalPages(this.searchedOperators().length));
 
-  notificationEmailPageRangeLabel = computed(() => {
-    const total = this.displayedNotificationEmails().length;
-    if (!total) return '';
-    const page = Math.min(this.notificationEmailPage(), this.notificationEmailTotalPages() || 1);
-    const start = (page - 1) * NOTIFICATION_EMAIL_PAGE_SIZE + 1;
-    const end = Math.min(page * NOTIFICATION_EMAIL_PAGE_SIZE, total);
-    return `${start}-${end} de ${total}`;
-  });
+  paginatedOperators = computed(() =>
+    adminSlicePage(this.searchedOperators(), this.operatorsPage()),
+  );
+
+  incidentTypesTotalPages = computed(() => adminTotalPages(this.incidentTypes().length));
+
+  paginatedIncidentTypes = computed(() =>
+    adminSlicePage(this.incidentTypes(), this.incidentTypesPage()),
+  );
+
+  peopleTotalPages = computed(() => adminTotalPages(this.people().length));
+
+  paginatedPeople = computed(() => adminSlicePage(this.people(), this.peoplePage()));
+
+  responseProtocolsTotalPages = computed(() =>
+    adminTotalPages(this.responseProtocols().length),
+  );
+
+  paginatedResponseProtocols = computed(() =>
+    adminSlicePage(this.responseProtocols(), this.responseProtocolsPage()),
+  );
+
+  adminLogsTotalPages = computed(() => adminTotalPages(this.filteredAdminLogs().length));
+
+  paginatedAdminLogs = computed(() =>
+    adminSlicePage(this.filteredAdminLogs(), this.adminLogsPage()),
+  );
+
+  incidentHistoryTotalPages = computed(() =>
+    adminTotalPages(this.filteredIncidentsForHistory().length),
+  );
+
+  paginatedIncidentsForHistory = computed(() =>
+    adminSlicePage(this.filteredIncidentsForHistory(), this.incidentHistoryPage()),
+  );
+
+  permissionsTotalPages = computed(() => adminTotalPages(this.rolePermissions().length));
+
+  paginatedRolePermissions = computed(() =>
+    adminSlicePage(this.rolePermissions(), this.permissionsPage()),
+  );
 
   constructor() {
     effect(() => {
@@ -310,7 +371,7 @@ export class AdminComponent implements OnInit {
   openAddPersonForm(): void {
     this.isEditModePerson.set(false);
     this.selectedPerson.set(null);
-    this.personForm.reset();
+    this.personForm.reset({ status: 'Activo' });
     this.loadPersonCatalogs();
     this.showPersonForm.set(true);
   }
@@ -330,6 +391,7 @@ export class AdminComponent implements OnInit {
       roleId: person.roleId ?? null,
       genderId: person.genderId ?? null,
       comentarios: person.comentarios ?? person.notes ?? '',
+      status: person.status ?? 'Activo',
     });
     this.showPersonForm.set(true);
   }
@@ -351,6 +413,7 @@ export class AdminComponent implements OnInit {
       roleId: Number(raw.roleId),
       genderId: raw.genderId ?? null,
       comentarios: raw.comentarios?.trim() || '',
+      status: raw.status ?? 'Activo',
     };
     try {
       if (this.isEditModePerson()) {
@@ -374,18 +437,25 @@ export class AdminComponent implements OnInit {
     }
   }
 
-  async deletePerson(id: string): Promise<void> {
-    if (confirm('¿Está seguro de eliminar este registro de persona?')) {
-      await this.personService.deletePerson(id);
-      this.notificationService.addNotification(
-        'Registro Eliminado',
-        'La persona ha sido removida del sistema.',
-      );
-    }
-  }
+  async togglePersonStatus(person: Person): Promise<void> {
+    const nextStatus = (person.status ?? 'Activo') === 'Activo' ? 'Inactivo' : 'Activo';
+    const message =
+      nextStatus === 'Inactivo'
+        ? `¿Desactivar a ${person.name}? No aparecerá en búsquedas por teléfono.`
+        : `¿Activar a ${person.name}?`;
+    if (!confirm(message)) return;
 
-  onAdminLogSearch(event: Event): void {
-    this.adminLogSearch.set((event.target as HTMLInputElement).value);
+    try {
+      await this.personService.setPersonStatus(person.id, nextStatus);
+      this.notificationService.addNotification(
+        nextStatus === 'Inactivo' ? 'Persona Desactivada' : 'Persona Activada',
+        `${person.name} quedó en estado ${nextStatus}.`,
+      );
+    } catch (err: any) {
+      const msg =
+        err?.error?.error?.message || err?.error?.message || 'No se pudo cambiar el estado.';
+      this.notificationService.addNotification('Error', msg);
+    }
   }
 
   loadInitialData() {
@@ -422,48 +492,88 @@ export class AdminComponent implements OnInit {
     );
   });
 
-  searchedOperators = computed(() => {
-    const term = this.userSearchTerm().toLowerCase();
-    if (!term) return this.operators();
-    return this.operators().filter(
-      (op) =>
-        op.name.toLowerCase().includes(term) ||
-        op.email.toLowerCase().includes(term) ||
-        op.id.toLowerCase().includes(term) ||
-        op.role.toLowerCase().includes(term),
-    );
-  });
-
-  totalPages = computed(() => Math.ceil(this.searchedOperators().length / this.pageSize()));
-
-  paginatedOperators = computed(() => {
-    const start = (this.currentPage() - 1) * this.pageSize();
-    const end = start + this.pageSize();
-    return this.searchedOperators().slice(start, end);
-  });
-
   setTab(tab: AdminTab) {
     this.activeTab.set(tab);
     if (tab === 'incident_history') {
       void this.refreshIncidentHistoryView();
     }
   }
+
   onSearch(event: Event): void {
     this.userSearchTerm.set((event.target as HTMLInputElement).value);
-    this.currentPage.set(1);
+    this.operatorsPage.set(1);
   }
-  changePageSize(event: Event): void {
-    this.pageSize.set(Number((event.target as HTMLSelectElement).value));
-    this.currentPage.set(1);
+
+  onAdminLogSearch(event: Event): void {
+    this.adminLogSearch.set((event.target as HTMLInputElement).value);
+    this.adminLogsPage.set(1);
   }
-  goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages()) this.currentPage.set(page);
+
+  onIncidentHistorySearch(event: Event): void {
+    this.incidentHistorySearchTerm.set((event.target as HTMLInputElement).value);
+    this.incidentHistoryPage.set(1);
   }
-  nextPage(): void {
-    this.goToPage(this.currentPage() + 1);
+
+  onIncidentHistorySearchInput(event: Event): void {
+    this.onIncidentHistorySearch(event);
+    this.selectedIncidentIdForHistory.set('all');
+    void this.refreshIncidentHistoryView();
   }
-  previousPage(): void {
-    this.goToPage(this.currentPage() - 1);
+
+  previousOperatorsPage(): void {
+    this.operatorsPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextOperatorsPage(): void {
+    this.operatorsPage.update((p) => Math.min(this.operatorsTotalPages(), p + 1));
+  }
+
+  previousIncidentTypesPage(): void {
+    this.incidentTypesPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextIncidentTypesPage(): void {
+    this.incidentTypesPage.update((p) => Math.min(this.incidentTypesTotalPages(), p + 1));
+  }
+
+  previousPeoplePage(): void {
+    this.peoplePage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextPeoplePage(): void {
+    this.peoplePage.update((p) => Math.min(this.peopleTotalPages(), p + 1));
+  }
+
+  previousResponseProtocolsPage(): void {
+    this.responseProtocolsPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextResponseProtocolsPage(): void {
+    this.responseProtocolsPage.update((p) => Math.min(this.responseProtocolsTotalPages(), p + 1));
+  }
+
+  previousAdminLogsPage(): void {
+    this.adminLogsPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextAdminLogsPage(): void {
+    this.adminLogsPage.update((p) => Math.min(this.adminLogsTotalPages(), p + 1));
+  }
+
+  previousIncidentHistoryPage(): void {
+    this.incidentHistoryPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextIncidentHistoryPage(): void {
+    this.incidentHistoryPage.update((p) => Math.min(this.incidentHistoryTotalPages(), p + 1));
+  }
+
+  previousPermissionsPage(): void {
+    this.permissionsPage.update((p) => Math.max(1, p - 1));
+  }
+
+  nextPermissionsPage(): void {
+    this.permissionsPage.update((p) => Math.min(this.permissionsTotalPages(), p + 1));
   }
 
   async refreshIncidentHistoryView(): Promise<void> {
@@ -692,17 +802,29 @@ export class AdminComponent implements OnInit {
       });
       return;
     }
-    const exists = this.notificationEmails().some((e) => e.toLowerCase() === raw);
-    if (exists) {
+    const existing = this.notificationEmails().find((e) => e.email.toLowerCase() === raw);
+    if (existing) {
       this.notificationEmailFeedback.set({
         type: 'warn',
-        message: 'Este correo ya está en la lista.',
+        message:
+          existing.status === 'Activo'
+            ? 'Ese correo ya está activo en la lista.'
+            : 'Este correo ya existe. Actívelo desde la columna Acciones.',
       });
       this.notificationEmailFilter.set(raw);
       this.notificationEmailPage.set(1);
       return;
     }
-    await this.configService.addNotificationEmail(raw);
+    try {
+      await this.configService.addNotificationEmail(raw);
+    } catch (err: any) {
+      const msg =
+        err?.error?.error?.message ||
+        err?.error?.message ||
+        'No se pudo registrar el correo.';
+      this.notificationEmailFeedback.set({ type: 'warn', message: msg });
+      return;
+    }
     this.newEmailControl.reset();
     this.notificationEmailFilter.set('');
     this.notificationEmailPage.set(1);
@@ -763,12 +885,25 @@ export class AdminComponent implements OnInit {
     this.goToNotificationEmailPage(this.notificationEmailPage() + 1);
   }
 
-  async removeEmail(email: string): Promise<void> {
-    await this.configService.removeNotificationEmail(email);
-    this.notificationService.addNotification(
-      'Correo eliminado',
-      `${email} fue removido de las notificaciones.`,
-    );
+  async toggleNotificationEmailStatus(entry: NotificationEmailEntry): Promise<void> {
+    const nextStatus = entry.status === 'Activo' ? 'Inactivo' : 'Activo';
+    const message =
+      nextStatus === 'Inactivo'
+        ? `¿Desactivar ${entry.email}? No recibirá nuevos envíos, pero el historial se conserva.`
+        : `¿Activar ${entry.email}?`;
+    if (!confirm(message)) return;
+
+    try {
+      await this.configService.setNotificationEmailStatus(entry.email, nextStatus);
+      this.notificationService.addNotification(
+        nextStatus === 'Inactivo' ? 'Correo desactivado' : 'Correo activado',
+        `${entry.email} quedó en estado ${nextStatus}.`,
+      );
+    } catch (err: any) {
+      const msg =
+        err?.error?.error?.message || err?.error?.message || 'No se pudo cambiar el estado.';
+      this.notificationService.addNotification('Error', msg);
+    }
   }
 
   showRoleForm = signal(false);

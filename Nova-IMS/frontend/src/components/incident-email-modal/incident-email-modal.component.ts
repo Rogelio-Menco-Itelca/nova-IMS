@@ -65,7 +65,7 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
 
   readonly pageSize = PAGE_SIZE;
 
-  allEmails = this.configService.notificationEmails;
+  allEmails = computed(() => this.configService.activeNotificationEmailAddresses());
 
   filteredEmails = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
