@@ -12,6 +12,11 @@ import {
 } from '../models/admin.model';
 import { SocketService } from './socket.service';
 
+export interface NotificationEmailEntry {
+  email: string;
+  status: 'Activo' | 'Inactivo';
+}
+
 @Injectable({ providedIn: 'root' })
 export class ConfigurationService {
   private http = inject(HttpClient);
@@ -22,7 +27,7 @@ export class ConfigurationService {
   operators = signal<Operator[]>([]);
   incidentTypes = signal<IncidentType[]>([]);
   responseProtocols = signal<ResponseProtocol[]>([]);
-  notificationEmails = signal<string[]>([]);
+  notificationEmails = signal<NotificationEmailEntry[]>([]);
   auditLogs = signal<AuditLog[]>([]);
   rolePermissions = signal<RolePermission[]>([]);
 
@@ -108,22 +113,36 @@ export class ConfigurationService {
 
   // ---------- Emails de notificación ----------
   async getNotificationEmails(): Promise<void> {
-    const emails = await firstValueFrom(this.http.get<string[]>('/api/notification-emails'));
+    const emails = await firstValueFrom(
+      this.http.get<NotificationEmailEntry[]>('/api/notification-emails'),
+    );
     this.notificationEmails.set(emails);
   }
 
   async addNotificationEmail(email: string): Promise<void> {
     const list = await firstValueFrom(
-      this.http.post<string[]>('/api/notification-emails', { email }),
+      this.http.post<NotificationEmailEntry[]>('/api/notification-emails', { email }),
     );
     this.notificationEmails.set(list);
   }
 
-  async removeNotificationEmail(email: string): Promise<void> {
+  async setNotificationEmailStatus(
+    email: string,
+    status: 'Activo' | 'Inactivo',
+  ): Promise<void> {
     const list = await firstValueFrom(
-      this.http.delete<string[]>(`/api/notification-emails/${encodeURIComponent(email)}`),
+      this.http.patch<NotificationEmailEntry[]>(
+        `/api/notification-emails/${encodeURIComponent(email)}/status`,
+        { status },
+      ),
     );
     this.notificationEmails.set(list);
+  }
+
+  activeNotificationEmailAddresses(): string[] {
+    return this.notificationEmails()
+      .filter((entry) => entry.status === 'Activo')
+      .map((entry) => entry.email);
   }
 
   // ---------- Audit logs ----------

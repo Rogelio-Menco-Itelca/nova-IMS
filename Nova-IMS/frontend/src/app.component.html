@@ -169,7 +169,7 @@
             </div>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400 font-medium">Sincronización Real-time</span>
+            <span class="text-xs text-gray-400 font-medium">Sincronización En Tiempo Real</span>
             <span
               class="text-[10px] font-bold text-green-500 px-1.5 py-0.5 bg-green-500/10 rounded border border-green-500/20"
               >ACTIVO</span
@@ -441,8 +441,21 @@
           </div>
         </header>
 
-        <main class="ims-main flex-1 overflow-x-hidden overflow-y-auto bg-gray-900">
-          <div class="p-4 md:p-6 lg:p-8">
+        <main
+          class="ims-main flex-1 overflow-x-hidden bg-gray-900"
+          [class.overflow-y-auto]="activeView() !== 'admin'"
+          [class.flex]="activeView() === 'admin'"
+          [class.min-h-0]="activeView() === 'admin'"
+          [class.flex-col]="activeView() === 'admin'"
+          [class.overflow-hidden]="activeView() === 'admin'"
+        >
+          <div
+            [class]="
+              activeView() === 'admin'
+                ? 'flex min-h-0 flex-1 flex-col p-4 md:p-6 lg:p-8'
+                : 'p-4 md:p-6 lg:p-8'
+            "
+          >
             @if (activeView() === 'dashboard') {
               <app-incidents />
             }

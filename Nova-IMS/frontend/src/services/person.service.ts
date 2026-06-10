@@ -59,9 +59,12 @@ export class PersonService {
     return updated;
   }
 
-  async deletePerson(id: string): Promise<void> {
-    await firstValueFrom(this.http.delete(`${this.apiUrl}/${id}`));
-    this.people.update((list) => list.filter((p) => p.id !== id));
+  async setPersonStatus(id: string, status: 'Activo' | 'Inactivo'): Promise<Person> {
+    const updated = await firstValueFrom(
+      this.http.patch<Person>(`${this.apiUrl}/${id}/status`, { status }),
+    );
+    this.people.update((list) => list.map((p) => (p.id === id ? updated : p)));
+    return updated;
   }
 
   lookupByPhone(phone: string) {

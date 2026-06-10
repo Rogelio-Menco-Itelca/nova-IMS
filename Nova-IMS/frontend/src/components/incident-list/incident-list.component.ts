@@ -1570,7 +1570,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       comments,
       type: selectedType?.name ?? formValue.event_id ?? '',
       priority: (formValue.priority_id ?? 'Media') as IncidentPriority,
-      operator: 'N/A',
+      operator: this.noteAuthor(),
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: this.resolveLocationPhoneForSave(formValue.locationPhoneNumber),
       locationRequestId: this.locationService.getLastLocationRequestId() ?? undefined,

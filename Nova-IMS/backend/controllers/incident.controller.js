@@ -327,10 +327,12 @@ const create = asyncHandler(async (req, res) => {
     );
   }
 
+  const actorName = sessionDisplayName(req.user, b.operator || 'Sistema');
+
   const visibleId = await giIncidents.createIncident(
     {
       ...b,
-      operator: sessionDisplayName(req.user, b.operator || 'Sistema'),
+      operator: actorName,
       locationPhoneNumber: fmtLocationPhoneVitacora(b.locationPhoneNumber),
     },
     req.user,
@@ -341,9 +343,11 @@ const create = asyncHandler(async (req, res) => {
     user: req.user,
     action: 'Creación',
     changes: 'Incidente creado',
+    actorDisplayName: actorName,
   });
 
   const inc = mapIncidentRow(await giIncidents.getIncident(visibleId));
+  inc.operator = actorName;
   socket.emit('incident:created', inc);
   res.status(201).json(inc);
 });
@@ -375,19 +379,22 @@ const update = asyncHandler(async (req, res) => {
     req.user,
   );
 
-  const after = mapIncidentRow(await giIncidents.getIncident(id));
+  const afterForAuditBase = mapIncidentRow(await giIncidents.getIncident(id));
+  if (!afterForAuditBase.id) throw new HttpError(404, 'Incidente no encontrado');
+
   const afterForAudit = {
-    ...after,
-    phone: b.phone ?? after.phone,
-    location: b.location ?? after.location,
-    locationPhoneNumber: b.locationPhoneNumber ?? after.locationPhoneNumber,
-    involvedPeople: Array.isArray(b.involvedPeople) ? b.involvedPeople : after.involvedPeople,
+    ...afterForAuditBase,
+    phone: b.phone ?? afterForAuditBase.phone,
+    location: b.location ?? afterForAuditBase.location,
+    locationPhoneNumber: b.locationPhoneNumber ?? afterForAuditBase.locationPhoneNumber,
+    involvedPeople: Array.isArray(b.involvedPeople) ? b.involvedPeople : afterForAuditBase.involvedPeople,
     involvedVehicles: Array.isArray(b.involvedVehicles)
       ? b.involvedVehicles
-      : after.involvedVehicles,
+      : afterForAuditBase.involvedVehicles,
   };
   const details = buildAuditDetails(before, afterForAudit);
   const statusChanged = before.status !== newStatus;
+  const actorName = sessionDisplayName(req.user, 'Sistema');
 
   await giIncidents.writeAudit(pool, {
     incidentId: id,
@@ -408,7 +415,11 @@ const update = asyncHandler(async (req, res) => {
         : statusChanged
           ? [{ field: 'Estado', old: fmtAuditValue(before.status), new: fmtAuditValue(newStatus) }]
           : [{ field: 'Registro', old: '—', new: 'Guardado sin cambios en campos principales' }],
+    actorDisplayName: actorName,
   });
+
+  const after = mapIncidentRow(await giIncidents.getIncident(id));
+  after.operator = actorName;
 
   socket.emit('incident:updated', after);
   res.json(after);

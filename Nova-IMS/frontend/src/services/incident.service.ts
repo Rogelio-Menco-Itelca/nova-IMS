@@ -98,6 +98,9 @@ export class IncidentService {
   updateIncident(updatedIncident: Incident, onSuccess?: (saved: Incident) => void): void {
     this.http.put<Incident>(`${this.apiUrl}/${updatedIncident.id}`, updatedIncident).subscribe({
       next: (saved) => {
+        this.incidents.update((list) =>
+          list.map((i) => (i.id === saved.id ? { ...i, ...saved } : i)),
+        );
         onSuccess?.(saved);
       },
       error: (err) => {

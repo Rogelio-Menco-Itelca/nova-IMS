@@ -13,9 +13,38 @@ const { resolveUserContext } = require('./users');
 const { requireAgencyInput } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
+const { ensureEmailStatusColumn } = require('./notifications');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident } = require('./location');
 const HttpError = require('../../utils/HttpError');
+
+const USER_DISPLAY_NAME_SQL = `TRIM(CONCAT(
+  u.Primer_Nombre, ' ',
+  IFNULL(CONCAT(u.Segundo_Nombre, ' '), ''),
+  u.Primer_Apellido, ' ',
+  IFNULL(u.Segundo_Apellido, '')
+))`;
+
+const INCIDENT_OPERATOR_NAME_SQL = `
+  COALESCE(
+    (
+      SELECT ${USER_DISPLAY_NAME_SQL}
+      FROM auditoria_incidente ai
+      JOIN usuarios u
+        ON u.ID_Usuario = ai.usuarios_id
+       AND UPPER(u.ID_Agencia) = UPPER(ai.Id_agencia)
+      WHERE ai.incidentes_id = i.ID_incidente
+      ORDER BY ai.fecha DESC, ai.id_transaccion_incidentes DESC
+      LIMIT 1
+    ),
+    (
+      SELECT NULLIF(JSON_UNQUOTE(JSON_EXTRACT(ai.detalles, '$.actorDisplayName')), 'null')
+      FROM auditoria_incidente ai
+      WHERE ai.incidentes_id = i.ID_incidente
+      ORDER BY ai.fecha DESC, ai.id_transaccion_incidentes DESC
+      LIMIT 1
+    )
+  )`;
 
 const INCIDENT_BASE_SELECT = `
   i.ID_incidente AS internal_id,
@@ -38,7 +67,8 @@ const INCIDENT_BASE_SELECT = `
   i.Comentario_estado AS details,
   i.IDAgencias AS agency_code,
   i.FechaHora AS created_at,
-  i.FechaHora AS updated_at`;
+  i.FechaHora AS updated_at,
+  (${INCIDENT_OPERATOR_NAME_SQL}) AS operator_name`;
 
 const INCIDENT_JOINS = `
   JOIN eventos e ON e.ID_evento = i.ID_evento
@@ -107,7 +137,7 @@ function mapIncidentRow(r, extras = {}) {
     contact_info: extras.contact_info ?? null,
     location_phone_number: extras.location_phone ?? null,
     operator_id: extras.operator_id ?? null,
-    operator_name: extras.operator_name ?? '',
+    operator_name: extras.operator_name ?? r.operator_name ?? '',
     received_lat: extras.received_lat ?? null,
     received_lng: extras.received_lng ?? null,
     received_at: extras.received_at ?? null,
@@ -808,12 +838,35 @@ async function lookupVehicleByPlate(plate) {
   return rows[0] || null;
 }
 
-async function writeAudit(conn, { incidentId, user, action, changes, details }) {
+function buildAuditDetailsPayload(details, actorDisplayName, { isCreation = false } = {}) {
+  const actor = String(actorDisplayName || '').trim();
+  const actorFields = actor
+    ? isCreation
+      ? { actorDisplayName: actor, creatorDisplayName: actor }
+      : { actorDisplayName: actor }
+    : {};
+  if (Array.isArray(details)) {
+    return Object.keys(actorFields).length
+      ? { ...actorFields, changes: details }
+      : { changes: details };
+  }
+  if (details && typeof details === 'object') {
+    return { ...actorFields, ...details };
+  }
+  return Object.keys(actorFields).length ? actorFields : null;
+}
+
+async function writeAudit(conn, { incidentId, user, action, changes, details, creatorDisplayName, actorDisplayName }) {
   const internalId = await getInternalId(incidentId);
   if (!internalId) return;
   const agencyCode = requireAgencyInput(null, user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const resolvedActor = actorDisplayName ?? creatorDisplayName ?? user?.name ?? null;
+  const isCreation = String(action || '')
+    .toLowerCase()
+    .startsWith('creaci');
+  const detailsPayload = buildAuditDetailsPayload(details, resolvedActor, { isCreation });
   await conn.query(
     `INSERT INTO auditoria_incidente
       (id_transaccion_incidentes, incidentes_id, usuarios_id, Id_agencia, accion, Numero_de_Cambios, detalles)
@@ -825,7 +878,7 @@ async function writeAudit(conn, { incidentId, user, action, changes, details }) 
       userCtx.agencyCode,
       action,
       changes || null,
-      details ? JSON.stringify(details) : null,
+      detailsPayload ? JSON.stringify(detailsPayload) : null,
     ],
   );
 }
@@ -845,16 +898,22 @@ async function loadAuditLogs(visibleId) {
 }
 
 async function listNotificationEmails() {
+  await ensureEmailStatusColumn();
   const [rows] = await pool.query(
-    `SELECT Correo AS email FROM correosincidentes GROUP BY Correo ORDER BY Correo`,
+    `SELECT Correo AS email FROM correosincidentes
+     WHERE COALESCE(NULLIF(estado, ''), 'Activo') = 'Activo'
+     GROUP BY Correo ORDER BY Correo`,
   );
   return rows;
 }
 
 async function emailAllowed(recipients) {
+  await ensureEmailStatusColumn();
   const ph = recipients.map(() => '?').join(',');
   const [rows] = await pool.query(
-    `SELECT DISTINCT LOWER(Correo) AS email FROM correosincidentes WHERE LOWER(Correo) IN (${ph})`,
+    `SELECT DISTINCT LOWER(Correo) AS email FROM correosincidentes
+     WHERE LOWER(Correo) IN (${ph})
+       AND COALESCE(NULLIF(estado, ''), 'Activo') = 'Activo'`,
     recipients.map((e) => e.toLowerCase()),
   );
   return new Set(rows.map((r) => r.email));

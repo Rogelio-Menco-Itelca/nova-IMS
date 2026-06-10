@@ -1,8 +1,29 @@
 const { pool } = require('../../config/db');
+const HttpError = require('../../utils/HttpError');
 const { getInternalId } = require('./incidents');
 const { resolveUserContext } = require('./users');
 const { normalizeAgencyCode } = require('./maps');
 const { requireAgencyInput } = require('./agencyContext');
+
+let emailStatusColumnReady = false;
+
+async function ensureEmailStatusColumn() {
+  if (emailStatusColumnReady) return;
+  const [cols] = await pool.query("SHOW COLUMNS FROM correosincidentes LIKE 'estado'");
+  if (!cols.length) {
+    await pool.query(
+      `ALTER TABLE correosincidentes ADD COLUMN estado varchar(20) NOT NULL DEFAULT 'Activo'`,
+    );
+  }
+  await pool.query(
+    `UPDATE correosincidentes SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`,
+  );
+  emailStatusColumnReady = true;
+}
+
+function normalizeEmailStatus(value) {
+  return String(value || 'Activo').trim() === 'Inactivo' ? 'Inactivo' : 'Activo';
+}
 
 async function listNotifications() {
   const [rows] = await pool.query(
@@ -52,24 +73,58 @@ async function markAllRead(userId, agencyCode) {
   }
 }
 
-async function listNotificationEmails() {
+async function listNotificationEmails(agencyCode) {
+  await ensureEmailStatusColumn();
+  const code = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
-    `SELECT Correo AS email FROM correosincidentes GROUP BY Correo ORDER BY Correo`,
+    `SELECT Correo AS email, COALESCE(NULLIF(estado, ''), 'Activo') AS status
+     FROM correosincidentes
+     WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     ORDER BY Correo`,
+    [code, code],
   );
-  return rows.map((r, i) => ({ id: i + 1, email: r.email }));
+  return rows.map((r) => ({
+    email: r.email,
+    status: normalizeEmailStatus(r.status),
+  }));
 }
 
 async function addNotificationEmail(email, agencyCode) {
-  await pool.query(`INSERT IGNORE INTO correosincidentes (Correo, ID_Agencia) VALUES (?,?)`, [
-    email.trim().toLowerCase(),
-    normalizeAgencyCode(agencyCode),
-  ]);
+  await ensureEmailStatusColumn();
+  const normalized = email.trim().toLowerCase();
+  const code = normalizeAgencyCode(agencyCode);
+  const [existing] = await pool.query(
+    `SELECT COALESCE(NULLIF(estado, ''), 'Activo') AS status
+     FROM correosincidentes
+     WHERE LOWER(Correo) = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     LIMIT 1`,
+    [normalized, code, code],
+  );
+  if (existing.length) {
+    const status = normalizeEmailStatus(existing[0].status);
+    if (status === 'Activo') {
+      throw new HttpError(409, 'Este correo ya está activo en la lista.');
+    }
+    throw new HttpError(
+      409,
+      'Este correo ya existe pero está inactivo. Actívelo desde Acciones.',
+    );
+  }
+  await pool.query(
+    `INSERT INTO correosincidentes (Correo, ID_Agencia, estado) VALUES (?,?, 'Activo')`,
+    [normalized, code],
+  );
 }
 
-async function deleteNotificationEmail(email) {
-  const [r] = await pool.query(`DELETE FROM correosincidentes WHERE LOWER(Correo) = ?`, [
-    email.toLowerCase(),
-  ]);
+async function setNotificationEmailStatus(email, agencyCode, status) {
+  await ensureEmailStatusColumn();
+  const estado = normalizeEmailStatus(status);
+  const code = normalizeAgencyCode(agencyCode);
+  const [r] = await pool.query(
+    `UPDATE correosincidentes SET estado = ?
+     WHERE LOWER(Correo) = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))`,
+    [estado, email.toLowerCase(), code, code],
+  );
   return r.affectedRows;
 }
 
@@ -79,5 +134,6 @@ module.exports = {
   markAllRead,
   listNotificationEmails,
   addNotificationEmail,
-  deleteNotificationEmail,
+  setNotificationEmailStatus,
+  ensureEmailStatusColumn,
 };

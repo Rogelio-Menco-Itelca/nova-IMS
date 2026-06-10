@@ -215,6 +215,7 @@ export interface Person {
   email?: string;
   birthDate?: string;
   notes?: string;
+  status?: 'Activo' | 'Inactivo';
   createdAt: string;
 }
 
@@ -229,6 +230,7 @@ export interface PersonFormPayload {
   roleId: number;
   genderId?: number | null;
   comentarios?: string;
+  status?: 'Activo' | 'Inactivo';
 }
 
 export interface CatalogOption {

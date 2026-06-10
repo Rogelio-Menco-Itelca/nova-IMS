@@ -32,6 +32,17 @@ async function repairLegacyAdminPersonas() {
   );
 }
 
+/** Asegura columna estado (Activo/Inactivo) en catálogo admin de personas. */
+async function ensurePersonStatusColumn() {
+  const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'estado'");
+  if (!cols.length) {
+    await pool.query(
+      `ALTER TABLE personas ADD COLUMN estado varchar(20) NOT NULL DEFAULT 'Activo'`,
+    );
+  }
+  await pool.query(`UPDATE personas SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`);
+}
+
 /** Personas del módulo Admin: ID_incidente NULL (no ligadas a ningún incidente). */
 async function ensureAdminPersonasCatalog() {
   if (adminCatalogReady) return;
@@ -40,6 +51,7 @@ async function ensureAdminPersonasCatalog() {
   if (col && String(col.Null).toUpperCase() === 'NO') {
     await pool.query('ALTER TABLE personas MODIFY COLUMN ID_incidente int NULL');
   }
+  await ensurePersonStatusColumn();
   await repairLegacyAdminPersonas();
   await pool.query(
     `UPDATE personas SET
@@ -91,6 +103,7 @@ const PERSON_SELECT = `
   p.ID_incidente AS id_incidente,
   p.ID_Usuario AS id_usuario,
   p.FechaRegistro AS created_at,
+  COALESCE(NULLIF(p.estado, ''), 'Activo') AS estado,
   rp.Nombre AS role_name,
   g.Descripcion_genero AS gender_name,
   td.Descripcion AS document_type_name
@@ -173,6 +186,10 @@ function normalizeRequiredText(value, label) {
   return trimmed;
 }
 
+function normalizePersonStatus(value) {
+  return String(value || 'Activo').trim() === 'Inactivo' ? 'Inactivo' : 'Activo';
+}
+
 async function insertPersonComment(executor, personId, text, userId, agencyCode) {
   const commentText = String(text || '').trim();
   if (!commentText || !userId) return;
@@ -208,8 +225,8 @@ async function createPerson(data) {
     `INSERT INTO ${TABLE}
       (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
        Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
-       ID_Agencia, ID_Usuario, ID_genero)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       ID_Agencia, ID_Usuario, ID_genero, estado)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       primerNombre,
       formatNamePart(data.segundoNombre),
@@ -224,6 +241,7 @@ async function createPerson(data) {
       agencyCode,
       data.userId ?? null,
       normalizeGenderId(data.genderId),
+      normalizePersonStatus(data.status),
     ],
   );
 
@@ -266,6 +284,8 @@ async function updatePerson(id, data) {
   const contacto = normalizeOptional(data.contacto ?? data.phone ?? existing.contacto);
   const newComment = normalizeOptional(data.comentarios ?? data.notes);
   const previousComment = normalizeOptional(existing.comentarios);
+  const estado =
+    data.status != null ? normalizePersonStatus(data.status) : normalizePersonStatus(existing.estado);
 
   await pool.query(
     `UPDATE ${TABLE} SET
@@ -281,7 +301,8 @@ async function updatePerson(id, data) {
       ID_genero = ?,
       ID_Agencia = ?,
       ID_Usuario = COALESCE(?, ID_Usuario),
-      ID_incidente = NULL
+      ID_incidente = NULL,
+      estado = ?
      WHERE ID_persona = ?`,
     [
       primerNombre,
@@ -295,6 +316,7 @@ async function updatePerson(id, data) {
       normalizeGenderId(data.genderId ?? existing.id_genero),
       agencyCode,
       data.userId ?? null,
+      estado,
       internalId,
     ],
   );
@@ -307,16 +329,19 @@ async function updatePerson(id, data) {
   return getPersonByInternalId(internalId);
 }
 
-async function deletePerson(id) {
+async function setPersonStatus(id, status) {
   await ensureAdminPersonasCatalog();
   const internalId = parsePersonId(id);
-  if (!internalId) return 0;
-  await deletePersonComments(pool, internalId);
-  const [r] = await pool.query(
-    `DELETE FROM ${TABLE} WHERE ID_persona = ? AND ID_incidente IS NULL`,
-    [internalId],
+  if (!internalId) return null;
+  const existing = await getPersonByInternalId(internalId, true);
+  if (!existing) return null;
+
+  const estado = normalizePersonStatus(status);
+  await pool.query(
+    `UPDATE ${TABLE} SET estado = ? WHERE ID_persona = ? AND ID_incidente IS NULL`,
+    [estado, internalId],
   );
-  return r.affectedRows;
+  return getPersonByInternalId(internalId);
 }
 
 async function lookupByPhone(candidates) {
@@ -324,7 +349,9 @@ async function lookupByPhone(candidates) {
   const ph = candidates.map(() => '?').join(',');
   const [rows] = await pool.query(
     `SELECT ${PERSON_SELECT}
-     WHERE ${adminCatalogWhere('p')} AND p.Contacto IN (${ph})
+     WHERE ${adminCatalogWhere('p')}
+       AND COALESCE(NULLIF(p.estado, ''), 'Activo') = 'Activo'
+       AND p.Contacto IN (${ph})
      ORDER BY p.FechaRegistro DESC
      LIMIT 1`,
     candidates,
@@ -373,7 +400,7 @@ module.exports = {
   getPerson,
   createPerson,
   updatePerson,
-  deletePerson,
+  setPersonStatus,
   lookupByPhone,
   listPersonRoles,
   listGenders,

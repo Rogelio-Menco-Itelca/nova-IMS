@@ -1,8 +1,8 @@
-<div class="bg-gray-800 rounded-lg shadow-lg p-6">
-  <h2 class="text-2xl font-bold text-white mb-6">Panel de Administración</h2>
+<div class="flex min-h-0 flex-1 flex-col rounded-lg bg-gray-800 p-6 shadow-lg">
+  <h2 class="mb-6 shrink-0 text-2xl font-bold text-white">Panel de Administración</h2>
 
   <!-- Tabs -->
-  <div class="border-b border-gray-700 mb-6">
+  <div class="mb-6 shrink-0 border-b border-gray-700">
     <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
       <button
         (click)="setTab('users')"
@@ -96,10 +96,10 @@
   </div>
 
   <!-- Tab Content -->
-  <div class="min-h-[400px]">
+  <div class="flex min-h-0 flex-1 flex-col">
     @switch (activeTab()) {
       @case ('users') {
-        <div class="space-y-4">
+        <div class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div class="relative w-full sm:max-w-xs">
               <input
@@ -130,7 +130,7 @@
           </div>
           <!-- (Operators table follows...) -->
 
-          <div class="overflow-x-auto">
+          <div class="min-h-0 flex-1 overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-300">
               <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
                 <tr>
@@ -182,35 +182,18 @@
           </div>
 
           <!-- Pagination -->
-          <div
-            class="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-400 pt-4"
-          >
-            <p>
-              Mostrando {{ paginatedOperators().length }} de
-              {{ searchedOperators().length }} usuarios.
-            </p>
-            <div class="flex items-center gap-2 mt-4 sm:mt-0">
-              <button
-                (click)="previousPage()"
-                [disabled]="currentPage() === 1"
-                class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <span>Página {{ currentPage() }} de {{ totalPages() }}</span>
-              <button
-                (click)="nextPage()"
-                [disabled]="currentPage() === totalPages()"
-                class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de usuarios"
+            [currentPage]="operatorsPage()"
+            [totalPages]="operatorsTotalPages()"
+            [hasItems]="searchedOperators().length > 0"
+            (previous)="previousOperatorsPage()"
+            (next)="nextOperatorsPage()"
+          />
         </div>
       }
       @case ('incidents') {
-        <div class="space-y-4">
+        <div class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex justify-end">
             <button
               (click)="openAddIncidentTypeForm()"
@@ -231,7 +214,7 @@
               Nuevo Tipo de Incidente
             </button>
           </div>
-          <div class="overflow-x-auto">
+          <div class="min-h-0 flex-1 overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-300">
               <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
                 <tr>
@@ -242,7 +225,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (type of incidentTypes(); track type.id) {
+                @for (type of paginatedIncidentTypes(); track type.id) {
                   <tr class="border-b border-gray-700 hover:bg-gray-700/50">
                     <td class="px-6 py-4 font-medium text-white">{{ type.name }}</td>
                     <td class="px-6 py-4">{{ type.defaultPriority }}</td>
@@ -266,10 +249,18 @@
               </tbody>
             </table>
           </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de tipos de incidente"
+            [currentPage]="incidentTypesPage()"
+            [totalPages]="incidentTypesTotalPages()"
+            [hasItems]="incidentTypes().length > 0"
+            (previous)="previousIncidentTypesPage()"
+            (next)="nextIncidentTypesPage()"
+          />
         </div>
       }
       @case ('responses') {
-        <div class="space-y-4">
+        <div class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex justify-end">
             <button
               (click)="openAddResponseProtocolForm()"
@@ -290,8 +281,9 @@
               Nuevo Protocolo
             </button>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            @for (protocol of responseProtocols(); track protocol.id) {
+          <div class="min-h-0 flex-1">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @for (protocol of paginatedResponseProtocols(); track protocol.id) {
               <div class="bg-gray-700/50 p-4 rounded-lg">
                 <div class="flex justify-between items-start">
                   <div>
@@ -316,11 +308,20 @@
                 No hay protocolos de respuesta configurados.
               </p>
             }
+            </div>
           </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de protocolos de respuesta"
+            [currentPage]="responseProtocolsPage()"
+            [totalPages]="responseProtocolsTotalPages()"
+            [hasItems]="responseProtocols().length > 0"
+            (previous)="previousResponseProtocolsPage()"
+            (next)="nextResponseProtocolsPage()"
+          />
         </div>
       }
       @case ('notifications') {
-        <div class="space-y-4">
+        <div class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h3 class="text-xl font-semibold text-white">Correos de notificación</h3>
@@ -403,8 +404,10 @@
             }
           </div>
 
-          <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
-            <div class="overflow-x-auto">
+          <div
+            class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow-lg"
+          >
+            <div class="min-h-0 flex-1 overflow-x-auto">
               <table class="w-full text-sm text-left text-gray-300">
                 <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
                   <tr>
@@ -416,7 +419,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (email of paginatedNotificationEmails(); track email; let i = $index) {
+                  @for (entry of paginatedNotificationEmails(); track entry.email; let i = $index) {
                     <tr class="border-b border-gray-700 hover:bg-gray-700/50">
                       <td class="px-6 py-4 text-gray-400">
                         {{ (notificationEmailPage() - 1) * notificationEmailPageSize + i + 1 }}
@@ -434,24 +437,32 @@
                             />
                             <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                           </svg>
-                          <span class="truncate" [title]="email">{{ email }}</span>
+                          <span class="truncate" [title]="entry.email">{{ entry.email }}</span>
                         </div>
                       </td>
-                      <td class="px-6 py-4 text-gray-400">{{ email.split('@')[1] || '—' }}</td>
+                      <td class="px-6 py-4 text-gray-400">{{ entry.email.split('@')[1] || '—' }}</td>
                       <td class="px-6 py-4">
                         <span
-                          class="text-xs font-medium px-2.5 py-1 rounded-full bg-green-900/50 text-green-300 border border-green-500/30"
+                          [class]="
+                            entry.status === 'Activo'
+                              ? 'text-xs font-medium px-2.5 py-1 rounded-full bg-green-900/50 text-green-300 border border-green-500/30'
+                              : 'text-xs font-medium px-2.5 py-1 rounded-full bg-red-900/40 text-red-300 border border-red-500/30'
+                          "
                         >
-                          Activo
+                          {{ entry.status }}
                         </span>
                       </td>
                       <td class="px-6 py-4 text-right">
                         <button
                           type="button"
-                          (click)="removeEmail(email)"
-                          class="font-medium text-red-400 hover:text-red-300"
+                          (click)="toggleNotificationEmailStatus(entry)"
+                          [class]="
+                            entry.status === 'Activo'
+                              ? 'font-medium text-amber-400 hover:text-amber-300'
+                              : 'font-medium text-green-400 hover:text-green-300'
+                          "
                         >
-                          Eliminar
+                          {{ entry.status === 'Activo' ? 'Desactivar' : 'Activar' }}
                         </button>
                       </td>
                     </tr>
@@ -471,51 +482,19 @@
               </table>
             </div>
 
-            <div
-              class="flex flex-col gap-3 text-sm text-gray-400 px-6 py-3 border-t border-gray-700 bg-gray-800/80"
-            >
-              <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
-                <p>
-                  Mostrando {{ notificationEmailPageRangeLabel() || '0' }} correo(s)
-                  @if (notificationEmails().length !== displayedNotificationEmails().length) {
-                    <span class="text-gray-500"
-                      >(total en sistema: {{ notificationEmails().length }})</span
-                    >
-                  }
-                </p>
-                @if (notificationEmailFilter()) {
-                  <p class="text-indigo-400/90">Filtro: «{{ notificationEmailFilter() }}»</p>
-                }
-              </div>
-              @if (notificationEmailTotalPages() > 1) {
-                <div class="flex items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    (click)="previousNotificationEmailPage()"
-                    [disabled]="notificationEmailPage() <= 1"
-                    class="px-3 py-1.5 text-sm text-gray-300 rounded border border-gray-600 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Anterior
-                  </button>
-                  <span class="text-center text-gray-400">
-                    Página {{ notificationEmailPage() }} de {{ notificationEmailTotalPages() }}
-                  </span>
-                  <button
-                    type="button"
-                    (click)="nextNotificationEmailPage()"
-                    [disabled]="notificationEmailPage() >= notificationEmailTotalPages()"
-                    class="px-3 py-1.5 text-sm text-gray-300 rounded border border-gray-600 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              }
-            </div>
+            <app-admin-pagination
+              ariaLabel="Paginación de correos de notificación"
+              [currentPage]="notificationEmailPage()"
+              [totalPages]="notificationEmailTotalPages()"
+              [hasItems]="displayedNotificationEmails().length > 0"
+              (previous)="previousNotificationEmailPage()"
+              (next)="nextNotificationEmailPage()"
+            />
           </div>
         </div>
       }
       @case ('incident_history') {
-        <div class="space-y-6">
+        <div class="flex min-h-0 flex-1 flex-col gap-6">
           <!-- Search Header -->
           <div class="bg-gray-800/50 p-6 rounded-xl border border-gray-700">
             <div
@@ -548,11 +527,7 @@
                 <input
                   type="text"
                   [value]="incidentHistorySearchTerm()"
-                  (input)="
-                    incidentHistorySearchTerm.set($any($event.target).value);
-                    selectedIncidentIdForHistory.set('all');
-                    refreshIncidentHistoryView()
-                  "
+                  (input)="onIncidentHistorySearchInput($event)"
                   placeholder="Buscar incidente..."
                   class="bg-gray-700 border border-gray-600 text-white rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm w-full transition-all"
                 />
@@ -582,7 +557,7 @@
           @if (selectedIncidentForHistory(); as incident) {
             <!-- Incident Detailed View (Same as before) -->
             <div
-              class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden animate-fadeIn"
+              class="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl animate-fadeIn"
             >
               <!-- Sub-tabs Navigation -->
               <div class="flex bg-gray-900/50 border-b border-gray-700">
@@ -661,7 +636,7 @@
                           <span class="block text-xs text-gray-500 uppercase font-bold mb-1"
                             >Operador</span
                           >
-                          <span class="text-white">{{ incident.operator }}</span>
+                          <span class="text-white">{{ incident.operator || '—' }}</span>
                         </div>
                       </div>
 
@@ -862,8 +837,9 @@
             </div>
           } @else {
             <!-- Search Results List -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fadeIn">
-              @for (incident of filteredIncidentsForHistory(); track incident.id) {
+            <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
+            <div class="min-h-0 flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
+              @for (incident of paginatedIncidentsForHistory(); track incident.id) {
                 <div
                   (click)="
                     selectedIncidentIdForHistory.set(incident.id);
@@ -913,11 +889,20 @@
                 </div>
               }
             </div>
+            <app-admin-pagination
+              ariaLabel="Paginación de historial de incidentes"
+              [currentPage]="incidentHistoryPage()"
+              [totalPages]="incidentHistoryTotalPages()"
+              [hasItems]="filteredIncidentsForHistory().length > 0"
+              (previous)="previousIncidentHistoryPage()"
+              (next)="nextIncidentHistoryPage()"
+            />
+            </div>
           }
         </div>
       }
       @case ('permissions') {
-        <div class="space-y-8 animate-fadeIn">
+        <div class="flex min-h-0 flex-1 flex-col gap-6 animate-fadeIn">
           <div
             class="bg-gray-800/50 p-6 rounded-xl border border-gray-700 mb-6 flex justify-between items-center"
           >
@@ -947,7 +932,8 @@
             </button>
           </div>
 
-          @for (role of rolePermissions(); track role.id) {
+          <div class="min-h-0 flex-1 space-y-6 overflow-y-auto">
+          @for (role of paginatedRolePermissions(); track role.id) {
             <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg">
               <div
                 class="bg-gray-900/50 px-6 py-4 border-b border-gray-700 flex justify-between items-center"
@@ -1059,12 +1045,21 @@
               </div>
             </div>
           }
+          </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de roles y permisos"
+            [currentPage]="permissionsPage()"
+            [totalPages]="permissionsTotalPages()"
+            [hasItems]="rolePermissions().length > 0"
+            (previous)="previousPermissionsPage()"
+            (next)="nextPermissionsPage()"
+          />
         </div>
       }
       @case ('people') {
-        <div class="space-y-4 animate-fadeIn">
+        <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-            <h3 class="text-xl font-bold text-white">Registro de Personas / Ciudadanos</h3>
+            <h3 class="text-xl font-bold text-white">Registro de Personas</h3>
             <button
               (click)="openAddPersonForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
@@ -1085,7 +1080,7 @@
             </button>
           </div>
 
-          <div class="overflow-x-auto">
+          <div class="min-h-0 flex-1 overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-300">
               <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
                 <tr>
@@ -1094,11 +1089,12 @@
                   <th scope="col" class="px-6 py-3">Contacto</th>
                   <th scope="col" class="px-6 py-3">Rol</th>
                   <th scope="col" class="px-6 py-3">Género</th>
+                  <th scope="col" class="px-6 py-3">Estado</th>
                   <th scope="col" class="px-6 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                @for (person of people(); track person.id) {
+                @for (person of paginatedPeople(); track person.id) {
                   <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors">
                     <td class="px-6 py-4 font-medium text-white">{{ person.name }}</td>
                     <td class="px-6 py-4">
@@ -1117,6 +1113,17 @@
                     </td>
                     <td class="px-6 py-4">{{ person.roleName || '—' }}</td>
                     <td class="px-6 py-4">{{ person.gender || '—' }}</td>
+                    <td class="px-6 py-4">
+                      <span
+                        [class]="
+                          (person.status ?? 'Activo') === 'Activo'
+                            ? 'text-green-400'
+                            : 'text-red-500'
+                        "
+                      >
+                        {{ person.status ?? 'Activo' }}
+                      </span>
+                    </td>
                     <td class="px-6 py-4 flex items-center gap-4">
                       <button
                         (click)="openEditPersonForm(person)"
@@ -1125,16 +1132,21 @@
                         Editar
                       </button>
                       <button
-                        (click)="deletePerson(person.id)"
-                        class="font-medium text-red-400 hover:text-red-300"
+                        type="button"
+                        (click)="togglePersonStatus(person)"
+                        [class]="
+                          (person.status ?? 'Activo') === 'Activo'
+                            ? 'font-medium text-amber-400 hover:text-amber-300'
+                            : 'font-medium text-green-400 hover:text-green-300'
+                        "
                       >
-                        Eliminar
+                        {{ (person.status ?? 'Activo') === 'Activo' ? 'Desactivar' : 'Activar' }}
                       </button>
                     </td>
                   </tr>
                 } @empty {
                   <tr class="border-b border-gray-700">
-                    <td colspan="6" class="text-center py-12 text-gray-500 italic">
+                    <td colspan="7" class="text-center py-12 text-gray-500 italic">
                       No hay personas registradas en el sistema.
                     </td>
                   </tr>
@@ -1142,10 +1154,18 @@
               </tbody>
             </table>
           </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de personas"
+            [currentPage]="peoplePage()"
+            [totalPages]="peopleTotalPages()"
+            [hasItems]="people().length > 0"
+            (previous)="previousPeoplePage()"
+            (next)="nextPeoplePage()"
+          />
         </div>
       }
       @case ('admin_logs') {
-        <div class="space-y-4 animate-fadeIn">
+        <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
               <h3 class="text-xl font-bold text-white">Log de Auditoría Administrativa</h3>
@@ -1164,9 +1184,9 @@
           </div>
 
           <div
-            class="bg-gray-900/30 rounded-lg border border-gray-700 overflow-hidden shadow-inner"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-900/30 shadow-inner"
           >
-            <div class="overflow-x-auto max-h-[500px]">
+            <div class="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
               <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-500 uppercase bg-gray-900/80 sticky top-0 z-10">
                   <tr>
@@ -1177,7 +1197,7 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-800">
-                  @for (log of filteredAdminLogs(); track log.id) {
+                  @for (log of paginatedAdminLogs(); track log.id) {
                     <tr class="hover:bg-gray-700/20 transition-all">
                       <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono">
                         {{ log.timestamp }}
@@ -1205,6 +1225,14 @@
               </table>
             </div>
           </div>
+          <app-admin-pagination
+            ariaLabel="Paginación de logs administrativos"
+            [currentPage]="adminLogsPage()"
+            [totalPages]="adminLogsTotalPages()"
+            [hasItems]="filteredAdminLogs().length > 0"
+            (previous)="previousAdminLogsPage()"
+            (next)="nextAdminLogsPage()"
+          />
         </div>
       }
       @default {
@@ -1911,6 +1939,19 @@
                 @for (g of genders(); track g.id) {
                   <option [ngValue]="g.id">{{ g.name }}</option>
                 }
+              </select>
+            </div>
+            <div>
+              <label for="admin-person-status" class="block text-sm font-medium text-gray-300 mb-1"
+                >Estado</label
+              >
+              <select
+                id="admin-person-status"
+                formControlName="status"
+                class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"
+              >
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
               </select>
             </div>
           </div>

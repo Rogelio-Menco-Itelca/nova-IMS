@@ -7,8 +7,11 @@ import {
   inject,
   OnDestroy,
   OnInit,
+  AfterViewInit,
   effect,
   NgZone,
+  ElementRef,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormGroup } from '@angular/forms';
@@ -112,7 +115,7 @@ const BOGOTA_BOUNDS = {
   templateUrl: './incidents.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentsComponent implements OnInit, OnDestroy {
+export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
   private inferDocumentType(documentId: string): DocumentType | '' {
@@ -169,6 +172,9 @@ export class IncidentsComponent implements OnInit, OnDestroy {
 
   private geocoder: google.maps.Geocoder | null = null;
   private autocomplete: PlaceAutocompleteControl | null = null;
+  private dashboardMapResizeObserver: ResizeObserver | null = null;
+
+  @ViewChild('dashboardMapHost') dashboardMapHost?: ElementRef<HTMLElement>;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -280,6 +286,28 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       if (!this.dashboardMap) return;
       this.renderDashboardIncidents();
     });
+
+    effect(() => {
+      this.paginatedDashboardIncidents().length;
+      this.dashboardCurrentPage();
+      this.filterText();
+      queueMicrotask(() => this.triggerDashboardMapResize());
+    });
+  }
+
+  private triggerDashboardMapResize(): void {
+    if (!this.dashboardMap) return;
+    google.maps.event.trigger(this.dashboardMap, 'resize');
+  }
+
+  private attachDashboardMapResizeObserver(): void {
+    const el = this.dashboardMapHost?.nativeElement;
+    if (!el || this.dashboardMapResizeObserver) return;
+
+    this.dashboardMapResizeObserver = new ResizeObserver(() => {
+      this.triggerDashboardMapResize();
+    });
+    this.dashboardMapResizeObserver.observe(el);
   }
 
   private scheduleNewIncidentMapInit(
@@ -431,6 +459,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       google.maps.event.trigger(this.dashboardMap, 'resize');
       this.renderDashboardIncidents();
+      this.attachDashboardMapResizeObserver();
     }, 100);
   }
 
@@ -1139,6 +1168,10 @@ export class IncidentsComponent implements OnInit, OnDestroy {
     setTimeout(() => this.initDashboardMap(), 300);
   }
 
+  ngAfterViewInit(): void {
+    this.attachDashboardMapResizeObserver();
+  }
+
   private normalizePhone(phone: string): string {
     return phone.replaceAll(/\D/g, '');
   }
@@ -1286,7 +1319,7 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       comments: formValue.comments ?? '',
       type: formValue.event_id ?? '',
       priority: coerceIncidentPriority(formValue.priority ?? formValue.priority_id),
-      operator: 'N/A',
+      operator: this.authService.currentUser()?.name ?? 'Sistema',
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: formValue.locationPhoneNumber ?? '',
       involvedPeople: formValue.involvedPeople ?? [],
@@ -1327,11 +1360,11 @@ export class IncidentsComponent implements OnInit, OnDestroy {
       involvedPeople: updatedData.involvedPeople ?? [],
       involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
     };
-    this.incidentService.updateIncident(finalData, () => {
+    this.incidentService.updateIncident(finalData, (saved) => {
+      this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       void this.configService.getAuditLogs();
       this.cdr.markForCheck();
     });
-    this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? finalData : t)));
     this.notificationService.addNotification(
       'Incidente Actualizado',
       `Se guardaron los cambios para #${incidentId}.`,
@@ -1510,6 +1543,8 @@ export class IncidentsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.dashboardMapResizeObserver?.disconnect();
+    this.dashboardMapResizeObserver = null;
     if (this.dashboardMapClickListener) {
       google.maps.event.removeListener(this.dashboardMapClickListener);
       this.dashboardMapClickListener = null;
