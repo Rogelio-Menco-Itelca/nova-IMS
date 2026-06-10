@@ -215,9 +215,10 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
       const resp = await firstValueFrom(
         this.incidentService.sendIncidentEmail(this.incident().id, recipients),
       );
+      const enviados = (resp.recipients?.length ? resp.recipients : recipients).join(', ');
       this.notificationService.addNotification(
         'Correo enviado',
-        resp.message || `Notificación del incidente ${this.incident().id} enviada.`,
+        resp.message || `Enviado a: ${enviados}`,
       );
       this.closed.emit();
     } catch (err: any) {

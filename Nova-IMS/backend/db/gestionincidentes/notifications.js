@@ -1,29 +1,9 @@
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
-const { getInternalId } = require('./incidents');
 const { resolveUserContext } = require('./users');
 const { normalizeAgencyCode } = require('./maps');
 const { requireAgencyInput } = require('./agencyContext');
-
-let emailStatusColumnReady = false;
-
-async function ensureEmailStatusColumn() {
-  if (emailStatusColumnReady) return;
-  const [cols] = await pool.query("SHOW COLUMNS FROM correosincidentes LIKE 'estado'");
-  if (!cols.length) {
-    await pool.query(
-      `ALTER TABLE correosincidentes ADD COLUMN estado varchar(20) NOT NULL DEFAULT 'Activo'`,
-    );
-  }
-  await pool.query(
-    `UPDATE correosincidentes SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`,
-  );
-  emailStatusColumnReady = true;
-}
-
-function normalizeEmailStatus(value) {
-  return String(value || 'Activo').trim() === 'Inactivo' ? 'Inactivo' : 'Activo';
-}
+const { ensureEmailStatusColumn, normalizeEmailStatus } = require('./correosSchema');
 
 async function listNotifications() {
   const [rows] = await pool.query(
@@ -45,6 +25,7 @@ async function listNotifications() {
 }
 
 async function createNotification({ id, title, message, triggeredBy, incidentId, agencyCode }) {
+  const { getInternalId } = require('./incidents');
   const agency = requireAgencyInput(agencyCode);
   const ctx = await resolveUserContext(triggeredBy, agency);
   const internalIncident = incidentId ? await getInternalId(incidentId) : null;
@@ -135,5 +116,4 @@ module.exports = {
   listNotificationEmails,
   addNotificationEmail,
   setNotificationEmailStatus,
-  ensureEmailStatusColumn,
 };

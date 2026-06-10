@@ -8,6 +8,7 @@ import {
   OnDestroy,
   OnInit,
   effect,
+  untracked,
   NgZone,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -37,7 +38,17 @@ import {
   CatalogOption,
   isVisibleInActiveViews,
   incidentMatchesCatalogStatus,
+  catalogStatusToUiStatus,
+  isForwardStatusTransition,
+  needsCerremGestionForTransition,
+  needsOsegGestionForTransition,
+  CSJ_STATUS_WORKFLOW_RANK,
 } from '../../models/incident.model';
+import {
+  isCsjMedidasWorkflow,
+  medidasTabHint,
+  shouldNavigateToMedidasTab,
+} from '../../utils/medidas-permissions';
 import { Subscription, of, firstValueFrom } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
@@ -49,6 +60,7 @@ import { PersonService } from '../../services/person.service';
 import { ColombiaGeoService } from '../../services/colombia-geo.service';
 import { HttpClient } from '@angular/common/http';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
+import { MedidasComponent } from '../medidas/medidas.component';
 import {
   createMapPin,
   createPlaceAutocomplete,
@@ -73,20 +85,15 @@ const priorityOrder: Record<IncidentPriority, number> = {
 };
 
 const statusOrder: Record<IncidentStatus, number> = {
-  Nuevo: 16,
-  'En gestión OSGE': 15,
-  'Enviado a CERREM': 14,
-  'En evaluación CERREM': 13,
-  'Aprobado con medidas': 12,
-  'Medidas asignadas': 11,
-  'Seguimiento activo': 10,
-  Asignado: 9,
-  'En camino': 8,
-  'En situación': 7,
-  'Resuelto con medidas': 6,
-  Resuelto: 5,
-  'Cerrado con solución': 4,
-  'Cerrado sin medidas': 3,
+  Nuevo: 11,
+  'En gestión OSEG': 10,
+  'Enviado a CERREM': 9,
+  'En evaluación CERREM': 8,
+  'Medidas asignadas': 7,
+  Asignado: 6,
+  'En camino': 5,
+  'En proceso': 4,
+  Resuelto: 3,
   Cerrado: 2,
   Cancelado: 1,
 };
@@ -94,7 +101,7 @@ const statusOrder: Record<IncidentStatus, number> = {
 @Component({
   selector: 'app-incident-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, IncidentEmailModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, IncidentEmailModalComponent, MedidasComponent],
   templateUrl: './incident-list.component.html',
   styleUrls: ['./incident-list.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -159,6 +166,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
   activeTabId = signal<string | 'new' | null>(null);
+  detailTab = signal<'detalle' | 'medidas'>('detalle');
+  mapReady = signal(false);
   selectedIncidentTypeName = signal<string | null>(null);
   isProtocolVisible = signal(true);
   newIncidentFormState = signal<any | null>(null);
@@ -176,6 +185,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
+  private statusSub: Subscription | undefined;
+  private skipStatusNav = false;
+  /** Evita pisar la prioridad que el operador eligió manualmente. */
+  private lastIncidentTypeName: string | null = null;
+  private lastTypeDefaultPriority: IncidentPriority | null = null;
   private incidentDeptSub: Subscription | undefined;
   private readonly personLookupNotified = new Set<string>();
 
@@ -193,6 +207,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   placeRoles = signal<CatalogOption[]>([]);
   origins = signal<CatalogOption[]>([]);
   incidentStatuses = signal<CatalogOption[]>([]);
+  allowedStatuses = signal<string[]>([]);
+  currentIncidentUiStatus = signal('');
   /** Municipios por fila de lugar involucrado (índice del FormArray). */
   placeMunicipalities = signal<Map<number, ColombiaMunicipality[]>>(new Map());
   departments = signal<ColombiaDepartment[]>([]);
@@ -216,7 +232,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     lng: [null as number | null, Validators.required],
     agregarComentario: [''],
     type: [''],
-    priority: ['Media' satisfies IncidentPriority],
+    priority: ['' as IncidentPriority],
     locationPhoneNumber: [{ value: '', disabled: true }],
     involvedPeople: this.fb.array([]),
     involvedPlaces: this.fb.array([]),
@@ -261,32 +277,40 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     effect(() => {
       const tabId = this.activeTabId();
-      this.destroyMap();
+      // Solo reaccionar al cambio de pestaña; no re-ejecutar cuando carguen catálogos (incidentStatuses).
+      untracked(() => {
+        this.destroyMap();
+        this.detailTab.set('detalle');
 
-      if (tabId === 'new') {
-        const pendingPhone = this.locationService.pendingPhone();
-        const savedState = this.newIncidentFormState();
+        const agency = this.authService.currentUser()?.agency ?? 'CSJ';
 
-        if (pendingPhone) {
-          this.resetFormForNewIncident();
-          setTimeout(() => {
-            this.applyPhoneFromLocationRequest(pendingPhone);
-            this.locationService.clearPendingPhone();
-          }, 0);
-        } else if (savedState) {
-          this.populateFormWithState(savedState);
-        } else {
-          this.resetFormForNewIncident();
+        if (tabId === 'new') {
+          this.setupStatusDropdownForNew(agency);
+          const pendingPhone = this.locationService.pendingPhone();
+          const savedState = this.newIncidentFormState();
+
+          if (pendingPhone) {
+            this.resetFormForNewIncident();
+            setTimeout(() => {
+              this.applyPhoneFromLocationRequest(pendingPhone);
+              this.locationService.clearPendingPhone();
+            }, 0);
+          } else if (savedState) {
+            this.populateFormWithState(savedState);
+          } else {
+            this.resetFormForNewIncident();
+          }
+
+          setTimeout(() => this.initMap(), 0);
+        } else if (tabId) {
+          const incident = this.resolveIncidentForTab(tabId);
+          if (incident) {
+            this.setupStatusDropdownForEdit(agency, incident.status);
+            this.populateFormWithState(incident);
+            setTimeout(() => this.initMap(incident.lat, incident.lng), 0);
+          }
         }
-
-        setTimeout(() => this.initMap(), 0);
-      } else if (tabId) {
-        const incident = this.openIncidentTabs().find((inc) => inc.id === tabId);
-        if (incident) {
-          this.populateFormWithState(incident);
-          setTimeout(() => this.initMap(incident.lat, incident.lng), 0);
-        }
-      }
+      });
     });
   }
 
@@ -340,6 +364,16 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const addressFromServer = locationData.address?.trim();
     if (addressFromServer) {
       this.incidentForm.patchValue({ location: addressFromServer }, { emitEvent: false });
+      if (this.geocoder) {
+        this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          this.ngZone.run(() => {
+            if (status === 'OK' && results?.[0]) {
+              void this.applyDepartmentMunicipalityFromGeocode(results[0]);
+              this.cdr.markForCheck();
+            }
+          });
+        });
+      }
     } else {
       this.reverseGeocodeFromGps(locationData.lat, locationData.lng);
     }
@@ -393,7 +427,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     await this.ensureGeocoderReady();
 
     const mapEl = document.getElementById('map');
-    if (!mapEl || this.map) return;
+    if (!mapEl) return;
+    if (this.map) {
+      this.destroyMap();
+    }
 
     const formLat = this.incidentForm.get('lat')?.value;
     const formLng = this.incidentForm.get('lng')?.value;
@@ -441,6 +478,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     });
 
     this.initAutocomplete();
+    this.mapReady.set(true);
+    this.cdr.markForCheck();
   }
 
   /** Centra el mapa y el marcador en las coordenadas del incidente. */
@@ -470,7 +509,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     this.autocomplete = createPlaceAutocomplete(locationInput, {
       componentRestrictions: { country: 'co' },
-      fields: ['geometry', 'formatted_address'],
+      fields: ['geometry', 'formatted_address', 'address_components'],
     });
 
     this.autocomplete.addListener('place_changed', () => {
@@ -481,7 +520,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const lng = place.geometry.location.lng();
 
       this.ngZone.run(() => {
-        void this.applyLocationFromGeocode(lat, lng, place.formatted_address);
+        void this.applyLocationFromGeocode(lat, lng, place.formatted_address, place);
       });
     });
   }
@@ -522,7 +561,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           return;
         }
         const loc = results[0].geometry.location;
-        void this.applyLocationFromGeocode(loc.lat(), loc.lng(), results[0].formatted_address);
+        void this.applyLocationFromGeocode(
+          loc.lat(),
+          loc.lng(),
+          results[0].formatted_address,
+          results[0],
+        );
       });
     });
   }
@@ -531,13 +575,178 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     lat: number,
     lng: number,
     formattedAddress?: string,
+    geocodeResult?: google.maps.GeocoderResult | google.maps.places.PlaceResult,
   ): Promise<void> {
     this.updateFormCoords(lat, lng);
     if (formattedAddress) {
       this.incidentForm.patchValue({ location: formattedAddress }, { emitEvent: false });
     }
+    if (geocodeResult) {
+      await this.applyDepartmentMunicipalityFromGeocode(geocodeResult);
+    }
     await this.syncMapToCoords(lat, lng);
     this.cdr.markForCheck();
+  }
+
+  private normalizeGeoName(value: string): string {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[.,]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private geocodeComponent(
+    components: google.maps.GeocoderAddressComponent[],
+    ...types: string[]
+  ): string {
+    for (const type of types) {
+      const hit = components.find((c) => c.types.includes(type));
+      if (hit?.long_name) return hit.long_name;
+    }
+    return '';
+  }
+
+  private findBestCatalogMatch<T extends { name: string }>(
+    catalog: T[],
+    candidates: string[],
+  ): T | null {
+    let best: { item: T; score: number } | null = null;
+
+    for (const item of catalog) {
+      const itemName = this.normalizeGeoName(item.name);
+      for (const raw of candidates) {
+        const candidate = this.normalizeGeoName(raw);
+        if (!candidate) continue;
+
+        if (itemName === candidate) return item;
+
+        let score = 0;
+        if (candidate.includes(itemName)) {
+          score = itemName.length;
+        } else if (itemName.includes(candidate) && candidate.length >= 4) {
+          score = candidate.length;
+        }
+        if (score > (best?.score ?? 0)) {
+          best = { item, score };
+        }
+      }
+    }
+
+    return best?.item ?? null;
+  }
+
+  private parseFormattedAddressSegments(formattedAddress: string): string[] {
+    const parts = formattedAddress
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length && this.normalizeGeoName(parts.at(-1)!) === 'COLOMBIA') {
+      parts.pop();
+    }
+    return parts;
+  }
+
+  private inferDeptAndCityFromFormattedAddress(
+    formattedAddress: string,
+    departments: ColombiaDepartment[],
+  ): { department: ColombiaDepartment | null; cityCandidate: string } {
+    const segments = this.parseFormattedAddressSegments(formattedAddress);
+    let department: ColombiaDepartment | null = null;
+    let deptIndex = -1;
+    let bestScore = 0;
+
+    segments.forEach((segment, index) => {
+      const match = this.findBestCatalogMatch(departments, [segment]);
+      if (!match) return;
+      const score = this.normalizeGeoName(match.name).length;
+      if (score > bestScore) {
+        bestScore = score;
+        department = match;
+        deptIndex = index;
+      }
+    });
+
+    const cityCandidate = deptIndex > 0 ? segments[deptIndex - 1] : '';
+    return { department, cityCandidate };
+  }
+
+  private matchDepartment(
+    departments: ColombiaDepartment[],
+    candidates: string[],
+  ): ColombiaDepartment | null {
+    const normalized = candidates.map((s) => this.normalizeGeoName(s)).filter(Boolean);
+    if (normalized.some((c) => c.includes('BOGOTA'))) {
+      return departments.find((d) => this.normalizeGeoName(d.name).includes('BOGOTA')) ?? null;
+    }
+    return this.findBestCatalogMatch(departments, candidates);
+  }
+
+  private matchMunicipality(
+    municipalities: ColombiaMunicipality[],
+    candidates: string[],
+  ): ColombiaMunicipality | null {
+    const normalized = candidates.map((s) => this.normalizeGeoName(s)).filter(Boolean);
+    if (normalized.some((c) => c.includes('BOGOTA'))) {
+      return (
+        municipalities.find((m) => this.normalizeGeoName(m.name) === 'BOGOTA') ??
+        municipalities.find((m) => this.normalizeGeoName(m.name).includes('BOGOTA')) ??
+        null
+      );
+    }
+    return this.findBestCatalogMatch(municipalities, candidates);
+  }
+
+  private async applyDepartmentMunicipalityFromGeocode(
+    result: google.maps.GeocoderResult | google.maps.places.PlaceResult,
+  ): Promise<void> {
+    const components = result.address_components ?? [];
+    const formattedAddress =
+      'formatted_address' in result ? String(result.formatted_address ?? '') : '';
+
+    const locality = this.geocodeComponent(
+      components,
+      'locality',
+      'postal_town',
+      'administrative_area_level_2',
+    );
+    const admin1 = this.geocodeComponent(components, 'administrative_area_level_1');
+
+    let departments = this.departments();
+    if (!departments.length) {
+      await this.loadDepartments();
+      departments = this.departments();
+    }
+
+    const parsed = formattedAddress
+      ? this.inferDeptAndCityFromFormattedAddress(formattedAddress, departments)
+      : { department: null, cityCandidate: '' };
+
+    const department =
+      parsed.department ??
+      this.matchDepartment(departments, [admin1, formattedAddress].filter(Boolean));
+    if (!department) return;
+
+    const municipalityCandidates = [locality, parsed.cityCandidate].filter(Boolean);
+
+    try {
+      const municipalities = await firstValueFrom(
+        this.colombiaGeo.getMunicipalities(department.id),
+      );
+      this.incidentMunicipalities.set(municipalities);
+      const municipality = this.matchMunicipality(municipalities, municipalityCandidates);
+      this.incidentForm.patchValue(
+        {
+          departmentId: department.id,
+          municipalityId: municipality?.id ?? null,
+        },
+        { emitEvent: false },
+      );
+    } catch {
+      this.incidentMunicipalities.set([]);
+    }
   }
 
   private updateFormCoords(lat: number, lng: number) {
@@ -561,7 +770,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     void this.ensureGeocoderReady().then(() => {
       if (!this.geocoder) return;
 
-      this.geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+      this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
         this.ngZone.run(() => {
           if (status === 'OK' && results?.[0]) {
             const address = results[0].formatted_address;
@@ -573,6 +782,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
                 this.incidentForm.patchValue({ location: address }, { emitEvent: false });
               }
             }
+            void this.applyDepartmentMunicipalityFromGeocode(results[0]);
             this.cdr.markForCheck();
           }
         });
@@ -588,6 +798,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.geocoder = null;
       this.autocomplete = null;
     }
+    this.mapReady.set(false);
   }
   activeIncident = computed(() => {
     const tabId = this.activeTabId();
@@ -834,19 +1045,87 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.http.get<CatalogOption[]>('/api/origins', { params: { agency } }).subscribe({
       next: (rows) => {
         this.origins.set(rows);
-        this.ensureDefaultOrigin();
         this.cdr.markForCheck();
       },
       error: () => this.origins.set([]),
     });
+    this.loadAllIncidentStatuses(agency);
+  }
+
+  isStatusAllowed(catalogName: string): boolean {
+    const name = String(catalogName ?? '').trim();
+    const currentFormValue = String(this.incidentForm.get('status')?.value ?? '').trim();
+    const effectiveCurrent =
+      currentFormValue ||
+      this.statusNameForForm(String(this.activeIncident()?.status ?? '').trim());
+    if (name === effectiveCurrent) return true;
+
+    // Incidente ya creado: solo estados hacia adelante en el flujo (nunca retroceder).
+    if (this.activeTabId() !== 'new') {
+      const savedStatusUi = catalogStatusToUiStatus(
+        String(this.activeIncident()?.status ?? '').trim(),
+      );
+      const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+      if (!isForwardStatusTransition(savedStatusUi, name, agency)) {
+        return false;
+      }
+      return this.incidentStatuses().some((st) => st.name === name);
+    }
+
+    const nameUi = catalogStatusToUiStatus(name);
+    if (nameUi === 'Nuevo') return true;
+
+    return this.allowedStatuses().some(
+      (allowed) =>
+        allowed === name ||
+        allowed === nameUi ||
+        catalogStatusToUiStatus(allowed) === nameUi,
+    );
+  }
+
+  statusLabel(catalogName: string): string {
+    return catalogStatusToUiStatus(catalogName);
+  }
+
+  private loadAllIncidentStatuses(agency: string, afterLoad?: () => void): void {
     this.http.get<CatalogOption[]>('/api/incident-statuses', { params: { agency } }).subscribe({
       next: (rows) => {
         this.incidentStatuses.set(rows);
-        this.ensureDefaultStatus();
+        afterLoad?.();
         this.cdr.markForCheck();
       },
       error: () => this.incidentStatuses.set([]),
     });
+  }
+
+  private setupStatusDropdownForNew(agency: string): void {
+    this.currentIncidentUiStatus.set('Nuevo');
+    this.loadAllIncidentStatuses(agency, () => {
+      this.allowedStatuses.set(['Nuevo']);
+      if (this.activeTabId() === 'new') {
+        this.incidentForm
+          .get('status')
+          ?.setValue(this.nuevoStatusCatalogName(), { emitEvent: false });
+      }
+      this.cdr.markForCheck();
+    });
+  }
+
+  private setupStatusDropdownForEdit(agency: string, currentUiStatus: string): void {
+    this.currentIncidentUiStatus.set(currentUiStatus);
+    this.loadAllIncidentStatuses(agency, () => this.syncStatusControlFromActiveIncident());
+  }
+
+  /** Reaplica el estado guardado cuando el catálogo de estados termina de cargar. */
+  private syncStatusControlFromActiveIncident(): void {
+    if (this.activeTabId() === 'new') return;
+    const incident = this.activeIncident();
+    if (!incident) return;
+    const resolved = this.statusNameForForm(String(incident.status ?? ''));
+    const ctrl = this.incidentForm.get('status');
+    if (!resolved || !ctrl || ctrl.value === resolved) return;
+    ctrl.setValue(resolved, { emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   private pickOriginForLocationChannel(channel?: string): string {
@@ -863,31 +1142,26 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return hit?.name || '';
   }
 
-  private defaultStatusName(): string {
+  private nuevoStatusCatalogName(): string {
     const list = this.incidentStatuses();
-    return list.find((s) => s.name === 'Abierto')?.name || list[0]?.name || '';
+    if (list.some((s) => s.name === 'Nuevo')) return 'Nuevo';
+    return list[0]?.name ?? '';
+  }
+
+  private defaultStatusName(): string {
+    return this.nuevoStatusCatalogName();
   }
 
   private statusNameForForm(uiStatus: string): string {
-    const toDb: Record<string, string> = {
-      Nuevo: 'Abierto',
-      'En camino': 'En proceso',
-      'En situación': 'En proceso',
-      Resuelto: 'Cerrado',
-      'Cerrado con solución': 'Cerrado',
-    };
-    const dbName = toDb[uiStatus] || uiStatus;
+    const name = String(uiStatus ?? '').trim();
+    if (!name) return '';
     const list = this.incidentStatuses();
-    if (list.some((s) => s.name === dbName)) return dbName;
-    if (list.some((s) => s.name === uiStatus)) return uiStatus;
-    return this.defaultStatusName();
-  }
-
-  private ensureDefaultOrigin(): void {
-    const ctrl = this.incidentForm.get('origin');
-    if (!ctrl || String(ctrl.value || '').trim()) return;
-    const picked = this.pickOriginForLocationChannel();
-    if (picked) ctrl.setValue(picked, { emitEvent: false });
+    if (!list.length) return name;
+    if (list.some((s) => s.name === name)) return name;
+    const ui = catalogStatusToUiStatus(name);
+    const byUi = list.find((s) => catalogStatusToUiStatus(s.name) === ui);
+    if (byUi) return byUi.name;
+    return name;
   }
 
   private ensureDefaultStatus(): void {
@@ -1222,19 +1496,70 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.typeSub = this.incidentForm.get('event_id')?.valueChanges.subscribe((typeName) => {
       this.selectedIncidentTypeName.set(typeName || null);
       const selectedType = this.incidentTypes().find((t) => t.name === typeName);
-      if (selectedType) {
-        this.incidentForm.patchValue(
-          {
-            priority_id: selectedType.defaultPriority,
-            type: selectedType.name,
-            priority: selectedType.defaultPriority,
-          },
-          { emitEvent: false },
-        );
+      if (!selectedType) return;
+
+      const currentPriority = String(this.incidentForm.get('priority_id')?.value ?? '').trim();
+      const typeChanged = typeName !== this.lastIncidentTypeName;
+      const priorityEmpty = !currentPriority;
+      const priorityMatchesPreviousDefault =
+        !!this.lastTypeDefaultPriority && currentPriority === this.lastTypeDefaultPriority;
+      const applyDefaultPriority = typeChanged && (priorityEmpty || priorityMatchesPreviousDefault);
+
+      const patch: { type: string; priority_id?: IncidentPriority; priority?: IncidentPriority } = {
+        type: selectedType.name,
+      };
+      if (applyDefaultPriority) {
+        patch.priority_id = selectedType.defaultPriority;
+        patch.priority = selectedType.defaultPriority;
       }
+
+      this.lastIncidentTypeName = typeName;
+      this.lastTypeDefaultPriority = selectedType.defaultPriority;
+
+      this.incidentForm.patchValue(patch, { emitEvent: false });
     });
 
     this.setupPhoneLookup();
+    this.setupStatusChangeHandler();
+  }
+
+  private setupStatusChangeHandler(): void {
+    this.statusSub?.unsubscribe();
+    this.statusSub = this.incidentForm.get('status')?.valueChanges.subscribe((statusValue) => {
+      if (this.skipStatusNav || this.activeTabId() === 'new') return;
+      const uiStatus = catalogStatusToUiStatus(String(statusValue ?? ''));
+      if (!shouldNavigateToMedidasTab(uiStatus)) return;
+      this.detailTab.set('medidas');
+      const hint = medidasTabHint(uiStatus);
+      if (hint) {
+        this.notificationService.addNotification('Pestaña Medidas', hint);
+      }
+      this.cdr.markForCheck();
+    });
+  }
+
+  currentAgency(): string {
+    return this.authService.currentUser()?.agency ?? 'CSJ';
+  }
+
+  showMedidasTab(): boolean {
+    return isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new';
+  }
+
+  workflowStatusForMedidas(): string {
+    const formStatus = catalogStatusToUiStatus(
+      String(this.incidentForm.get('status')?.value ?? '').trim(),
+    );
+    const savedStatus = catalogStatusToUiStatus(
+      String(this.activeIncident()?.status ?? '').trim(),
+    );
+    const formRank = CSJ_STATUS_WORKFLOW_RANK[formStatus as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+    const savedRank =
+      CSJ_STATUS_WORKFLOW_RANK[savedStatus as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+    if (formRank !== undefined && savedRank !== undefined) {
+      return formRank >= savedRank ? formStatus : savedStatus;
+    }
+    return formStatus || savedStatus || 'Nuevo';
   }
 
   private normalizePhone(phone: string): string {
@@ -1430,12 +1755,29 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
   }
 
+  private resolveIncidentForTab(tabId: string): Incident | undefined {
+    const fromTabs = this.openIncidentTabs().find((inc) => inc.id === tabId);
+    const fresh = this.incidentService.incidents().find((inc) => inc.id === tabId);
+    const merged = fresh ? { ...(fromTabs ?? fresh), ...fresh } : fromTabs;
+    if (fresh && fromTabs) {
+      this.openIncidentTabs.update((tabs) =>
+        tabs.map((t) => (t.id === tabId ? { ...t, ...fresh } : t)),
+      );
+    }
+    return merged;
+  }
+
   openIncidentTab(incident: Incident) {
-    if (this.openIncidentTabs().some((tab) => tab.id === incident.id)) {
-      this.setActiveTab(incident.id);
+    const fresh =
+      this.incidentService.incidents().find((i) => i.id === incident.id) ?? incident;
+    if (this.openIncidentTabs().some((tab) => tab.id === fresh.id)) {
+      this.openIncidentTabs.update((tabs) =>
+        tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),
+      );
+      this.setActiveTab(fresh.id);
     } else if (this.openIncidentTabs().length < this.MAX_TABS) {
-      this.openIncidentTabs.update((tabs) => [...tabs, incident]);
-      this.setActiveTab(incident.id);
+      this.openIncidentTabs.update((tabs) => [...tabs, fresh]);
+      this.setActiveTab(fresh.id);
       this.notificationService.addNotification(
         'Pestaña Abierta',
         `Se abrió el incidente #${incident.id}.`,
@@ -1454,6 +1796,39 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (this.activeTabId() === 'new')
       this.newIncidentFormState.set(this.incidentForm.getRawValue());
     this.activeTabId.set(tabId);
+  }
+
+  setDetailTab(tab: 'detalle' | 'medidas') {
+    this.detailTab.set(tab);
+    if (tab === 'detalle') {
+      this.destroyMap();
+      setTimeout(() => {
+        const incident = this.activeIncident();
+        const lat = this.incidentForm.get('lat')?.value ?? incident?.lat;
+        const lng = this.incidentForm.get('lng')?.value ?? incident?.lng;
+        void this.initMap(
+          lat != null ? Number(lat) : undefined,
+          lng != null ? Number(lng) : undefined,
+        );
+      }, 0);
+    }
+    this.cdr.markForCheck();
+  }
+
+  private requiresMedidasForSave(statusValue: string): boolean {
+    return catalogStatusToUiStatus(String(statusValue ?? '').trim()) === 'Medidas asignadas';
+  }
+
+  private hasAssignedMedidas(incidentId: string) {
+    return this.http.get<{
+      gestion: {
+        codigo_oficio?: string;
+        tramite_destino?: string;
+        resolucion_cerrem?: string;
+        ID_riesgo?: number;
+      } | null;
+      medidas: unknown[];
+    }>(`/api/incidents/${incidentId}/medidas`);
   }
 
   closeIncidentTab(idToClose: string, event: MouseEvent) {
@@ -1569,7 +1944,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       details: '',
       comments,
       type: selectedType?.name ?? formValue.event_id ?? '',
-      priority: (formValue.priority_id ?? 'Media') as IncidentPriority,
+      priority: formValue.priority_id as IncidentPriority,
       operator: this.noteAuthor(),
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: this.resolveLocationPhoneForSave(formValue.locationPhoneNumber),
@@ -1605,6 +1980,107 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     const updatedData = this.incidentForm.getRawValue();
     const incidentId = this.activeIncident()!.id;
+
+    const targetStatus = catalogStatusToUiStatus(String(updatedData.status ?? ''));
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+
+    if (targetStatus === 'Cerrado') {
+      this.commitIncidentUpdate(updatedData);
+      return;
+    }
+
+    if (isCsjMedidasWorkflow(agency)) {
+      this.hasAssignedMedidas(incidentId).subscribe({
+        next: ({ gestion, medidas }) => {
+          const gestionRecord = gestion as {
+            codigo_oficio?: string;
+            tramite_destino?: string;
+            resolucion_cerrem?: string;
+            ID_riesgo?: number;
+          } | null;
+          if (needsOsegGestionForTransition(targetStatus)) {
+            if (
+              !gestionRecord?.codigo_oficio?.trim() ||
+              !String(gestionRecord?.tramite_destino ?? '').trim()
+            ) {
+              this.detailTab.set('medidas');
+              this.notificationService.addNotification(
+                'No se puede guardar',
+                'Complete la gestión OSEG en la pestaña Medidas (trámite/destino).',
+              );
+              this.cdr.markForCheck();
+              return;
+            }
+          }
+          if (needsCerremGestionForTransition(targetStatus)) {
+            if (!gestionRecord?.resolucion_cerrem?.trim() || !gestionRecord?.ID_riesgo) {
+              this.detailTab.set('medidas');
+              this.notificationService.addNotification(
+                'No se puede guardar',
+                'Complete la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo).',
+              );
+              this.cdr.markForCheck();
+              return;
+            }
+          }
+          if (this.requiresMedidasForSave(targetStatus) && !medidas?.length) {
+            this.detailTab.set('medidas');
+            this.notificationService.addNotification(
+              'No se puede guardar',
+              'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
+            );
+            this.cdr.markForCheck();
+            return;
+          }
+          this.commitIncidentUpdate(updatedData);
+        },
+        error: () => {
+          if (this.requiresMedidasForSave(targetStatus)) {
+            this.detailTab.set('medidas');
+            this.notificationService.addNotification(
+              'No se puede guardar',
+              'Complete la información en la pestaña Medidas.',
+            );
+            this.cdr.markForCheck();
+          } else {
+            this.commitIncidentUpdate(updatedData);
+          }
+        },
+      });
+      return;
+    }
+
+    if (this.requiresMedidasForSave(String(updatedData.status ?? ''))) {
+      this.hasAssignedMedidas(incidentId).subscribe({
+        next: ({ medidas }) => {
+          if (!medidas?.length) {
+            this.detailTab.set('medidas');
+            this.notificationService.addNotification(
+              'No se puede guardar',
+              'Debe asignar al menos una medida de seguridad (por ejemplo chaleco) antes de actualizar el incidente.',
+            );
+            this.cdr.markForCheck();
+            return;
+          }
+          this.commitIncidentUpdate(updatedData);
+        },
+        error: () => {
+          this.detailTab.set('medidas');
+          this.notificationService.addNotification(
+            'No se puede guardar',
+            'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
+          );
+          this.cdr.markForCheck();
+        },
+      });
+      return;
+    }
+
+    this.commitIncidentUpdate(updatedData);
+  }
+
+  private commitIncidentUpdate(updatedData: ReturnType<typeof this.incidentForm.getRawValue>) {
+    const incidentId = this.activeIncident()!.id;
     const base = this.activeIncident()!;
     const mergedComments = this.mergeCommentHistory(
       base.comments ?? '',
@@ -1614,7 +2090,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const selectedType = this.incidentTypes().find((t) => t.name === updatedData.event_id);
     const finalData: Incident = {
       ...base,
-      status: (updatedData.status || this.defaultStatusName()) as IncidentStatus,
+      status: catalogStatusToUiStatus(
+        String(updatedData.status || this.defaultStatusName()),
+      ) as IncidentStatus,
       event_id: selectedType?.id ?? updatedData.event_id ?? '',
       incident_type_id: selectedType?.id,
       priority_id: updatedData.priority_id ?? '',
@@ -1628,7 +2106,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       details: '',
       comments: mergedComments,
       type: selectedType?.name ?? updatedData.event_id ?? '',
-      priority: (updatedData.priority_id ?? 'Media') as IncidentPriority,
+      priority: updatedData.priority_id as IncidentPriority,
       involvedPeople: this.involvedPeopleForSave(),
       involvedPlaces: ((updatedData.involvedPlaces ?? []) as InvolvedPlace[]).filter(
         (p) => String(p.name || '').trim() && String(p.address || '').trim(),
@@ -1636,26 +2114,30 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       involvedVehicles: this.involvedVehiclesForSave(),
     };
     this.incidentService.updateIncident(finalData, (saved) => {
+      const agency = this.authService.currentUser()?.agency ?? 'CSJ';
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
+      this.setupStatusDropdownForEdit(agency, saved.status);
       this.populateFormWithState(saved);
       void this.configService.getAuditLogs();
+      this.notificationService.addNotification(
+        'Incidente Actualizado',
+        `Se guardaron los cambios para #${incidentId}.`,
+        incidentId,
+      );
+      this.loadCommentsHistory(mergedComments);
+      this.clearAgregarComentario();
+      this.incidentForm.markAsPristine();
       this.cdr.markForCheck();
     });
-    this.notificationService.addNotification(
-      'Incidente Actualizado',
-      `Se guardaron los cambios para #${incidentId}.`,
-      incidentId,
-    );
-    this.loadCommentsHistory(mergedComments);
-    this.clearAgregarComentario();
-    this.incidentForm.markAsPristine();
   }
 
   private resetFormForNewIncident() {
     this.selectedIncidentTypeName.set(null);
+    this.lastIncidentTypeName = null;
+    this.lastTypeDefaultPriority = null;
     this.incidentForm.reset({
       event_id: '',
-      priority_id: 'Media',
+      priority_id: '',
       status: this.defaultStatusName(),
       origin: '',
       phone: '',
@@ -1664,7 +2146,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       municipalityId: null,
       agregarComentario: '',
     });
-    this.ensureDefaultOrigin();
     this.incidentMunicipalities.set([]);
     this.commentsHistory.set([]);
     this.involvedPeople.clear();
@@ -1677,6 +2158,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private populateFormWithState(state: Partial<Incident>) {
     this.selectedIncidentTypeName.set(state.type || (state as any).event_id || null);
+    this.skipStatusNav = true;
     this.incidentForm.reset(undefined, { emitEvent: false });
     const {
       comments,
@@ -1698,6 +2180,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (state.type) {
       this.incidentForm.get('event_id')?.setValue(state.type, { emitEvent: false });
     }
+    const typeName = state.type || null;
+    this.lastIncidentTypeName = typeName;
+    const selectedType = this.incidentTypes().find((t) => t.name === typeName);
+    this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
     void this.loadIncidentMunicipalities(state.departmentId, state.municipalityId);
     this.involvedPeople.clear();
     for (const p of involvedPeople ?? []) {
@@ -1727,6 +2213,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     );
     this.incidentForm.enable();
     this.incidentForm.markAsPristine();
+    this.skipStatusNav = false;
   }
 
   openIncidentEmailModal(incident: Incident): void {
@@ -1786,32 +2273,24 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     switch (status) {
       case 'Nuevo':
         return 'bg-blue-600/80 text-blue-100';
-      case 'En gestión OSGE':
+      case 'En gestión OSEG':
         return 'bg-indigo-600/80 text-indigo-100';
       case 'Enviado a CERREM':
         return 'bg-violet-600/80 text-violet-100';
       case 'En evaluación CERREM':
         return 'bg-purple-600/80 text-purple-100';
-      case 'Aprobado con medidas':
-        return 'bg-yellow-600/80 text-yellow-100';
       case 'Medidas asignadas':
         return 'bg-orange-600/80 text-orange-100';
-      case 'Seguimiento activo':
-        return 'bg-green-600/80 text-green-100';
       case 'Asignado':
         return 'bg-indigo-600/80 text-indigo-100';
       case 'En camino':
         return 'bg-yellow-600/80 text-yellow-100';
-      case 'En situación':
+      case 'En proceso':
         return 'bg-orange-600/80 text-orange-100';
       case 'Resuelto':
-      case 'Resuelto con medidas':
         return 'bg-green-600/80 text-green-100';
       case 'Cerrado':
-      case 'Cerrado sin medidas':
         return 'bg-gray-600/80 text-gray-200';
-      case 'Cerrado con solución':
-        return 'bg-teal-600/80 text-teal-100';
       case 'Cancelado':
         return 'bg-red-800/80 text-red-200';
       default:
@@ -1841,6 +2320,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.destroyMap();
     this.typeSub?.unsubscribe();
     this.phoneSub?.unsubscribe();
+    this.statusSub?.unsubscribe();
     this.incidentDeptSub?.unsubscribe();
     this.detachPlaceDepartmentWatchers();
   }

@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
-const { formatLatestNoteForEmail, formatLatestNoteHtml } = require('../utils/incidentNotes');
+const { latestIncidentNote } = require('../utils/incidentNotes');
 
 let transporter;
 
@@ -292,6 +292,153 @@ function formatAuditHtml(logs) {
   return entries;
 }
 
+function hasOsegGestion(gestion) {
+  return (
+    Boolean(String(gestion?.codigo_oficio || '').trim()) &&
+    Boolean(String(gestion?.tramite_destino || '').trim())
+  );
+}
+
+function hasCerremGestion(gestion) {
+  return (
+    Boolean(String(gestion?.resolucion_cerrem || '').trim()) &&
+    Boolean(gestion?.ID_riesgo)
+  );
+}
+
+function resolveLatestCommentEntry(incident) {
+  if (incident?.latestComment?.text) {
+    return {
+      timestamp: incident.latestComment.timestamp,
+      text: incident.latestComment.text,
+    };
+  }
+  return latestIncidentNote(incident?.comments);
+}
+
+function formatLatestCommentText(incident) {
+  const e = resolveLatestCommentEntry(incident);
+  if (!e?.text) return '(sin comentario)';
+  const when = e.timestamp || 'Sin fecha';
+  return `[${when}]\n${e.text}`;
+}
+
+function formatLatestCommentHtml(incident) {
+  const e = resolveLatestCommentEntry(incident);
+  if (!e?.text) {
+    return '<p style="margin:0;color:#6b7280;">(sin comentario)</p>';
+  }
+  return `
+        <div style="padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;">
+          <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${escapeHtml(e.timestamp || 'Sin fecha')}</div>
+          <div style="font-size:13px;color:#111827;white-space:pre-wrap;">${escapeHtml(e.text)}</div>
+        </div>`;
+}
+
+function formatGestionOsegText(gestion) {
+  if (!hasOsegGestion(gestion)) return '';
+  const lines = [
+    `Oficio trámite: ${dash(gestion.codigo_oficio)}`,
+    `Trámite / destino: ${dash(gestion.tramite_destino)}`,
+  ];
+  const servidor = String(gestion.servidor_judicial || '').trim();
+  if (servidor) {
+    const extra = [gestion.cedula, gestion.cargo].filter((x) => String(x || '').trim());
+    lines.push(`Servidor judicial: ${servidor}${extra.length ? ` (${extra.join(' — ')})` : ''}`);
+  }
+  return lines.join('\n');
+}
+
+function formatGestionCerremText(gestion) {
+  if (!hasCerremGestion(gestion)) return '';
+  const lines = [
+    `Fecha CERREM: ${gestion.fecha_cerrem ? formatDateTime(gestion.fecha_cerrem) : '—'}`,
+    `Resolución CERREM: ${dash(gestion.resolucion_cerrem)}`,
+    `Fecha resolución: ${gestion.fecha_resolucion ? formatDateTime(gestion.fecha_resolucion) : '—'}`,
+    `Nivel de riesgo: ${dash(gestion.nivel_riesgo)}`,
+  ];
+  if (gestion.tipo_esquema) {
+    lines.push(`Tipo de esquema: ${gestion.tipo_esquema}`);
+    if (gestion.tipo_esquema === 'Colectivo' && gestion.compartido_con) {
+      lines.push(`Compartido con: ${gestion.compartido_con}`);
+    }
+  }
+  if (gestion.observaciones) lines.push(`Observaciones: ${gestion.observaciones}`);
+  return lines.join('\n');
+}
+
+function formatMedidasSeguridadText(medidas) {
+  const list = (medidas || []).filter((m) => m.asignado !== 0);
+  if (!list.length) return '';
+  return list
+    .map((m, i) => {
+      const lines = [`  ${i + 1}. ${dash(m.nombre)} — Cantidad: ${m.cantidad ?? 1}`];
+      if (m.observacion_medida) lines.push(`     Observación: ${m.observacion_medida}`);
+      if (m.fecha_asignacion) {
+        lines.push(`     Asignado: ${formatDateTime(m.fecha_asignacion)}`);
+      }
+      return lines.join('\n');
+    })
+    .join('\n');
+}
+
+function formatGestionOsegHtml(gestion) {
+  const text = formatGestionOsegText(gestion);
+  if (!text) return '';
+  return `<div style="font-size:13px;color:#111827;white-space:pre-wrap;">${escapeHtml(text)}</div>`;
+}
+
+function formatGestionCerremHtml(gestion) {
+  const text = formatGestionCerremText(gestion);
+  if (!text) return '';
+  return `<div style="font-size:13px;color:#111827;white-space:pre-wrap;">${escapeHtml(text)}</div>`;
+}
+
+function formatMedidasSeguridadHtml(medidas) {
+  const list = (medidas || []).filter((m) => m.asignado !== 0);
+  if (!list.length) return '';
+  return `<ul style="margin:0;padding-left:18px;">
+    ${list
+      .map((m) => {
+        const bits = [
+          `<strong>${escapeHtml(dash(m.nombre))}</strong> — Cantidad: ${escapeHtml(String(m.cantidad ?? 1))}`,
+        ];
+        if (m.observacion_medida) {
+          bits.push(`Observación: ${escapeHtml(m.observacion_medida)}`);
+        }
+        if (m.fecha_asignacion) {
+          bits.push(`Asignado: ${escapeHtml(formatDateTime(m.fecha_asignacion))}`);
+        }
+        return `<li style="margin-bottom:8px;">${bits.join('<br>')}</li>`;
+      })
+      .join('')}
+  </ul>`;
+}
+
+function gestionVitacoraRows(incident) {
+  const gestion = incident.gestion;
+  const rows = [];
+  const oseg = formatGestionOsegText(gestion);
+  if (oseg) rows.push(['Gestión OSEG', oseg]);
+  const cerrem = formatGestionCerremText(gestion);
+  if (cerrem) rows.push(['Decisión CERREM', cerrem]);
+  const medidas = formatMedidasSeguridadText(incident.medidasSeguridad);
+  if (medidas) rows.push(['Medidas de seguridad', medidas]);
+  return rows;
+}
+
+function gestionVitacoraHtmlRows(incident) {
+  const gestion = incident.gestion;
+  const rows = [];
+  const oseg = formatGestionOsegHtml(gestion);
+  if (oseg) rows.push(['Gestión OSEG', oseg]);
+  const cerrem = formatGestionCerremHtml(gestion);
+  if (cerrem) rows.push(['Decisión CERREM', cerrem]);
+  const medidas = formatMedidasSeguridadHtml(incident.medidasSeguridad);
+  if (medidas) rows.push(['Medidas de seguridad', medidas]);
+  return rows;
+}
+
 function incidentSummaryRows(incident) {
   const ts = formatDateTime(incident.timestamp);
   const rows = [
@@ -311,7 +458,7 @@ function incidentSummaryRows(incident) {
   }
 
   // Fecha de cierre inferida del historial (futuro: columna closed_at en incidents)
-  if (incident.status === 'Cerrado' || incident.status === 'Cerrado con solución') {
+  if (['Cerrado', 'Cancelado', 'Resuelto'].includes(incident.status)) {
     rows.push([
       'Fecha/Hora de cierre (estimada)',
       incident.closedAt ? formatDateTime(incident.closedAt) : '—',
@@ -327,8 +474,7 @@ function incidentSummaryRows(incident) {
   rows.push(
     ['Operador', incident.operator || '—'],
     ['Origen', incident.origin || '—'],
-    ['Teléfono llamada', incident.phone || '—'],
-    ['ANI', incident.ani || '—'],
+    ['ANI', incident.ani || incident.phone || '—'],
     ['Teléfono ubicación (SMS/WhatsApp)', locationPhone],
     ['Ubicación', incident.location || '—'],
     ['Departamento (Ubicación del Incidente)', incident.departmentName || '—'],
@@ -350,15 +496,19 @@ function formatIncidentBodyText(incident) {
   const header = incidentSummaryRows(incident)
     .map(([label, value]) => `${label.padEnd(22)} ${value}`)
     .join('\n');
+  const gestionRows = gestionVitacoraRows(incident)
+    .map(([label, value]) => `\n${label}:\n${value}`)
+    .join('');
 
   return `
 Notificación de incidente — IMS NOVA
 Vitácora completa del caso
 
 ${header}
+${gestionRows}
 
-Comentario:
-${formatLatestNoteForEmail(incident.comments)}
+Comentario (último registrado):
+${formatLatestCommentText(incident)}
 
 Personas involucradas:
 ${people}
@@ -396,6 +546,16 @@ function formatIncidentBodyHtml(incident) {
     )
     .join('');
 
+  const gestionTableRows = gestionVitacoraHtmlRows(incident)
+    .map(
+      ([label, valueHtml]) => `
+        <tr>
+          <td style="width:220px;padding:10px 12px;background:#f8fafc;color:#111827;font-weight:600;border:1px solid #e5e7eb;vertical-align:top;">${escapeHtml(label)}:</td>
+          <td style="padding:10px 12px;background:#ffffff;color:#111827;border:1px solid #e5e7eb;">${valueHtml}</td>
+        </tr>`,
+    )
+    .join('');
+
   return `
 <div style="background:#f9fafb;padding:24px;font-family:Segoe UI,Arial,sans-serif;color:#111827;line-height:1.45;">
   <div style="max-width:900px;margin:0 auto;">
@@ -405,9 +565,10 @@ function formatIncidentBodyHtml(incident) {
 
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:16px;border:1px solid #e5e7eb;">
       ${tableRows}
+      ${gestionTableRows}
       <tr>
-        <td style="padding:10px 12px;background:#f8fafc;color:#111827;font-weight:600;border:1px solid #e5e7eb;vertical-align:top;">Comentario:</td>
-        <td style="padding:10px 12px;background:#ffffff;color:#111827;border:1px solid #e5e7eb;">${formatLatestNoteHtml(incident.comments)}</td>
+        <td style="padding:10px 12px;background:#f8fafc;color:#111827;font-weight:600;border:1px solid #e5e7eb;vertical-align:top;">Comentario (último):</td>
+        <td style="padding:10px 12px;background:#ffffff;color:#111827;border:1px solid #e5e7eb;">${formatLatestCommentHtml(incident)}</td>
       </tr>
       <tr>
         <td style="padding:10px 12px;background:#f8fafc;color:#111827;font-weight:600;border:1px solid #e5e7eb;vertical-align:top;">Personas involucradas:</td>

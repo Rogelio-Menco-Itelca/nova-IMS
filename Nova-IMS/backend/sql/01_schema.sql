@@ -294,13 +294,13 @@ CREATE TABLE `genero` (
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
--- ---- ims_people_catalog ----
+-- ---- catalogo_persona ----
 --
 
-DROP TABLE IF EXISTS `ims_people_catalog`;
+DROP TABLE IF EXISTS `catalogo_persona`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ims_people_catalog` (
+CREATE TABLE `catalogo_persona` (
   `id` varchar(20) NOT NULL,
   `name` varchar(150) DEFAULT NULL,
   `document_id` varchar(30) DEFAULT NULL,

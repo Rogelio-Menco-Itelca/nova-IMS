@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
+const { pool } = require('../config/db');
 const { authRequired } = require('../middleware/auth');
+const { getAllowedNextStates } = require('../db/gestionincidentes/transitions');
+const { mapStatusToGi } = require('../db/gestionincidentes/maps');
 
 const authCtrl = require('../controllers/auth.controller');
 const incCtrl = require('../controllers/incident.controller');
@@ -15,6 +18,7 @@ const logCtrl = require('../controllers/log.controller');
 const locCtrl = require('../controllers/locationRequest.controller');
 const catCtrl = require('../controllers/catalog.controller');
 const reportsCtrl = require('../controllers/reports.controller');
+const medidas = require('../db/gestionincidentes/medidas');
 
 // ---------- Público ----------
 router.post('/auth/login', authCtrl.login);
@@ -27,6 +31,36 @@ router.get('/municipalities', catCtrl.municipalities);
 router.get('/place-roles', catCtrl.placeRoles);
 router.get('/origins', catCtrl.origins);
 router.get('/incident-statuses', catCtrl.incidentStatuses);
+router.get('/incident-statuses/allowed', authRequired, async (req, res, next) => {
+  try {
+    const { currentStatus } = req.query;
+    const allowedNames = getAllowedNextStates(currentStatus);
+
+    if (!allowedNames.length) {
+      return res.json([]);
+    }
+
+    const giNames = allowedNames.map((name) => mapStatusToGi(name));
+    const agency = req.user?.agency_code || req.query.agency;
+    if (!agency) {
+      return res.status(400).json({ error: { message: 'Agency requerida' } });
+    }
+
+    const placeholders = giNames.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT ID_estado AS id, Nombre_estado AS name
+       FROM estadosincidentes
+       WHERE Nombre_estado IN (${placeholders})
+         AND UPPER(ID_Agencia) = UPPER(?)
+       ORDER BY ID_estado`,
+      [...giNames, agency],
+    );
+
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // A partir de aquí, requiere JWT
 router.use(authRequired);
@@ -94,5 +128,83 @@ router.get('/reports/summary', reportsCtrl.summary);
 router.get('/location-requests', locCtrl.list);
 router.post('/location-requests', locCtrl.create);
 router.post('/location-requests/:id/received', locCtrl.receive);
+
+router.get('/catalog/riesgos', async (req, res, next) => {
+  try {
+    const agency = req.user?.agency_code || req.user?.agency;
+    const [rows] = await pool.query(
+      `SELECT ID_riesgo AS id, Nombre_riesgo AS nombre, Descripcion AS descripcion
+       FROM riesgos WHERE ID_Agencia = ? ORDER BY ID_riesgo`,
+      [agency],
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Medidas de seguridad ----------
+router.get('/medidas/tipos', async (req, res, next) => {
+  try {
+    const agency = req.user?.agency_code || req.user?.agency;
+    const rows = await medidas.getTiposMedida(agency);
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/incidents/:id/medidas', async (req, res, next) => {
+  try {
+    const solicitud = await medidas.getSolicitudFromPersonas(req.params.id);
+    const gestion = await medidas.getGestionByIncidente(req.params.id);
+    if (!gestion) {
+      return res.json({ gestion: null, medidas: [], solicitud });
+    }
+    const lista = await medidas.getMedidasByGestion(gestion.ID_gestion);
+    res.json({ gestion, medidas: lista, solicitud });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/incidents/:id/gestion', async (req, res, next) => {
+  try {
+    const idGestion = await medidas.upsertGestion(req.params.id, req.body, req.user);
+    const gestion = await medidas.getGestionByIncidente(req.params.id);
+    res.json({
+      ok: true,
+      ID_gestion: idGestion,
+      codigo_oficio: gestion?.codigo_oficio ?? null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/incidents/:id/medidas', async (req, res, next) => {
+  try {
+    let gestion = await medidas.getGestionByIncidente(req.params.id);
+    if (!gestion) {
+      await medidas.upsertGestion(req.params.id, {}, req.user);
+      gestion = await medidas.getGestionByIncidente(req.params.id);
+    }
+    if (!gestion) {
+      return res.status(404).json({
+        error: { message: 'No se pudo registrar la gestión del incidente.' },
+      });
+    }
+    const lista = Array.isArray(req.body.medidas) ? req.body.medidas : [];
+    if (!lista.length) {
+      return res.status(400).json({
+        error: { message: 'Seleccione al menos una medida de seguridad.' },
+      });
+    }
+    await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

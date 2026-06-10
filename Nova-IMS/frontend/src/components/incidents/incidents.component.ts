@@ -80,20 +80,15 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
 
 const statusOrder: Record<string, number> = {
   Nuevo: 7,
-  'En gestión OSGE': 6,
+  'En gestión OSEG': 6,
   'Enviado a CERREM': 5,
   'En evaluación CERREM': 4,
-  'Aprobado con medidas': 3,
-  'Medidas asignadas': 2,
-  'Seguimiento activo': 1,
+  'Medidas asignadas': 3,
   Asignado: 6,
   'En camino': 5,
-  'En situación': 4,
+  'En proceso': 4,
   Resuelto: 0,
-  'Resuelto con medidas': 0,
   Cerrado: 0,
-  'Cerrado sin medidas': 0,
-  'Cerrado con solución': 0,
   Cancelado: 0,
 };
 
@@ -178,6 +173,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
+  /** Evita pisar la prioridad que el operador eligió manualmente. */
+  private lastIncidentTypeName: string | null = null;
+  private lastTypeDefaultPriority: IncidentPriority | null = null;
   private readonly personLookupNotified = new Set<string>();
 
   incidents = this.incidentService.incidents;
@@ -619,23 +617,19 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     switch (incident.status) {
       case 'Nuevo':
         return '#3b82f6';
-      case 'En gestión OSGE':
+      case 'En gestión OSEG':
         return '#6366f1';
       case 'Enviado a CERREM':
         return '#8b5cf6';
       case 'En evaluación CERREM':
         return '#a855f7';
-      case 'Aprobado con medidas':
-        return '#eab308';
       case 'Medidas asignadas':
         return '#f97316';
-      case 'Seguimiento activo':
-        return '#22c55e';
       case 'Asignado':
         return '#6366f1';
       case 'En camino':
         return '#eab308';
-      case 'En situación':
+      case 'En proceso':
         return '#f97316';
       default:
         return '#9ca3af';
@@ -1152,16 +1146,27 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.typeSub = this.incidentForm.get('event_id')?.valueChanges.subscribe((typeName) => {
       this.selectedIncidentTypeName.set(typeName || null);
       const selectedType = this.incidentTypes().find((t) => t.name === typeName);
-      if (selectedType) {
-        this.incidentForm.patchValue(
-          {
-            priority_id: selectedType.defaultPriority,
-            type: selectedType.name,
-            priority: selectedType.defaultPriority,
-          },
-          { emitEvent: false },
-        );
+      if (!selectedType) return;
+
+      const currentPriority = String(this.incidentForm.get('priority_id')?.value ?? '').trim();
+      const typeChanged = typeName !== this.lastIncidentTypeName;
+      const priorityEmpty = !currentPriority;
+      const priorityMatchesPreviousDefault =
+        !!this.lastTypeDefaultPriority && currentPriority === this.lastTypeDefaultPriority;
+      const applyDefaultPriority = typeChanged && (priorityEmpty || priorityMatchesPreviousDefault);
+
+      const patch: { type: string; priority_id?: IncidentPriority; priority?: IncidentPriority } = {
+        type: selectedType.name,
+      };
+      if (applyDefaultPriority) {
+        patch.priority_id = selectedType.defaultPriority;
+        patch.priority = selectedType.defaultPriority;
       }
+
+      this.lastIncidentTypeName = typeName;
+      this.lastTypeDefaultPriority = selectedType.defaultPriority;
+
+      this.incidentForm.patchValue(patch, { emitEvent: false });
     });
 
     this.setupPhoneLookup();
@@ -1374,6 +1379,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private resetFormForNewIncident() {
     this.selectedIncidentTypeName.set(null);
+    this.lastIncidentTypeName = null;
+    this.lastTypeDefaultPriority = null;
     this.incidentForm.reset({
       event_id: '',
       priority_id: 'Media',
@@ -1393,6 +1400,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedIncidentTypeName.set(state.type || (state as any).event_id || null);
     this.incidentForm.reset(undefined, { emitEvent: false });
     this.incidentForm.patchValue(state, { emitEvent: false });
+    const typeName = state.type || (state as any).event_id || null;
+    this.lastIncidentTypeName = typeName;
+    const selectedType = this.incidentTypes().find((t) => t.name === typeName);
+    this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
     this.involvedPeople.clear();
     state.involvedPeople?.forEach((p) =>
       this.involvedPeople.push(
@@ -1494,32 +1505,24 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     switch (status) {
       case 'Nuevo':
         return 'bg-blue-600/80 text-blue-100';
-      case 'En gestión OSGE':
+      case 'En gestión OSEG':
         return 'bg-indigo-600/80 text-indigo-100';
       case 'Enviado a CERREM':
         return 'bg-violet-600/80 text-violet-100';
       case 'En evaluación CERREM':
         return 'bg-purple-600/80 text-purple-100';
-      case 'Aprobado con medidas':
-        return 'bg-yellow-600/80 text-yellow-100';
       case 'Medidas asignadas':
         return 'bg-orange-600/80 text-orange-100';
-      case 'Seguimiento activo':
-        return 'bg-green-600/80 text-green-100';
       case 'Asignado':
         return 'bg-indigo-600/80 text-indigo-100';
       case 'En camino':
         return 'bg-yellow-600/80 text-yellow-100';
-      case 'En situación':
+      case 'En proceso':
         return 'bg-orange-600/80 text-orange-100';
       case 'Resuelto':
-      case 'Resuelto con medidas':
         return 'bg-green-600/80 text-green-100';
       case 'Cerrado':
-      case 'Cerrado sin medidas':
         return 'bg-gray-600/80 text-gray-200';
-      case 'Cerrado con solución':
-        return 'bg-teal-600/80 text-teal-100';
       case 'Cancelado':
         return 'bg-red-800/80 text-red-200';
       default:

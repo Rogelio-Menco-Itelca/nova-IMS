@@ -446,13 +446,13 @@ INSERT INTO `genero` VALUES (1,'Femenino','2026-06-04 15:37:45','csj'),(2,'Mascu
 UNLOCK TABLES;
 
 --
--- Table structure for table `ims_people_catalog`
+-- Table structure for table `catalogo_persona`
 --
 
-DROP TABLE IF EXISTS `ims_people_catalog`;
+DROP TABLE IF EXISTS `catalogo_persona`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ims_people_catalog` (
+CREATE TABLE `catalogo_persona` (
   `id` varchar(20) NOT NULL,
   `name` varchar(150) DEFAULT NULL,
   `document_id` varchar(30) DEFAULT NULL,
@@ -480,13 +480,13 @@ CREATE TABLE `ims_people_catalog` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `ims_people_catalog`
+-- Dumping data for table `catalogo_persona`
 --
 
-LOCK TABLES `ims_people_catalog` WRITE;
-/*!40000 ALTER TABLE `ims_people_catalog` DISABLE KEYS */;
-INSERT INTO `ims_people_catalog` VALUES ('PER-001','ana rodriguez','1102645987','3026548769','',NULL,NULL,'juez de la republica','2026-06-06 21:41:30','ana',NULL,'rodriguez',NULL,2,'3026548769','CC','1102645987','juez de la republica',1,'CSJ');
-/*!40000 ALTER TABLE `ims_people_catalog` ENABLE KEYS */;
+LOCK TABLES `catalogo_persona` WRITE;
+/*!40000 ALTER TABLE `catalogo_persona` DISABLE KEYS */;
+INSERT INTO `catalogo_persona` VALUES ('PER-001','ana rodriguez','1102645987','3026548769','',NULL,NULL,'juez de la republica','2026-06-06 21:41:30','ana',NULL,'rodriguez',NULL,2,'3026548769','CC','1102645987','juez de la republica',1,'CSJ');
+/*!40000 ALTER TABLE `catalogo_persona` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
