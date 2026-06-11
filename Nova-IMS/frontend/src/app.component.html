@@ -447,15 +447,15 @@
 
         <main
           class="ims-main flex-1 overflow-x-hidden bg-gray-900"
-          [class.overflow-y-auto]="activeView() !== 'admin'"
-          [class.flex]="activeView() === 'admin'"
-          [class.min-h-0]="activeView() === 'admin'"
-          [class.flex-col]="activeView() === 'admin'"
-          [class.overflow-hidden]="activeView() === 'admin'"
+          [class.overflow-y-auto]="activeView() !== 'admin' && activeView() !== 'dashboard'"
+          [class.flex]="activeView() === 'admin' || activeView() === 'dashboard'"
+          [class.min-h-0]="activeView() === 'admin' || activeView() === 'dashboard'"
+          [class.flex-col]="activeView() === 'admin' || activeView() === 'dashboard'"
+          [class.overflow-hidden]="activeView() === 'admin' || activeView() === 'dashboard'"
         >
           <div
             [class]="
-              activeView() === 'admin'
+              activeView() === 'admin' || activeView() === 'dashboard'
                 ? 'flex min-h-0 flex-1 flex-col p-4 md:p-6 lg:p-8'
                 : 'p-4 md:p-6 lg:p-8'
             "
