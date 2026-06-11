@@ -110,6 +110,7 @@ const BOGOTA_BOUNDS = {
   imports: [CommonModule, ReactiveFormsModule, IncidentEmailModalComponent],
   templateUrl: './incidents.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
