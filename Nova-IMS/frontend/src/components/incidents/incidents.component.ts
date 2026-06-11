@@ -12,6 +12,7 @@ import {
   NgZone,
   ElementRef,
   ViewChild,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormGroup } from '@angular/forms';
@@ -527,6 +528,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  @HostListener('click', ['$event'])
   onDashboardAreaClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
     if (target.closest('tr[data-incident-id]')) return;

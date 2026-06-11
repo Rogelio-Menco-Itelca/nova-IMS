@@ -5,8 +5,9 @@
     aria-modal="true"
     aria-labelledby="profile-modal-title"
     (click)="onBackdropClick($event)"
+    (keydown)="onBackdropKeydown($event)"
   >
-    <div class="profile-modal-panel w-full max-w-lg animate-fadeInUp" (click)="$event.stopPropagation()">
+    <div class="profile-modal-panel w-full max-w-lg animate-fadeInUp">
       <!-- Cabecera con avatar -->
       <div class="profile-modal-hero relative px-6 pt-5 pb-6 rounded-t-xl">
         <button
