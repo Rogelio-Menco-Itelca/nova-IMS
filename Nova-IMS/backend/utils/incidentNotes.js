@@ -74,7 +74,7 @@ function formatLatestNoteForEmail(raw) {
   const e = latestIncidentNote(raw);
   if (!e) return '(sin comentario)';
   const when = e.timestamp || 'Sin fecha';
-  return `[${when}]\n${e.text.replace(/\n/g, '\n')}`;
+  return `[${when}]\n${e.text}`;
 }
 
 function formatNotesForEmail(raw) {
@@ -83,7 +83,7 @@ function formatNotesForEmail(raw) {
   return entries
     .map((e, i) => {
       const when = e.timestamp || 'Sin fecha';
-      return `  ${i + 1}. [${when}]\n     ${e.text.replace(/\n/g, '\n     ')}`;
+      return `  ${i + 1}. [${when}]\n     ${e.text.replaceAll('\n', '\n     ')}`;
     })
     .join('\n');
 }
@@ -136,11 +136,11 @@ function truncateAuditText(text, max = 280) {
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 module.exports = {

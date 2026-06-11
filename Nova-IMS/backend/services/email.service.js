@@ -28,11 +28,11 @@ function init() {
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function formatPersonName(name) {
@@ -344,7 +344,8 @@ function formatGestionOsegText(gestion) {
   const servidor = String(gestion.servidor_judicial || '').trim();
   if (servidor) {
     const extra = [gestion.cedula, gestion.cargo].filter((x) => String(x || '').trim());
-    lines.push(`Servidor judicial: ${servidor}${extra.length ? ` (${extra.join(' — ')})` : ''}`);
+    const suffix = extra.length ? ` (${extra.join(' — ')})` : '';
+    lines.push(`Servidor judicial: ${servidor}${suffix}`);
   }
   return lines.join('\n');
 }

@@ -1,4 +1,5 @@
 const { pool } = require('../../config/db');
+const { parseTrailingDigits } = require('../../utils/ids');
 const { mapPriorityFromGi, mapPriorityToGi, normalizeAgencyCode } = require('./maps');
 
 async function listIncidentTypes(agencyCode) {
@@ -22,7 +23,6 @@ async function listIncidentTypes(agencyCode) {
 }
 
 async function createIncidentType(id, name, defaultPriority, description, agencyCode) {
-  const m = String(id).match(/(\d+)/);
   const priorityName = mapPriorityToGi(defaultPriority || 'Media');
   const [pri] = await pool.query(
     `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
@@ -44,9 +44,8 @@ async function createIncidentType(id, name, defaultPriority, description, agency
 }
 
 async function updateIncidentType(id, { name, defaultPriority, description }) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return null;
-  const eventoId = Number(m[1]);
+  const eventoId = parseTrailingDigits(id);
+  if (eventoId == null) return null;
   const sets = [];
   const params = [];
   if (name != null) {
@@ -88,18 +87,16 @@ async function updateIncidentType(id, { name, defaultPriority, description }) {
 }
 
 async function deleteIncidentType(id) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return 0;
-  const [r] = await pool.query(`DELETE FROM eventos WHERE ID_evento = ?`, [Number(m[1])]);
+  const eventoId = parseTrailingDigits(id);
+  if (eventoId == null) return 0;
+  const [r] = await pool.query(`DELETE FROM eventos WHERE ID_evento = ?`, [eventoId]);
   return r.affectedRows;
 }
 
 async function incidentTypeExists(id) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return false;
-  const [rows] = await pool.query(`SELECT ID_evento FROM eventos WHERE ID_evento = ?`, [
-    Number(m[1]),
-  ]);
+  const eventoId = parseTrailingDigits(id);
+  if (eventoId == null) return false;
+  const [rows] = await pool.query(`SELECT ID_evento FROM eventos WHERE ID_evento = ?`, [eventoId]);
   return rows.length > 0;
 }
 

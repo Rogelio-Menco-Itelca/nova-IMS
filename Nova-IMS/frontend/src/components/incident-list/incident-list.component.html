@@ -38,10 +38,12 @@
             class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200"
           >
             <span>Nuevo Incidente</span>
-            <span
+            <button
+              type="button"
               (click)="closeNewIncidentTab($event)"
               class="text-gray-500 hover:text-white rounded-full hover:bg-gray-600 p-0.5"
               title="Cerrar Pestaña"
+              aria-label="Cerrar pestaña"
             >
               <svg
                 class="h-4 w-4"
@@ -53,7 +55,7 @@
                   d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
                 />
               </svg>
-            </span>
+            </button>
           </button>
         }
         @for (tab of openIncidentTabs(); track tab.id) {
@@ -67,10 +69,12 @@
             class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200"
           >
             <span>{{ tab.id }}</span>
-            <span
+            <button
+              type="button"
               (click)="closeIncidentTab(tab.id, $event)"
               class="text-gray-500 hover:text-white rounded-full hover:bg-gray-600 p-0.5"
               title="Cerrar Pestaña"
+              aria-label="Cerrar pestaña"
             >
               <svg
                 class="h-4 w-4"
@@ -82,7 +86,7 @@
                   d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
                 />
               </svg>
-            </span>
+            </button>
           </button>
         }
       </div>
@@ -144,8 +148,9 @@
                 class="overflow-hidden rounded-xl border-l-4 border-l-indigo-500 bg-gray-900/40 shadow-2xl animate-slideIn mb-8"
               >
                 <!-- Tab/Header -->
-                <div
-                  class="bg-indigo-500/10 p-1 px-4 flex items-center justify-between border-b border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors"
+                <button
+                  type="button"
+                  class="w-full bg-indigo-500/10 p-1 px-4 flex items-center justify-between border-b border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors text-left"
                   (click)="isProtocolVisible.set(!isProtocolVisible())"
                 >
                   <div class="flex items-center gap-3 py-2">
@@ -179,7 +184,7 @@
                       />
                     </svg>
                   </div>
-                </div>
+                </button>
 
                 <!-- Content Area -->
                 @if (isProtocolVisible()) {

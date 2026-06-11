@@ -166,8 +166,10 @@ html.theme-light aside.ims-sidebar .bg-indigo-600,
 
 html.theme-light aside.ims-sidebar .bg-indigo-600 .text-white,
 html.theme-light aside.ims-sidebar nav a.bg-indigo-600,
+html.theme-light aside.ims-sidebar nav button.bg-indigo-600,
 .theme-light aside.ims-sidebar .bg-indigo-600 .text-white,
-.theme-light aside.ims-sidebar nav a.bg-indigo-600 {
+.theme-light aside.ims-sidebar nav a.bg-indigo-600,
+.theme-light aside.ims-sidebar nav button.bg-indigo-600 {
   color: #ffffff !important;
 }
 
@@ -636,8 +638,10 @@ html.theme-light header.ims-header,
 
 /* Menú activo del sidebar — azul brillante */
 html.theme-light aside.ims-sidebar nav a.bg-indigo-600,
+html.theme-light aside.ims-sidebar nav button.bg-indigo-600,
 html.theme-light aside.ims-sidebar .bg-indigo-600,
 .theme-light aside.ims-sidebar nav a.bg-indigo-600,
+.theme-light aside.ims-sidebar nav button.bg-indigo-600,
 .theme-light aside.ims-sidebar .bg-indigo-600 {
   background-color: var(--lt-sidebar-active) !important;
   border-radius: 0.5rem;

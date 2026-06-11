@@ -23,4 +23,12 @@ function logId(prefix = 'LOG') {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-module.exports = { nextId, logId };
+const TRAILING_DIGITS_RE = /(\d+)/;
+
+/** Extrae el bloque numérico de un ID con prefijo (p. ej. IT-03 → 3). */
+function parseTrailingDigits(value) {
+  const m = TRAILING_DIGITS_RE.exec(String(value ?? ''));
+  return m ? Number(m[1]) : null;
+}
+
+module.exports = { nextId, logId, parseTrailingDigits };

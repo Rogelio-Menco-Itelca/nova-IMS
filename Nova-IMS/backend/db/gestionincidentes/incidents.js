@@ -175,7 +175,7 @@ async function resolveCatalogIds(
   if (eventId && /^\d+$/.test(String(eventId))) {
     eventoId = Number(eventId);
   } else if (incidentTypeId) {
-    const m = String(incidentTypeId).match(/(\d+)/);
+    const m = /(\d+)/.exec(String(incidentTypeId));
     if (m) eventoId = Number(m[1]);
   }
   if (!eventoId) {

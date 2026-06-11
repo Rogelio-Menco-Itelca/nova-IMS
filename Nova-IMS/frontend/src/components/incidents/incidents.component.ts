@@ -318,11 +318,13 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       const lat = this.incidentForm.get('lat')?.value || 4.645368;
       const lng = this.incidentForm.get('lng')?.value || -74.1131;
-      void this.initMap(lat, lng).then(() => {
-        if (savedState?.lat != null && savedState?.lng != null) {
-          setTimeout(() => this.reverseGeocode(savedState.lat, savedState.lng), 300);
-        }
-      });
+      this.initMap(lat, lng)
+        .then(() => {
+          if (savedState?.lat != null && savedState?.lng != null) {
+            setTimeout(() => this.reverseGeocode(savedState.lat, savedState.lng), 300);
+          }
+        })
+        .catch(() => {});
     }, 350);
   }
 
@@ -722,15 +724,17 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.resolvingCoordIds.has(incident.id)) return;
 
     this.resolvingCoordIds.add(incident.id);
-    void this.waitForGoogleMaps().then(() => {
-      this.geocoder ??= new google.maps.Geocoder();
-      this.geocoder.geocode(
-        { address, componentRestrictions: { country: 'co' } },
-        (results, status) => {
-          this.ngZone.run(() => this.applyCoordsGeocodeResult(incident, results, status));
-        },
-      );
-    });
+    this.waitForGoogleMaps()
+      .then(() => {
+        this.geocoder ??= new google.maps.Geocoder();
+        this.geocoder.geocode(
+          { address, componentRestrictions: { country: 'co' } },
+          (results, status) => {
+            this.ngZone.run(() => this.applyCoordsGeocodeResult(incident, results, status));
+          },
+        );
+      })
+      .catch(() => {});
   }
 
   private applyCoordsGeocodeResult(
@@ -765,14 +769,16 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.resolvingAddressIds.has(incident.id)) return;
 
     this.resolvingAddressIds.add(incident.id);
-    void this.waitForGoogleMaps().then(() => {
-      this.geocoder ??= new google.maps.Geocoder();
-      const pos = this.getIncidentPosition(incident);
-      if (!pos) return;
-      this.geocoder.geocode({ location: pos }, (results, status) => {
-        this.ngZone.run(() => this.applyAddressGeocodeResult(incident, results, status));
-      });
-    });
+    this.waitForGoogleMaps()
+      .then(() => {
+        this.geocoder ??= new google.maps.Geocoder();
+        const pos = this.getIncidentPosition(incident);
+        if (!pos) return;
+        this.geocoder.geocode({ location: pos }, (results, status) => {
+          this.ngZone.run(() => this.applyAddressGeocodeResult(incident, results, status));
+        });
+      })
+      .catch(() => {});
   }
 
   private applyAddressGeocodeResult(
@@ -1370,7 +1376,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     };
     this.incidentService.updateIncident(finalData, (saved) => {
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
-      void this.configService.getAuditLogs();
+      this.configService.getAuditLogs().catch(() => {});
       this.cdr.markForCheck();
     });
     this.notificationService.addNotification(

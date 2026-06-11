@@ -230,7 +230,11 @@
               @for (incident of paginatedDashboardIncidents(); track incident.id) {
                 <tr
                   [attr.data-incident-id]="incident.id"
+                  role="button"
+                  tabindex="0"
                   (click)="selectDashboardIncident(incident); $event.stopPropagation()"
+                  (keydown.enter)="selectDashboardIncident(incident); $event.stopPropagation()"
+                  (keydown.space)="selectDashboardIncident(incident); $event.preventDefault(); $event.stopPropagation()"
                   [class]="
                     'border-b border-gray-700 cursor-pointer transition-colors ' +
                     (selectedDashboardIncidentId() === incident.id

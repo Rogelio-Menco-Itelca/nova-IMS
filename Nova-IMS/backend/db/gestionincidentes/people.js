@@ -63,9 +63,11 @@ async function ensureAdminPersonasCatalog() {
   adminCatalogReady = true;
 }
 
+const PER_ID_RE = /^PER-(\d+)$/i;
+
 function parsePersonId(id) {
   const raw = String(id || '').trim();
-  const m = raw.match(/^PER-(\d+)$/i);
+  const m = PER_ID_RE.exec(raw);
   if (m) return Number(m[1]);
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;

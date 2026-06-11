@@ -840,13 +840,14 @@
             <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
             <div class="min-h-0 flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
               @for (incident of paginatedIncidentsForHistory(); track incident.id) {
-                <div
+                <button
+                  type="button"
                   (click)="
                     selectedIncidentIdForHistory.set(incident.id);
                     historySubTab.set('details');
                     refreshIncidentHistoryView()
                   "
-                  class="bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-indigo-500 hover:bg-gray-700/50 cursor-pointer transition-all group"
+                  class="w-full text-left bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-indigo-500 hover:bg-gray-700/50 cursor-pointer transition-all group"
                 >
                   <div class="flex justify-between items-start mb-3">
                     <span
@@ -878,7 +879,7 @@
                       </svg>
                     </span>
                   </div>
-                </div>
+                </button>
               } @empty {
                 <div
                   class="col-span-full bg-gray-800/30 rounded-xl border-2 border-dashed border-gray-700 p-12 text-center"
@@ -1263,12 +1264,15 @@
 
 <!-- Add/Edit Operator Modal -->
 @if (showOperatorForm()) {
-  <div
-    class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
-    (click)="closeForm()"
-  >
+  <div class="fixed inset-0 z-40 flex justify-center items-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black bg-opacity-75 border-0 p-0 cursor-default"
+      (click)="closeForm()"
+      aria-label="Cerrar modal"
+    ></button>
     <div
-      class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl"
+      class="relative z-10 bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl"
       (click)="$event.stopPropagation()"
     >
       <form [formGroup]="operatorForm" (ngSubmit)="saveOperator()">
@@ -1509,12 +1513,15 @@
 
 <!-- Add/Edit Incident Type Modal -->
 @if (showIncidentTypeForm()) {
-  <div
-    class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
-    (click)="closeIncidentTypeForm()"
-  >
+  <div class="fixed inset-0 z-40 flex justify-center items-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black bg-opacity-75 border-0 p-0 cursor-default"
+      (click)="closeIncidentTypeForm()"
+      aria-label="Cerrar modal"
+    ></button>
     <div
-      class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg"
+      class="relative z-10 bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg"
       (click)="$event.stopPropagation()"
     >
       <form [formGroup]="incidentTypeForm" (ngSubmit)="saveIncidentType()">
@@ -1598,12 +1605,15 @@
 
 <!-- Add/Edit Response Protocol Modal -->
 @if (showRoleForm()) {
-  <div
-    class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
-    (click)="showRoleForm.set(false)"
-  >
+  <div class="fixed inset-0 z-40 flex justify-center items-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black bg-opacity-75 border-0 p-0 cursor-default"
+      (click)="showRoleForm.set(false)"
+      aria-label="Cerrar modal"
+    ></button>
     <div
-      class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-md"
+      class="relative z-10 bg-gray-800 rounded-lg shadow-2xl w-full max-w-md"
       (click)="$event.stopPropagation()"
     >
       <div class="flex justify-between items-center border-b border-gray-700 p-4">
@@ -1654,12 +1664,15 @@
 
 <!-- Add/Edit Response Protocol Modal -->
 @if (showResponseProtocolForm()) {
-  <div
-    class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
-    (click)="closeResponseProtocolForm()"
-  >
+  <div class="fixed inset-0 z-40 flex justify-center items-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black bg-opacity-75 border-0 p-0 cursor-default"
+      (click)="closeResponseProtocolForm()"
+      aria-label="Cerrar modal"
+    ></button>
     <div
-      class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg"
+      class="relative z-10 bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg"
       (click)="$event.stopPropagation()"
     >
       <form [formGroup]="responseProtocolForm" (ngSubmit)="saveResponseProtocol()">
@@ -1764,12 +1777,15 @@
 
 <!-- Add/Edit Person Modal -->
 @if (showPersonForm()) {
-  <div
-    class="fixed inset-0 bg-black bg-opacity-75 z-40 flex justify-center items-center p-4"
-    (click)="showPersonForm.set(false)"
-  >
+  <div class="fixed inset-0 z-40 flex justify-center items-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black bg-opacity-75 border-0 p-0 cursor-default"
+      (click)="showPersonForm.set(false)"
+      aria-label="Cerrar modal"
+    ></button>
     <div
-      class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl"
+      class="relative z-10 bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl"
       (click)="$event.stopPropagation()"
     >
       <form [formGroup]="personForm" (ngSubmit)="savePerson()">

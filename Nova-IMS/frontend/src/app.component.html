@@ -49,14 +49,15 @@
         </div>
 
         <nav class="mt-4 flex-grow">
-          <a
+          <button
+            type="button"
             (click)="setView('dashboard')"
             [class]="
               activeView() === 'dashboard'
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
+            class="flex w-full items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -73,15 +74,16 @@
               />
             </svg>
             Dashboard
-          </a>
-          <a
+          </button>
+          <button
+            type="button"
             (click)="setView('incidents')"
             [class]="
               activeView() === 'incidents'
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
+            class="flex w-full items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -98,15 +100,16 @@
               />
             </svg>
             Incidentes
-          </a>
-          <a
+          </button>
+          <button
+            type="button"
             (click)="setView('reports')"
             [class]="
               activeView() === 'reports'
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
+            class="flex w-full items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -123,15 +126,16 @@
               />
             </svg>
             Reportes
-          </a>
-          <a
+          </button>
+          <button
+            type="button"
             (click)="setView('admin')"
             [class]="
               activeView() === 'admin'
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
+            class="flex w-full items-center mt-2 py-2 px-6 cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -154,7 +158,7 @@
               />
             </svg>
             Administración
-          </a>
+          </button>
         </nav>
 
         <!-- System Status Indicator (NEW) -->
