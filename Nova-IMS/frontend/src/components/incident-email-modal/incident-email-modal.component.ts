@@ -149,6 +149,13 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
     }
   }
 
+  onBackdropKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target !== this.dialogRef().nativeElement) return;
+    event.preventDefault();
+    this.close();
+  }
+
   isSelected(email: string): boolean {
     return this.selectedEmails().has(email);
   }

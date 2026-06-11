@@ -35,7 +35,7 @@ function fetchJson(url) {
 }
 
 function esc(s) {
-  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "''");
+  return String(s).replaceAll('\\', '\\\\').replaceAll("'", "''");
 }
 
 function padDaneDept(id) {

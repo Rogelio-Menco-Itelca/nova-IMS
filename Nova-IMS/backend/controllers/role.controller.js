@@ -9,7 +9,7 @@ exports.list = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const name = (req.body || {}).role || req.body?.name;
+  const name = req.body?.role || req.body?.name;
   if (!name) throw new HttpError(400, 'role (nombre) requerido');
 
   const id = await nextId('roles', 'ID_Rol', 'RP', 1);
@@ -20,7 +20,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.update = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { permissions } = req.body || {};
+  const permissions = req.body?.permissions;
   if (!Array.isArray(permissions)) throw new HttpError(400, 'permissions[] requerido');
 
   if (!(await giRoles.roleExists(id))) throw new HttpError(404, 'Rol no encontrado');
