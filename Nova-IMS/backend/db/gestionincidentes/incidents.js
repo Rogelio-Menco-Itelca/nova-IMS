@@ -111,6 +111,13 @@ function plainCommentText(raw) {
   return text;
 }
 
+function pushToGroupedMap(map, key, item) {
+  if (!map[key]) {
+    map[key] = [];
+  }
+  map[key].push(item);
+}
+
 async function loadComments(internalId) {
   const [rows] = await pool.query(
     `SELECT Comentario, FechaHora FROM comentarios_incidentes
@@ -314,9 +321,9 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
   );
   const map = {};
   for (const r of rows) {
-    (map[r.internal_id] = map[r.internal_id] || []).push({
+    pushToGroupedMap(map, r.internal_id, {
       id: r.id,
-      name: r.name?.replace(/\s+/g, ' ').trim(),
+      name: r.name?.replaceAll(/\s+/g, ' ').trim(),
       primerNombre: r.primer_nombre,
       segundoNombre: r.segundo_nombre,
       primerApellido: r.primer_apellido,
@@ -354,7 +361,7 @@ async function loadInvolvedVehicles(internalIds, reader = pool) {
   );
   const map = {};
   for (const r of rows) {
-    (map[r.internal_id] = map[r.internal_id] || []).push({
+    pushToGroupedMap(map, r.internal_id, {
       plate: r.plate,
       role: r.role || 'Vehículo Involucrado',
       make: r.make,
@@ -379,7 +386,7 @@ async function loadPlaceComments(lugarIds, reader = pool) {
   );
   const map = {};
   for (const r of rows) {
-    (map[r.ID_lugar] = map[r.ID_lugar] || []).push({
+    pushToGroupedMap(map, r.ID_lugar, {
       text: r.Comentario_lugar || '',
       at: r.FechaHora,
       user: r.ID_Usuario || '',
@@ -421,7 +428,7 @@ async function loadInvolvedPlaces(internalIds, reader = pool) {
       .map((c) => c.text)
       .filter(Boolean)
       .join('\n');
-    (map[r.internal_id] = map[r.internal_id] || []).push({
+    pushToGroupedMap(map, r.internal_id, {
       id: r.id,
       name: r.name,
       address: r.address,
@@ -452,17 +459,15 @@ async function hydrateIncidents(rows, reader = pool) {
   for (const r of rows) {
     const comments = await loadComments(r.internal_id);
     const loc = await latestLocationForIncident(r.internal_id, r.id, reader);
-    out.push(
-      mapIncidentRow(r, {
-        comments,
-        ...loc,
-        operator_name: r.operator_name || '',
-      }),
-    );
-    const last = out[out.length - 1];
-    last.involvedPeople = peopleMap[r.internal_id] || [];
-    last.involvedPlaces = placesMap[r.internal_id] || [];
-    last.involvedVehicles = vehMap[r.internal_id] || [];
+    const incident = mapIncidentRow(r, {
+      comments,
+      ...loc,
+      operator_name: r.operator_name || '',
+    });
+    incident.involvedPeople = peopleMap[r.internal_id] || [];
+    incident.involvedPlaces = placesMap[r.internal_id] || [];
+    incident.involvedVehicles = vehMap[r.internal_id] || [];
+    out.push(incident);
   }
   return out;
 }

@@ -4,6 +4,10 @@ const asyncHandler = require('../utils/asyncHandler');
 const socket = require('../realtime/socket');
 const { sendIncidentNotification } = require('../services/email.service');
 const { diffNewCommentEntries, truncateAuditText } = require('../utils/incidentNotes');
+const {
+  appendVehicleAuditDetails,
+  vehiclesAuditFingerprint,
+} = require('../utils/incidentVehicleAudit');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
 const giMedidas = require('../db/gestionincidentes/medidas');
@@ -144,85 +148,35 @@ function isValidPlate(plate) {
   return /^[A-Z0-9]{5,8}$/.test(normalized);
 }
 
-function normalizeVehicle(v) {
-  const rawPlate = String(v?.plate || '').trim();
-  return {
-    plate: rawPlate.toUpperCase(),
-    plateKey: rawPlate.toUpperCase().replaceAll(/[^A-Z0-9]/g, ''),
-    role: String(v?.role || '').trim(),
-    make: String(v?.make || '').trim(),
-    model: String(v?.model || '').trim(),
-    color: String(v?.color || '').trim(),
-    details: String(v?.details || '').trim(),
-  };
+function resolveEmailResponseMessage(mode, destinatarios) {
+  if (mode === 'console') {
+    return `Correo simulado en consola del servidor (SMTP no configurado). Enviado a: ${destinatarios}`;
+  }
+  return `Enviado a: ${destinatarios}`;
 }
 
-function vehiclesAuditFingerprint(list) {
-  return (list || [])
-    .map(normalizeVehicle)
-    .filter((v) => v.plateKey)
-    .map((v) => `${v.plateKey}|${v.role}|${v.make}|${v.model}|${v.color}|${v.details}`)
-    .join(';');
+function pickBodyArray(bodyValue, fallback) {
+  return Array.isArray(bodyValue) ? bodyValue : fallback;
 }
 
-function appendVehicleAuditDetails(details, beforeVehicles = [], afterVehicles = []) {
-  const beforeList = (beforeVehicles || []).map(normalizeVehicle).filter((v) => v.plateKey);
-  const afterList = (afterVehicles || []).map(normalizeVehicle).filter((v) => v.plateKey);
-  const usedAfter = new Set();
-  const sameCount = beforeList.length === afterList.length && beforeList.length > 0;
-  const tracked = [
-    ['role', 'Rol'],
-    ['make', 'Marca'],
-    ['model', 'Modelo'],
-    ['color', 'Color'],
-    ['details', 'Detalle'],
-  ];
+function resolveUpdateAuditAction(statusChanged, newStatus, detailsCount) {
+  if (statusChanged) return `Cambio de estado → ${newStatus}`;
+  if (detailsCount > 0) return 'Actualización';
+  return 'Guardado';
+}
 
-  for (let i = 0; i < beforeList.length; i++) {
-    const before = beforeList[i];
-    let matchedIdx = sameCount && !usedAfter.has(i) ? i : -1;
-    if (matchedIdx < 0) {
-      matchedIdx = afterList.findIndex(
-        (v, idx) => !usedAfter.has(idx) && v.plateKey === before.plateKey,
-      );
-    }
-    if (matchedIdx < 0) {
-      matchedIdx = afterList.findIndex((_, idx) => !usedAfter.has(idx));
-    }
-    if (matchedIdx < 0) {
-      details.push({
-        field: `Vehículo (${before.plate})`,
-        old: 'Existente',
-        new: '(eliminado)',
-      });
-      continue;
-    }
-    const after = afterList[matchedIdx];
-    usedAfter.add(matchedIdx);
-    const ref = after.plate || before.plate || `#${i + 1}`;
-    if (before.plateKey !== after.plateKey) {
-      details.push({
-        field: `Placa (${before.plate})`,
-        old: fmtAuditValue(before.plate),
-        new: fmtAuditValue(after.plate),
-      });
-    }
-    for (const [key, label] of tracked) {
-      const oldVal = fmtAuditValue(before[key]);
-      const newVal = fmtAuditValue(after[key]);
-      if (oldVal !== newVal) {
-        details.push({ field: `${label} (${ref})`, old: oldVal, new: newVal });
-      }
-    }
+function resolveUpdateAuditChanges(statusChanged, beforeStatus, newStatus, detailsCount) {
+  if (detailsCount > 0) return `${detailsCount} campo(s) modificado(s)`;
+  if (statusChanged) return `Estado: ${beforeStatus} → ${newStatus}`;
+  return 'Formulario guardado';
+}
+
+function resolveUpdateAuditDetails(details, statusChanged, beforeStatus, newStatus) {
+  if (details.length > 0) return details;
+  if (statusChanged) {
+    return [{ field: 'Estado', old: fmtAuditValue(beforeStatus), new: fmtAuditValue(newStatus) }];
   }
-  for (let j = 0; j < afterList.length; j++) {
-    if (usedAfter.has(j)) continue;
-    details.push({
-      field: `Vehículo (${afterList[j].plate})`,
-      old: '(no existía)',
-      new: 'Agregado',
-    });
-  }
+  return [{ field: 'Registro', old: '—', new: 'Guardado sin cambios en campos principales' }];
 }
 
 function appendCommentHistoryAudit(details, before, after) {
@@ -388,10 +342,8 @@ const update = asyncHandler(async (req, res) => {
     phone: b.phone ?? afterForAuditBase.phone,
     location: b.location ?? afterForAuditBase.location,
     locationPhoneNumber: b.locationPhoneNumber ?? afterForAuditBase.locationPhoneNumber,
-    involvedPeople: Array.isArray(b.involvedPeople) ? b.involvedPeople : afterForAuditBase.involvedPeople,
-    involvedVehicles: Array.isArray(b.involvedVehicles)
-      ? b.involvedVehicles
-      : afterForAuditBase.involvedVehicles,
+    involvedPeople: pickBodyArray(b.involvedPeople, afterForAuditBase.involvedPeople),
+    involvedVehicles: pickBodyArray(b.involvedVehicles, afterForAuditBase.involvedVehicles),
   };
   const details = buildAuditDetails(before, afterForAudit);
   const statusChanged = before.status !== newStatus;
@@ -400,22 +352,14 @@ const update = asyncHandler(async (req, res) => {
   await giIncidents.writeAudit(pool, {
     incidentId: id,
     user: req.user,
-    action: statusChanged
-      ? `Cambio de estado → ${newStatus}`
-      : details.length
-        ? 'Actualización'
-        : 'Guardado',
-    changes: details.length
-      ? `${details.length} campo(s) modificado(s)`
-      : statusChanged
-        ? `Estado: ${before.status} → ${newStatus}`
-        : 'Formulario guardado',
-    details:
-      details.length > 0
-        ? details
-        : statusChanged
-          ? [{ field: 'Estado', old: fmtAuditValue(before.status), new: fmtAuditValue(newStatus) }]
-          : [{ field: 'Registro', old: '—', new: 'Guardado sin cambios en campos principales' }],
+    action: resolveUpdateAuditAction(statusChanged, newStatus, details.length),
+    changes: resolveUpdateAuditChanges(
+      statusChanged,
+      before.status,
+      newStatus,
+      details.length,
+    ),
+    details: resolveUpdateAuditDetails(details, statusChanged, before.status, newStatus),
     actorDisplayName: actorName,
   });
 
@@ -497,10 +441,7 @@ const sendEmail = asyncHandler(async (req, res) => {
     incidentId: id,
     recipients,
     mode: result.mode,
-    message:
-      result.mode === 'console'
-        ? `Correo simulado en consola del servidor (SMTP no configurado). Enviado a: ${destinatarios}`
-        : `Enviado a: ${destinatarios}`,
+    message: resolveEmailResponseMessage(result.mode, destinatarios),
   });
 });
 

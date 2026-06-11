@@ -1,6 +1,30 @@
 const asyncHandler = require('../utils/asyncHandler');
 const giLogs = require('../db/gestionincidentes/logs');
 
+function parseAuditDetailsField(raw) {
+  if (raw == null) return undefined;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  }
+  return raw;
+}
+
+function mapAuditLogRow(r) {
+  return {
+    id: r.id,
+    incidentId: r.incidentId,
+    user: r.user,
+    action: r.action,
+    changes: r.changes || '',
+    details: parseAuditDetailsField(r.details_json),
+    timestamp: r.timestamp,
+  };
+}
+
 exports.adminLogs = asyncHandler(async (req, res) => {
   res.json(await giLogs.listAdminLogs());
 });
@@ -11,19 +35,5 @@ exports.auditLogs = asyncHandler(async (req, res) => {
   if (incidentId) {
     rows = rows.filter((r) => r.incidentId === incidentId);
   }
-  res.json(
-    rows.map((r) => ({
-      id: r.id,
-      incidentId: r.incidentId,
-      user: r.user,
-      action: r.action,
-      changes: r.changes || '',
-      details: r.details_json
-        ? typeof r.details_json === 'string'
-          ? JSON.parse(r.details_json)
-          : r.details_json
-        : undefined,
-      timestamp: r.timestamp,
-    })),
-  );
+  res.json(rows.map(mapAuditLogRow));
 });
