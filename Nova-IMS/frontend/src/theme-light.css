@@ -676,6 +676,11 @@ html.theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(4),
   border-left: 4px solid #eab308 !important;
 }
 
+html.theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(5),
+.theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(5) {
+  border-left: 4px solid #0ea5e9 !important;
+}
+
 html.theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(1) .text-3xl,
 .theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(1) .text-3xl {
   color: var(--lt-accent) !important;
@@ -699,6 +704,11 @@ html.theme-light .ims-dashboard .bg-green-500\/20,
 html.theme-light .ims-dashboard .bg-yellow-500\/20,
 .theme-light .ims-dashboard .bg-yellow-500\/20 {
   background-color: #fef9c3 !important;
+}
+
+html.theme-light .ims-dashboard .bg-sky-500\/20,
+.theme-light .ims-dashboard .bg-sky-500\/20 {
+  background-color: #e0f2fe !important;
 }
 
 /* Badge MONITOREO EN VIVO */

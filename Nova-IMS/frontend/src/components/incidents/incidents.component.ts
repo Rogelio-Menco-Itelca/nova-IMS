@@ -96,12 +96,14 @@ const statusOrder: Record<string, number> = {
 /** Vista inicial del mapa del dashboard (Bogotá D.C.) */
 const BOGOTA_CENTER = { lat: 4.651, lng: -74.072 };
 const BOGOTA_DEFAULT_ZOOM = 11;
-const BOGOTA_FIT_MAX_ZOOM = 13;
-const BOGOTA_BOUNDS = {
-  north: 4.84,
-  south: 4.47,
-  east: -73.98,
-  west: -74.22,
+const DASHBOARD_SINGLE_MARKER_ZOOM = 13;
+const DASHBOARD_FIT_MAX_ZOOM = 15;
+/** Límite de pan del mapa: todo el territorio colombiano */
+const COLOMBIA_BOUNDS = {
+  north: 13.5,
+  south: -4.5,
+  east: -66.5,
+  west: -79.5,
 };
 
 @Component({
@@ -445,13 +447,13 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardMap = new google.maps.Map(mapEl, {
       center: BOGOTA_CENTER,
       zoom: BOGOTA_DEFAULT_ZOOM,
-      minZoom: 10,
+      minZoom: 5,
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: true,
       zoomControl: true,
       restriction: {
-        latLngBounds: BOGOTA_BOUNDS,
+        latLngBounds: COLOMBIA_BOUNDS,
         strictBounds: false,
       },
     });
@@ -475,8 +477,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardMap.setZoom(BOGOTA_DEFAULT_ZOOM);
   }
 
-  /** Tras fitBounds, no acercar más de lo necesario: se debe reconocer Bogotá. */
-  private clampDashboardMapZoom(maxZoom = BOGOTA_FIT_MAX_ZOOM): void {
+  /** Tras fitBounds con varios marcadores cercanos, evita acercar de más. */
+  private clampDashboardMapZoom(maxZoom = DASHBOARD_FIT_MAX_ZOOM): void {
     if (!this.dashboardMap) return;
     const z = this.dashboardMap.getZoom();
     if (z != null && z > maxZoom) {
@@ -509,14 +511,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       });
       google.maps.event.addListenerOnce(this.dashboardMap, 'idle', () => {
         this.clampDashboardMapZoom();
-        const z = this.dashboardMap?.getZoom();
-        if (z != null && z < BOGOTA_DEFAULT_ZOOM) {
-          this.dashboardMap?.setZoom(BOGOTA_DEFAULT_ZOOM);
-        }
       });
     } else {
       this.dashboardMap.setCenter(bounds.getCenter());
-      this.dashboardMap.setZoom(BOGOTA_FIT_MAX_ZOOM);
+      this.dashboardMap.setZoom(DASHBOARD_SINGLE_MARKER_ZOOM);
     }
   }
 
@@ -1125,6 +1123,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   closedCount = computed(
     () => this.incidents().filter((inc) => isHiddenByDefaultInIncidentList(inc.status)).length,
+  );
+
+  avgGestionLabel = computed(
+    () => this.incidentService.dashboardMetrics()?.gestion.formatted ?? 'N/A',
+  );
+
+  avgProteccionLabel = computed(
+    () => this.incidentService.dashboardMetrics()?.proteccion.formatted ?? 'N/A',
   );
 
   private incidentSortTime(incident: Incident): number {

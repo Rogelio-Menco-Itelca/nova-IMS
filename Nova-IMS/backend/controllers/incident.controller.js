@@ -10,6 +10,7 @@ const {
 } = require('../utils/incidentVehicleAudit');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
+const { getCsjDashboardMetrics } = require('../db/gestionincidentes/dashboardMetrics');
 const giMedidas = require('../db/gestionincidentes/medidas');
 const comunicacion = require('../db/gestionincidentes/comunicacion');
 const { requireSessionAgency } = require('../utils/requestAgency');
@@ -259,6 +260,10 @@ function buildAuditDetails(before, after) {
   return details;
 }
 
+const dashboardMetrics = asyncHandler(async (_req, res) => {
+  res.json(await getCsjDashboardMetrics());
+});
+
 const list = asyncHandler(async (req, res) => {
   const rows = await giIncidents.listIncidents();
   res.json(rows.map(mapIncidentRow));
@@ -446,6 +451,7 @@ const sendEmail = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  dashboardMetrics,
   list,
   getOne,
   create,

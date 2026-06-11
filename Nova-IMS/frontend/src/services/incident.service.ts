@@ -1,7 +1,7 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Incident, InvolvedVehicle } from '../models/incident.model';
+import { DashboardResponseMetrics, Incident, InvolvedVehicle } from '../models/incident.model';
 import { SocketService } from './socket.service';
 import { NotificationService } from './notification.service';
 
@@ -13,6 +13,7 @@ export class IncidentService {
   private apiUrl = '/api/incidents';
 
   incidents = signal<Incident[]>([]);
+  dashboardMetrics = signal<DashboardResponseMetrics | null>(null);
   isLoading = signal(false);
   /** Incidente a abrir al entrar en la vista Incidentes (desde el dashboard). */
   pendingOpenIncidentId = signal<string | null>(null);
@@ -21,12 +22,14 @@ export class IncidentService {
     // Punto Rojo: Escuchando actualizaciones del backend en tiempo real
     this.socketService.on('incident:created', (newIncident: Incident) => {
       this.incidents.update((list) => [newIncident, ...list]);
+      this.refreshDashboardMetrics();
     });
 
     this.socketService.on('incident:updated', (updatedIncident: Incident) => {
       this.incidents.update((list) =>
         list.map((i) => (i.id === updatedIncident.id ? updatedIncident : i)),
       );
+      this.refreshDashboardMetrics();
     });
   }
 
@@ -69,6 +72,14 @@ export class IncidentService {
         console.error('Error al conectar con el backend:', err);
         this.isLoading.set(false);
       },
+    });
+    this.refreshDashboardMetrics();
+  }
+
+  refreshDashboardMetrics(): void {
+    this.http.get<DashboardResponseMetrics>(`${this.apiUrl}/dashboard-metrics`).subscribe({
+      next: (metrics) => this.dashboardMetrics.set(metrics),
+      error: () => this.dashboardMetrics.set(null),
     });
   }
 

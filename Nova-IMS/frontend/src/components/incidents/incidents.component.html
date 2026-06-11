@@ -1,6 +1,6 @@
 <div class="ims-dashboard flex min-h-0 flex-1 flex-col gap-6">
   <!-- KPI Cards -->
-  <div class="grid shrink-0 grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="grid shrink-0 grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
     <div class="bg-gray-800 rounded-lg p-5 shadow-lg flex items-center justify-between">
       <div>
         <div class="text-sm text-gray-400">Incidentes Activos</div>
@@ -69,8 +69,13 @@
     </div>
     <div class="bg-gray-800 rounded-lg p-5 shadow-lg flex items-center justify-between">
       <div>
-        <div class="text-sm text-gray-400">T. Medio Respuesta</div>
-        <div class="text-3xl font-bold text-white">N/A</div>
+        <div
+          class="text-sm text-gray-400"
+          title="Tiempo promedio desde la solicitud hasta que el operador OSEG toma el caso"
+        >
+          T. Medio Gestión
+        </div>
+        <div class="text-3xl font-bold text-white">{{ avgGestionLabel() }}</div>
       </div>
       <div class="bg-yellow-500/20 text-yellow-400 p-3 rounded-full">
         <svg
@@ -85,6 +90,33 @@
             stroke-linejoin="round"
             stroke-width="2"
             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      </div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-5 shadow-lg flex items-center justify-between">
+      <div>
+        <div
+          class="text-sm text-gray-400"
+          title="Tiempo promedio desde la solicitud hasta que se asignan las medidas de seguridad"
+        >
+          T. Medio Protección
+        </div>
+        <div class="text-3xl font-bold text-white">{{ avgProteccionLabel() }}</div>
+      </div>
+      <div class="bg-sky-500/20 text-sky-400 p-3 rounded-full">
+        <svg
+          class="h-6 w-6"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
           />
         </svg>
       </div>
