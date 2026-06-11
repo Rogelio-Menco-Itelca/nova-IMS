@@ -127,10 +127,51 @@ async function asignarMedidas(idGestion, medidas, user) {
   }
 }
 
+async function getSolicitudFromPersonas(_visibleId) {
+  return null;
+}
+
+async function hasAssignedMedidas(visibleId) {
+  const gestion = await getGestionByIncidente(visibleId);
+  if (!gestion?.ID_gestion) return false;
+  const medidas = await getMedidasByGestion(gestion.ID_gestion);
+  return medidas.length > 0;
+}
+
+const WORKFLOW_RANK_CSJ = {
+  'En gestión OSEG': 1,
+  'Enviado a CERREM': 2,
+  'En evaluación CERREM': 3,
+  'Medidas asignadas': 4,
+  Cerrado: 5,
+};
+
+function validateGestionForStatus(status, gestion) {
+  const rank = WORKFLOW_RANK_CSJ[status];
+  if (rank === undefined || status === 'Cancelado') return null;
+
+  const hasOseg =
+    Boolean(String(gestion?.codigo_oficio ?? '').trim()) &&
+    Boolean(String(gestion?.tramite_destino ?? '').trim());
+  const hasCerrem =
+    Boolean(String(gestion?.resolucion_cerrem ?? '').trim()) && Boolean(gestion?.ID_riesgo);
+
+  if (rank >= WORKFLOW_RANK_CSJ['En gestión OSEG'] && !hasOseg) {
+    return 'Complete la gestión OSEG (oficio y trámite/destino) en la pestaña Medidas.';
+  }
+  if (rank >= WORKFLOW_RANK_CSJ['En evaluación CERREM'] && !hasCerrem) {
+    return 'Complete la decisión CERREM (resolución y nivel de riesgo) en la pestaña Medidas.';
+  }
+  return null;
+}
+
 module.exports = {
   getTiposMedida,
   getGestionByIncidente,
   getMedidasByGestion,
+  getSolicitudFromPersonas,
+  hasAssignedMedidas,
+  validateGestionForStatus,
   upsertGestion,
   asignarMedidas,
 };

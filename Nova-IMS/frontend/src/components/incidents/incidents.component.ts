@@ -279,17 +279,21 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     effect(() => {
       const list = this.incidents();
-      this.selectedDashboardIncidentId();
+      const selectedId = this.selectedDashboardIncidentId();
       this.prefetchActiveAddresses(list);
       if (!this.dashboardMap) return;
-      this.renderDashboardIncidents();
+      this.renderDashboardIncidents(selectedId);
     });
 
     effect(() => {
-      this.paginatedDashboardIncidents().length;
-      this.dashboardCurrentPage();
-      this.filterText();
-      queueMicrotask(() => this.triggerDashboardMapResize());
+      const listLength = this.paginatedDashboardIncidents().length;
+      const page = this.dashboardCurrentPage();
+      const filter = this.filterText();
+      const resizeKey = `${listLength}:${page}:${filter}`;
+      queueMicrotask(() => {
+        if (!this.dashboardMap || !resizeKey) return;
+        this.triggerDashboardMapResize();
+      });
     });
   }
 
@@ -804,7 +808,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private renderDashboardIncidents(): void {
+  private renderDashboardIncidents(selectedId = this.selectedDashboardIncidentId()): void {
     if (!this.dashboardMap) return;
 
     this.dashboardMarkers.forEach(({ marker, infoWindow }) => {
@@ -816,7 +820,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardInfoWindow?.close();
 
     const activeIncidents = this.getDashboardActiveIncidents();
-    const selectedId = this.selectedDashboardIncidentId();
     const placable = activeIncidents.filter((inc) => this.hasValidCoords(inc));
     const positions = this.spreadOverlappingPositions(placable);
     const bounds = new google.maps.LatLngBounds();
