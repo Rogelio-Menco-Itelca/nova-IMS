@@ -1,23 +1,26 @@
 const { pool } = require('../../config/db');
 
-let emailStatusColumnReady = false;
-
+/**
+ * Asegura que la columna 'estado' exista en correosincidentes
+ */
 async function ensureEmailStatusColumn() {
-  if (emailStatusColumnReady) return;
-  const [cols] = await pool.query("SHOW COLUMNS FROM correosincidentes LIKE 'estado'");
-  if (!cols.length) {
-    await pool.query(
-      `ALTER TABLE correosincidentes ADD COLUMN estado varchar(20) NOT NULL DEFAULT 'Activo'`,
-    );
+  try {
+    await pool.query(`
+      ALTER TABLE correosincidentes 
+      ADD COLUMN IF NOT EXISTS estado VARCHAR(20) DEFAULT 'Activo'
+    `);
+  } catch (e) {
+    // Columna ya existe — ignorar
   }
-  await pool.query(
-    `UPDATE correosincidentes SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`,
-  );
-  emailStatusColumnReady = true;
 }
 
-function normalizeEmailStatus(value) {
-  return String(value || 'Activo').trim() === 'Inactivo' ? 'Inactivo' : 'Activo';
+/**
+ * Normaliza el estado del correo
+ */
+function normalizeEmailStatus(status) {
+  const valid = ['Activo', 'Inactivo'];
+  const normalized = String(status || 'Activo').trim();
+  return valid.includes(normalized) ? normalized : 'Activo';
 }
 
 module.exports = {
