@@ -1,4 +1,5 @@
 const { pool } = require('../../config/db');
+const { parseTrailingDigits } = require('../../utils/ids');
 const { findIncidentTypeIdByName } = require('./incidentTypes');
 const { normalizeAgencyCode } = require('./maps');
 
@@ -41,7 +42,8 @@ async function hydrateSteps(protocols) {
 async function createProtocol({ name, incidentTypeName, steps, agencyCode }) {
   const typeId = await findIncidentTypeIdByName(incidentTypeName, agencyCode);
   if (!typeId) throw new Error(`Tipo no encontrado: ${incidentTypeName}`);
-  const eventoId = Number(String(typeId).match(/(\d+)/)[1]);
+  const eventoId = parseTrailingDigits(typeId);
+  if (eventoId == null) throw new Error(`ID de tipo inválido: ${typeId}`);
 
   const conn = await pool.getConnection();
   try {
@@ -69,9 +71,8 @@ async function createProtocol({ name, incidentTypeName, steps, agencyCode }) {
 }
 
 async function updateProtocol(id, { name, incidentTypeName, steps, agencyCode }) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return null;
-  const protocolId = Number(m[1]);
+  const protocolId = parseTrailingDigits(id);
+  if (protocolId == null) return null;
 
   const conn = await pool.getConnection();
   try {
@@ -80,7 +81,8 @@ async function updateProtocol(id, { name, incidentTypeName, steps, agencyCode })
     if (incidentTypeName) {
       const typeId = await findIncidentTypeIdByName(incidentTypeName, agencyCode);
       if (!typeId) throw new Error(`Tipo no encontrado: ${incidentTypeName}`);
-      eventoId = Number(String(typeId).match(/(\d+)/)[1]);
+      eventoId = parseTrailingDigits(typeId);
+      if (eventoId == null) throw new Error(`ID de tipo inválido: ${typeId}`);
     }
     await conn.query(
       `UPDATE protocolos SET
@@ -110,19 +112,18 @@ async function updateProtocol(id, { name, incidentTypeName, steps, agencyCode })
 }
 
 async function deleteProtocol(id) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return 0;
-  const protocolId = Number(m[1]);
+  const protocolId = parseTrailingDigits(id);
+  if (protocolId == null) return 0;
   await pool.query(`DELETE FROM pasosprotocolo WHERE ID_Protocolo = ?`, [protocolId]);
   const [r] = await pool.query(`DELETE FROM protocolos WHERE ID_Protocolo = ?`, [protocolId]);
   return r.affectedRows;
 }
 
 async function protocolExists(id) {
-  const m = String(id).match(/(\d+)/);
-  if (!m) return false;
+  const protocolId = parseTrailingDigits(id);
+  if (protocolId == null) return false;
   const [rows] = await pool.query(`SELECT ID_Protocolo FROM protocolos WHERE ID_Protocolo = ?`, [
-    Number(m[1]),
+    protocolId,
   ]);
   return rows.length > 0;
 }

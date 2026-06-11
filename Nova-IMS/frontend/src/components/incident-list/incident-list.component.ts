@@ -269,7 +269,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.setActiveTab('new');
 
       setTimeout(() => {
-        void this.applyReceivedLocation(locationData, lat, lng);
+        this.applyReceivedLocation(locationData, lat, lng).catch(() => {});
       }, 150);
 
       this.locationService.clearLocation();
@@ -368,7 +368,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
           this.ngZone.run(() => {
             if (status === 'OK' && results?.[0]) {
-              void this.applyDepartmentMunicipalityFromGeocode(results[0]);
+              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
               this.cdr.markForCheck();
             }
           });
@@ -520,7 +520,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const lng = place.geometry.location.lng();
 
       this.ngZone.run(() => {
-        void this.applyLocationFromGeocode(lat, lng, place.formatted_address, place);
+        this.applyLocationFromGeocode(lat, lng, place.formatted_address, place).catch(() => {});
       });
     });
   }
@@ -535,7 +535,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       );
       return;
     }
-    void this.forwardGeocodeAddress(address);
+    this.forwardGeocodeAddress(address).catch(() => {});
   }
 
   private async ensureGeocoder(): Promise<google.maps.Geocoder | null> {
@@ -561,12 +561,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           return;
         }
         const loc = results[0].geometry.location;
-        void this.applyLocationFromGeocode(
+        this.applyLocationFromGeocode(
           loc.lat(),
           loc.lng(),
           results[0].formatted_address,
           results[0],
-        );
+        ).catch(() => {});
       });
     });
   }
@@ -767,27 +767,29 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private runReverseGeocode(lat: number, lng: number, fromGpsRequest: boolean) {
-    void this.ensureGeocoderReady().then(() => {
-      if (!this.geocoder) return;
+    this.ensureGeocoderReady()
+      .then(() => {
+        if (!this.geocoder) return;
 
-      this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        this.ngZone.run(() => {
-          if (status === 'OK' && results?.[0]) {
-            const address = results[0].formatted_address;
-            if (fromGpsRequest) {
-              this.incidentForm.patchValue({ location: address }, { emitEvent: false });
-            } else {
-              const current = String(this.incidentForm.get('location')?.value || '').trim();
-              if (!current) {
+        this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          this.ngZone.run(() => {
+            if (status === 'OK' && results?.[0]) {
+              const address = results[0].formatted_address;
+              if (fromGpsRequest) {
                 this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+              } else {
+                const current = String(this.incidentForm.get('location')?.value || '').trim();
+                if (!current) {
+                  this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+                }
               }
+              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
+              this.cdr.markForCheck();
             }
-            void this.applyDepartmentMunicipalityFromGeocode(results[0]);
-            this.cdr.markForCheck();
-          }
+          });
         });
-      });
-    });
+      })
+      .catch(() => {});
   }
 
   private destroyMap() {
@@ -892,7 +894,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const control = this.incidentForm.get('departmentId');
     if (!control) return;
     this.incidentDeptSub = control.valueChanges.subscribe((val) => {
-      void this.refreshIncidentMunicipalities(Number(val));
+      this.refreshIncidentMunicipalities(Number(val)).catch(() => {});
     });
   }
 
@@ -1234,7 +1236,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const control = group?.get('departmentId');
     if (!control) return;
     const sub = control.valueChanges.subscribe((val) => {
-      void this.refreshPlaceMunicipalities(index, Number(val));
+      this.refreshPlaceMunicipalities(index, Number(val)).catch(() => {});
     });
     this.placeDeptSubs.push(sub);
   }
@@ -1484,10 +1486,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   ngOnInit() {
     if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
 
-    void this.configService.getIncidentTypes();
-    void this.configService.getResponseProtocols();
-    void this.configService.getAuditLogs();
-    void this.loadDepartments();
+    this.configService.getIncidentTypes().catch(() => {});
+    this.configService.getResponseProtocols().catch(() => {});
+    this.configService.getAuditLogs().catch(() => {});
+    this.loadDepartments().catch(() => {});
     this.loadPlaceRoles();
     this.loadPersonCatalogs();
     this.loadIncidentCatalogs();
@@ -1806,10 +1808,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         const incident = this.activeIncident();
         const lat = this.incidentForm.get('lat')?.value ?? incident?.lat;
         const lng = this.incidentForm.get('lng')?.value ?? incident?.lng;
-        void this.initMap(
+        this.initMap(
           lat != null ? Number(lat) : undefined,
           lng != null ? Number(lng) : undefined,
-        );
+        ).catch(() => {});
       }, 0);
     }
     this.cdr.markForCheck();
@@ -2118,7 +2120,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       this.setupStatusDropdownForEdit(agency, saved.status);
       this.populateFormWithState(saved);
-      void this.configService.getAuditLogs();
+      this.configService.getAuditLogs().catch(() => {});
       this.notificationService.addNotification(
         'Incidente Actualizado',
         `Se guardaron los cambios para #${incidentId}.`,
@@ -2184,7 +2186,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.lastIncidentTypeName = typeName;
     const selectedType = this.incidentTypes().find((t) => t.name === typeName);
     this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
-    void this.loadIncidentMunicipalities(state.departmentId, state.municipalityId);
+    this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).catch(() => {});
     this.involvedPeople.clear();
     for (const p of involvedPeople ?? []) {
       this.involvedPeople.push(this.buildPersonGroup(p));
@@ -2195,7 +2197,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const places = placesState ?? [];
     places.forEach((pl, index) => {
       this.involvedPlaces.push(this.buildPlaceGroup(pl));
-      void this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId);
+      this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId).catch(() => {});
     });
     this.reattachPlaceDepartmentWatchers();
     this.involvedVehicles.clear();

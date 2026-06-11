@@ -495,7 +495,7 @@ export class AdminComponent implements OnInit {
   setTab(tab: AdminTab) {
     this.activeTab.set(tab);
     if (tab === 'incident_history') {
-      void this.refreshIncidentHistoryView();
+      this.refreshIncidentHistoryView().catch(() => {});
     }
   }
 
@@ -517,7 +517,7 @@ export class AdminComponent implements OnInit {
   onIncidentHistorySearchInput(event: Event): void {
     this.onIncidentHistorySearch(event);
     this.selectedIncidentIdForHistory.set('all');
-    void this.refreshIncidentHistoryView();
+    this.refreshIncidentHistoryView().catch(() => {});
   }
 
   previousOperatorsPage(): void {

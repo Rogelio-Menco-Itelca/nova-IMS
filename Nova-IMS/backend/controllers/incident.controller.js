@@ -11,8 +11,8 @@ const comunicacion = require('../db/gestionincidentes/comunicacion');
 const { requireSessionAgency } = require('../utils/requestAgency');
 
 function pickCoord(primary, fallback) {
-  const p = primary != null && primary !== '' ? Number(primary) : NaN;
-  const f = fallback != null && fallback !== '' ? Number(fallback) : NaN;
+  const p = primary != null && primary !== '' ? Number(primary) : Number.NaN;
+  const f = fallback != null && fallback !== '' ? Number(fallback) : Number.NaN;
   const ok = (n) => Number.isFinite(n) && Math.abs(n) > 0.0001;
   if (ok(p)) return p;
   if (ok(f)) return f;
@@ -133,14 +133,14 @@ function summarizeVehicles(list) {
       return details ? `${plate} (${details})` : plate;
     })
     .filter(Boolean)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(', ');
 }
 
 function isValidPlate(plate) {
   const normalized = String(plate || '')
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
+    .replaceAll(/[^A-Z0-9]/g, '');
   return /^[A-Z0-9]{5,8}$/.test(normalized);
 }
 
@@ -148,7 +148,7 @@ function normalizeVehicle(v) {
   const rawPlate = String(v?.plate || '').trim();
   return {
     plate: rawPlate.toUpperCase(),
-    plateKey: rawPlate.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+    plateKey: rawPlate.toUpperCase().replaceAll(/[^A-Z0-9]/g, ''),
     role: String(v?.role || '').trim(),
     make: String(v?.make || '').trim(),
     model: String(v?.model || '').trim(),
@@ -429,7 +429,7 @@ const update = asyncHandler(async (req, res) => {
 const lookupVehicleByPlate = asyncHandler(async (req, res) => {
   const normalized = String(req.params.plate || '')
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
+    .replaceAll(/[^A-Z0-9]/g, '');
   if (!normalized) throw new HttpError(400, 'Placa requerida');
   const row = await giIncidents.lookupVehicleByPlate(normalized);
   if (!row) throw new HttpError(404, 'Vehículo no encontrado');

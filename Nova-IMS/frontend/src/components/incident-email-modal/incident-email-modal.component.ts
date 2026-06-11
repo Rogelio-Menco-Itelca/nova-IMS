@@ -129,7 +129,7 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
     this.loadError.set(null);
     if (this.allEmails().length) return;
 
-    void this.configService.getNotificationEmails().catch(() => {
+    this.configService.getNotificationEmails().catch(() => {
       this.loadError.set('No se pudo cargar la lista de correos autorizados.');
     });
   }
