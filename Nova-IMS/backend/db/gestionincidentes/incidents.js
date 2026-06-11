@@ -557,7 +557,7 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
   }
 }
 
-async function replaceInvolved(conn, internalId, people, vehicles, places, userCtx, agencyCode) {
+async function clearInvolvedForIncident(conn, internalId) {
   await conn.query(
     `DELETE cp FROM comentariospersonas cp
      INNER JOIN personas p ON p.ID_persona = cp.ID_persona
@@ -569,132 +569,182 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
   ]);
   await deleteVehicleCommentsForIncident(conn, internalId);
   await conn.query(`DELETE FROM vehiculos WHERE ID_incidente = ?`, [internalId]);
+}
+
+function parseFullPersonName(fullName) {
+  const names = String(fullName).trim().split(/\s+/);
+  const primerNombre = names[0] || '';
+  if (names.length > 3) {
+    return {
+      primerNombre,
+      segundoNombre: names[1] ?? null,
+      primerApellido: names.at(-2) ?? '',
+      segundoApellido: names.at(-1) ?? null,
+    };
+  }
+  if (names.length > 2) {
+    return {
+      primerNombre,
+      segundoNombre: null,
+      primerApellido: names.at(-2) ?? '',
+      segundoApellido: names.at(-1) ?? null,
+    };
+  }
+  return {
+    primerNombre,
+    segundoNombre: null,
+    primerApellido: names[1] || '',
+    segundoApellido: null,
+  };
+}
+
+function pickPersonNameFields(person) {
+  let primerNombre = String(person.primerNombre || person.primer_nombre || '').trim();
+  let segundoNombre = String(person.segundoNombre || person.segundo_nombre || '').trim() || null;
+  let primerApellido = String(person.primerApellido || person.primer_apellido || '').trim();
+  let segundoApellido = String(person.segundoApellido || person.segundo_apellido || '').trim() || null;
+
+  if (!primerNombre && String(person.name || '').trim()) {
+    return parseFullPersonName(String(person.name));
+  }
+  return { primerNombre, segundoNombre, primerApellido, segundoApellido };
+}
+
+async function resolvePersonRoleId(conn, person, agencyCode) {
+  let rolP = person.roleId ?? person.role_id ?? null;
+  if (!rolP) {
+    const [roles] = await conn.query(
+      `SELECT ID_RolP FROM rolpersonas
+       WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       LIMIT 1`,
+      [PERSON_ROLE_TO_GI[person.role] || person.role || 'Testigo', agencyCode, agencyCode],
+    );
+    rolP = roles[0]?.ID_RolP;
+  }
+  if (!rolP) {
+    const [fb] = await conn.query(`SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`);
+    rolP = fb[0]?.ID_RolP || 1;
+  }
+  return rolP;
+}
+
+async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCode) {
+  const { primerNombre, segundoNombre, primerApellido, segundoApellido } =
+    pickPersonNameFields(person);
+  if (!primerNombre || !primerApellido) return;
+
+  const rolP = await resolvePersonRoleId(conn, person, agencyCode);
+  const comentarios = person.comentarios ?? person.details ?? null;
+  const genderId = person.genderId ?? person.gender_id ?? null;
+  const tipoDocumento = await resolveDocumentTypeCode(
+    person.documentType || person.tipo_documento,
+    conn,
+  );
+
+  const [personResult] = await conn.query(
+    `INSERT INTO personas
+      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
+       Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
+       ID_Agencia, ID_Usuario, ID_genero)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      primerNombre,
+      segundoNombre,
+      primerApellido,
+      segundoApellido,
+      rolP,
+      person.contact || person.phone || null,
+      tipoDocumento,
+      person.documentId || null,
+      null,
+      internalId,
+      agencyCode,
+      userCtx.userId,
+      genderId,
+    ],
+  );
+
+  const commentText = String(comentarios || '').trim();
+  if (commentText && userCtx.userId && personResult.insertId) {
+    await insertPersonComment(
+      conn,
+      personResult.insertId,
+      commentText,
+      userCtx.userId,
+      agencyCode,
+    );
+  }
+}
+
+function vehicleHasCatalogData(vehicle) {
+  return (
+    !!String(vehicle.color || '').trim() ||
+    !!String(vehicle.make || '').trim() ||
+    !!String(vehicle.model || '').trim() ||
+    !!String(vehicle.details || '').trim()
+  );
+}
+
+async function resolveVehicleRoleId(conn, roleName, agencyCode) {
+  if (roleName) {
+    const [roles] = await conn.query(
+      `SELECT ID_RolVehiculo FROM rolesvehiculo
+       WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       LIMIT 1`,
+      [roleName, agencyCode, agencyCode],
+    );
+    if (roles[0]?.ID_RolVehiculo) return roles[0].ID_RolVehiculo;
+  }
+  const [fb] = await conn.query(
+    `SELECT ID_RolVehiculo FROM rolesvehiculo
+     WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     ORDER BY ID_RolVehiculo LIMIT 1`,
+    [agencyCode, agencyCode],
+  );
+  return fb[0]?.ID_RolVehiculo || 1;
+}
+
+async function insertInvolvedVehicle(conn, internalId, vehicle, userCtx, agencyCode) {
+  const plate = String(vehicle.plate || '').trim();
+  const roleName = String(vehicle.role || '').trim();
+  if (!roleName && !plate && !vehicleHasCatalogData(vehicle)) return;
+
+  const rolV = await resolveVehicleRoleId(conn, roleName, agencyCode);
+  const [types] = await conn.query(
+    `SELECT ID_TipoVehi FROM tipovehiculo ORDER BY ID_TipoVehi LIMIT 1`,
+  );
+  const [vehResult] = await conn.query(
+    `INSERT INTO vehiculos
+      (ID_RolV, ID_TipoVehi, Placa, Color, Marca, Modelo_linea, ID_incidente, ID_Agencia, ID_Usuario)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [
+      rolV,
+      types[0]?.ID_TipoVehi || 1,
+      plate ? plate.toUpperCase() : null,
+      vehicle.color || null,
+      vehicle.make || null,
+      vehicle.model || null,
+      internalId,
+      agencyCode,
+      userCtx.userId,
+    ],
+  );
+
+  const commentText = String(vehicle.details || '').trim();
+  if (commentText && vehResult.insertId && userCtx.userId) {
+    await insertVehicleComment(conn, vehResult.insertId, commentText, userCtx.userId, agencyCode);
+  }
+}
+
+async function replaceInvolved(conn, internalId, people, vehicles, places, userCtx, agencyCode) {
+  await clearInvolvedForIncident(conn, internalId);
   await replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCode);
 
-  for (const p of people || []) {
-    let primerNombre = String(p.primerNombre || p.primer_nombre || '').trim();
-    let segundoNombre = String(p.segundoNombre || p.segundo_nombre || '').trim() || null;
-    let primerApellido = String(p.primerApellido || p.primer_apellido || '').trim();
-    let segundoApellido = String(p.segundoApellido || p.segundo_apellido || '').trim() || null;
-
-    if (!primerNombre && String(p.name || '').trim()) {
-      const names = String(p.name).trim().split(/\s+/);
-      primerNombre = names[0] || '';
-      segundoNombre = names.length > 3 ? names[1] : null;
-      primerApellido = names.length > 2 ? names[names.length - 2] : names[1] || '';
-      segundoApellido = names.length > 2 ? names[names.length - 1] : null;
-    }
-
-    if (!primerNombre || !primerApellido) continue;
-
-    let rolP = p.roleId ?? p.role_id ?? null;
-    if (!rolP) {
-      const [roles] = await conn.query(
-        `SELECT ID_RolP FROM rolpersonas
-         WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-         LIMIT 1`,
-        [PERSON_ROLE_TO_GI[p.role] || p.role || 'Testigo', agencyCode, agencyCode],
-      );
-      rolP = roles[0]?.ID_RolP;
-    }
-    if (!rolP) {
-      const [fb] = await conn.query(`SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`);
-      rolP = fb[0]?.ID_RolP || 1;
-    }
-
-    const comentarios = p.comentarios ?? p.details ?? null;
-    const genderId = p.genderId ?? p.gender_id ?? null;
-    const tipoDocumento = await resolveDocumentTypeCode(p.documentType || p.tipo_documento, conn);
-
-    const [personResult] = await conn.query(
-      `INSERT INTO personas
-        (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
-         Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
-         ID_Agencia, ID_Usuario, ID_genero)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        primerNombre,
-        segundoNombre,
-        primerApellido,
-        segundoApellido,
-        rolP,
-        p.contact || p.phone || null,
-        tipoDocumento,
-        p.documentId || null,
-        null,
-        internalId,
-        agencyCode,
-        userCtx.userId,
-        genderId,
-      ],
-    );
-
-    const commentText = String(comentarios || '').trim();
-    if (commentText && userCtx.userId && personResult.insertId) {
-      await insertPersonComment(
-        conn,
-        personResult.insertId,
-        commentText,
-        userCtx.userId,
-        agencyCode,
-      );
-    }
+  for (const person of people || []) {
+    await insertInvolvedPerson(conn, internalId, person, userCtx, agencyCode);
   }
-
-  for (const v of vehicles || []) {
-    const plate = String(v.plate || '').trim();
-    const roleName = String(v.role || '').trim();
-    const hasCatalog =
-      !!String(v.color || '').trim() ||
-      !!String(v.make || '').trim() ||
-      !!String(v.model || '').trim() ||
-      !!String(v.details || '').trim();
-    if (!roleName && !plate && !hasCatalog) continue;
-
-    let rolV = null;
-    if (roleName) {
-      const [roles] = await conn.query(
-        `SELECT ID_RolVehiculo FROM rolesvehiculo
-         WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-         LIMIT 1`,
-        [roleName, agencyCode, agencyCode],
-      );
-      rolV = roles[0]?.ID_RolVehiculo;
-    }
-    if (!rolV) {
-      const [fb] = await conn.query(
-        `SELECT ID_RolVehiculo FROM rolesvehiculo
-         WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-         ORDER BY ID_RolVehiculo LIMIT 1`,
-        [agencyCode, agencyCode],
-      );
-      rolV = fb[0]?.ID_RolVehiculo || 1;
-    }
-
-    const [types] = await conn.query(
-      `SELECT ID_TipoVehi FROM tipovehiculo ORDER BY ID_TipoVehi LIMIT 1`,
-    );
-    const [vehResult] = await conn.query(
-      `INSERT INTO vehiculos
-        (ID_RolV, ID_TipoVehi, Placa, Color, Marca, Modelo_linea, ID_incidente, ID_Agencia, ID_Usuario)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [
-        rolV,
-        types[0]?.ID_TipoVehi || 1,
-        plate ? plate.toUpperCase() : null,
-        v.color || null,
-        v.make || null,
-        v.model || null,
-        internalId,
-        agencyCode,
-        userCtx.userId,
-      ],
-    );
-
-    const commentText = String(v.details || '').trim();
-    if (commentText && vehResult.insertId && userCtx.userId) {
-      await insertVehicleComment(conn, vehResult.insertId, commentText, userCtx.userId, agencyCode);
-    }
+  for (const vehicle of vehicles || []) {
+    await insertInvolvedVehicle(conn, internalId, vehicle, userCtx, agencyCode);
   }
 }
 
@@ -764,6 +814,81 @@ async function createIncident(body, user) {
   }
 }
 
+function assertIncidentStatusChange(currentStatus, newStatus, agencyCode) {
+  if (!newStatus || newStatus === currentStatus) return;
+  if (isFinalState(currentStatus)) {
+    throw new HttpError(
+      409,
+      `El incidente está en estado final "${currentStatus}" y no puede modificarse.`,
+    );
+  }
+  if (!isForwardStatusTransition(currentStatus, newStatus, agencyCode)) {
+    throw new HttpError(
+      409,
+      `No se puede retroceder el estado del incidente: «${currentStatus}» → «${newStatus}».`,
+    );
+  }
+}
+
+async function assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId) {
+  if (String(agencyCode).toUpperCase() !== 'CSJ' || newStatus === 'Cerrado') return;
+  const statusToValidate = newStatus || currentStatus;
+  const gestion = await getGestionByIncidente(visibleId);
+  const gestionError = validateGestionForStatus(statusToValidate, gestion);
+  if (gestionError) throw new HttpError(409, gestionError);
+}
+
+async function assertMedidasIfRequired(newStatus, visibleId) {
+  if (!newStatus || newStatus === 'Cerrado' || !requiresMedidas(newStatus)) return;
+  const tieneMedidas = await hasAssignedMedidas(visibleId);
+  if (!tieneMedidas) {
+    throw new HttpError(
+      409,
+      'Debe asignar al menos una medida de seguridad antes de guardar el estado «Medidas asignadas».',
+    );
+  }
+}
+
+async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
+  await conn.query(
+    `UPDATE incidentes SET
+       ID_evento = ?, ID_Origen = ?, ANI = ?, Direccion = ?,
+       Latitud = ?, Longitud = ?, id_departamento = ?, id_municipio = ?,
+       ID_estado = ?, ID_prioridad = ?
+     WHERE ID_incidente = ?`,
+    [
+      cats.eventoId,
+      cats.origenId,
+      body.phone ?? body.ani ?? null,
+      body.location ?? 'Sin dirección',
+      body.lat ?? 0,
+      body.lng ?? 0,
+      body.departmentId ?? body.department_id ?? null,
+      body.municipalityId ?? body.municipality_id ?? null,
+      cats.estadoId,
+      cats.prioridadId,
+      internalId,
+    ],
+  );
+  if (body.comments) {
+    const prev = await loadComments(internalId);
+    if (body.comments !== prev) {
+      const added = body.comments.replace(prev, '').trim();
+      const plain = plainCommentText(added);
+      if (plain) await insertComment(conn, internalId, plain, userCtx);
+    }
+  }
+  await replaceInvolved(
+    conn,
+    internalId,
+    body.involvedPeople,
+    body.involvedVehicles,
+    body.involvedPlaces,
+    userCtx,
+    cats.agency,
+  );
+}
+
 async function updateIncident(visibleId, body, user) {
   const internalId = await getInternalId(visibleId);
   if (!internalId) return null;
@@ -781,81 +906,14 @@ async function updateIncident(visibleId, body, user) {
   const currentStatus = mapStatusFromGi(currentStatusRaw);
   const newStatus = body.status;
 
-  if (newStatus && newStatus !== currentStatus) {
-    if (isFinalState(currentStatus)) {
-      throw new HttpError(
-        409,
-        `El incidente está en estado final "${currentStatus}" y no puede modificarse.`,
-      );
-    }
-    if (!isForwardStatusTransition(currentStatus, newStatus, agencyCode)) {
-      throw new HttpError(
-        409,
-        `No se puede retroceder el estado del incidente: «${currentStatus}» → «${newStatus}».`,
-      );
-    }
-  }
-
-  if (String(agencyCode).toUpperCase() === 'CSJ' && newStatus !== 'Cerrado') {
-    const statusToValidate = newStatus || currentStatus;
-    const gestion = await getGestionByIncidente(visibleId);
-    const gestionError = validateGestionForStatus(statusToValidate, gestion);
-    if (gestionError) {
-      throw new HttpError(409, gestionError);
-    }
-  }
-
-  if (newStatus && newStatus !== 'Cerrado' && requiresMedidas(newStatus)) {
-    const tieneMedidas = await hasAssignedMedidas(visibleId);
-    if (!tieneMedidas) {
-      throw new HttpError(
-        409,
-        'Debe asignar al menos una medida de seguridad antes de guardar el estado «Medidas asignadas».',
-      );
-    }
-  }
-
+  assertIncidentStatusChange(currentStatus, newStatus, agencyCode);
+  await assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId);
+  await assertMedidasIfRequired(newStatus, visibleId);
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(
-      `UPDATE incidentes SET
-         ID_evento = ?, ID_Origen = ?, ANI = ?, Direccion = ?,
-         Latitud = ?, Longitud = ?, id_departamento = ?, id_municipio = ?,
-         ID_estado = ?, ID_prioridad = ?
-       WHERE ID_incidente = ?`,
-      [
-        cats.eventoId,
-        cats.origenId,
-        body.phone ?? body.ani ?? null,
-        body.location ?? 'Sin dirección',
-        body.lat ?? 0,
-        body.lng ?? 0,
-        body.departmentId ?? body.department_id ?? null,
-        body.municipalityId ?? body.municipality_id ?? null,
-        cats.estadoId,
-        cats.prioridadId,
-        internalId,
-      ],
-    );
-    if (body.comments) {
-      const prev = await loadComments(internalId);
-      if (body.comments !== prev) {
-        const added = body.comments.replace(prev, '').trim();
-        const plain = plainCommentText(added);
-        if (plain) await insertComment(conn, internalId, plain, userCtx);
-      }
-    }
-    await replaceInvolved(
-      conn,
-      internalId,
-      body.involvedPeople,
-      body.involvedVehicles,
-      body.involvedPlaces,
-      userCtx,
-      cats.agency,
-    );
+    await persistIncidentUpdate(conn, internalId, body, userCtx, cats);
     await conn.commit();
     return visibleId;
   } catch (e) {
@@ -908,13 +966,17 @@ async function lookupVehicleByPlate(plate) {
   return rows[0] || null;
 }
 
+function auditActorFields(actor, isCreation) {
+  if (!String(actor || '').trim()) return {};
+  if (isCreation) {
+    return { actorDisplayName: actor, creatorDisplayName: actor };
+  }
+  return { actorDisplayName: actor };
+}
+
 function buildAuditDetailsPayload(details, actorDisplayName, { isCreation = false } = {}) {
   const actor = String(actorDisplayName || '').trim();
-  const actorFields = actor
-    ? isCreation
-      ? { actorDisplayName: actor, creatorDisplayName: actor }
-      : { actorDisplayName: actor }
-    : {};
+  const actorFields = auditActorFields(actor, isCreation);
   if (Array.isArray(details)) {
     return Object.keys(actorFields).length
       ? { ...actorFields, changes: details }

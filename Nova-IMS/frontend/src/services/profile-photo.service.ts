@@ -43,14 +43,17 @@ export class ProfilePhotoService {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return '?';
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0][0] + (parts.at(-1)?.[0] ?? '')).toUpperCase();
   }
 
   private readAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(reader.error);
+      reader.onerror = () => {
+        const err = reader.error;
+        reject(err instanceof Error ? err : new Error('No se pudo leer el archivo de imagen.'));
+      };
       reader.readAsDataURL(file);
     });
   }

@@ -344,6 +344,13 @@ export class ProfileModalComponent implements OnInit {
     }
   }
 
+  onBackdropKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    this.close();
+  }
+
   triggerPhotoPicker(): void {
     this.photoError.set(null);
     this.fileInput()?.nativeElement.click();
