@@ -71,6 +71,7 @@ router.post('/auth/change-password', authCtrl.changePassword);
 
 // ---------- Incidentes ----------
 router.get('/incidents', incCtrl.list);
+router.get('/incidents/dashboard-metrics', incCtrl.dashboardMetrics);
 router.get('/incidents/vehicle-lookup/:plate', incCtrl.lookupVehicleByPlate);
 router.get('/incidents/:id', incCtrl.getOne);
 router.post('/incidents/:id/send-email', incCtrl.sendEmail);

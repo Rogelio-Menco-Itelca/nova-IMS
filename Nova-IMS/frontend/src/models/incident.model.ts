@@ -324,6 +324,18 @@ export interface InvolvedVehicle {
   incidentDate?: string;
 }
 
+export interface DashboardTimeMetric {
+  avgSeconds: number | null;
+  formatted: string | null;
+  sampleCount: number;
+}
+
+export interface DashboardResponseMetrics {
+  agency: 'CSJ';
+  gestion: DashboardTimeMetric;
+  proteccion: DashboardTimeMetric;
+}
+
 export interface Incident {
   id: string;
   timestamp: string;
