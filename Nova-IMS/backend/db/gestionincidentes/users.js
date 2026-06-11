@@ -5,8 +5,8 @@ const { fullUserName, normalizeAgencyCode } = require('./maps');
 const { loadAgencyMap, resolveAgency } = require('./agencies');
 
 /** Token_Contraseña: MUST_CHANGE = primer ingreso; cualquier otro valor = ya cambió */
-const MUST_CHANGE_PASSWORD_MARKER = 'MUST_CHANGE';
-const PASSWORD_CHANGED_MARKER = 'OK';
+const MUST_CHANGE_TOKEN = 'MUST_CHANGE';
+const CHANGED_TOKEN = 'OK';
 
 function resolveLoginUsername(username) {
   return String(username || '').trim();
@@ -30,7 +30,7 @@ const USER_SELECT = `
   u.Contraseña AS password_hash,
   u.estado AS status,
   'local' AS auth_source,
-  CASE WHEN u.Token_Contraseña = '${MUST_CHANGE_PASSWORD_MARKER}' THEN 1 ELSE 0 END AS must_change_password,
+  CASE WHEN u.Token_Contraseña = '${MUST_CHANGE_TOKEN}' THEN 1 ELSE 0 END AS must_change_password,
   u.ID_Rol AS role_id,
   r.Rol AS role_name,
   u.ID_Agencia AS agency_code_raw,
@@ -121,7 +121,7 @@ async function updateLastLogin() {
 async function updatePasswordHash(userId, agencyCode, hash) {
   await pool.query(
     `UPDATE usuarios SET Contraseña = ?, Token_Contraseña = ? WHERE ID_Usuario = ? AND UPPER(ID_Agencia) = ?`,
-    [hash, PASSWORD_CHANGED_MARKER, userId, normalizeAgencyCode(agencyCode)],
+    [hash, CHANGED_TOKEN, userId, normalizeAgencyCode(agencyCode)],
   );
 }
 
@@ -215,7 +215,7 @@ async function createOperator({
       normalizeOptionalPhone(telefono),
       passwordHash,
       status || 'Activo',
-      MUST_CHANGE_PASSWORD_MARKER,
+      MUST_CHANGE_TOKEN,
     ],
   );
 }

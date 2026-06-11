@@ -13,9 +13,11 @@ const { resolveUserContext } = require('./users');
 const { requireAgencyInput } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
-const { ensureEmailStatusColumn } = require('./notifications');
+const { ensureEmailStatusColumn } = require('./correosSchema');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident } = require('./location');
+const { isFinalState, requiresMedidas, isForwardStatusTransition } = require('./transitions');
+const { hasAssignedMedidas, getGestionByIncidente, validateGestionForStatus } = require('./medidas');
 const HttpError = require('../../utils/HttpError');
 
 const USER_DISPLAY_NAME_SQL = `TRIM(CONCAT(
@@ -128,6 +130,24 @@ async function loadComments(internalId) {
     .join('\n---\n');
 }
 
+/** Último comentario del incidente (vitácora / correo). */
+async function loadLatestComment(internalId) {
+  const [rows] = await pool.query(
+    `SELECT Comentario, FechaHora FROM comentarios_incidentes
+     WHERE ID_Incidente = ?
+     ORDER BY FechaHora DESC, ID_Comentario DESC
+     LIMIT 1`,
+    [internalId],
+  );
+  if (!rows.length) return null;
+  const plain = plainCommentText(rows[0].Comentario);
+  if (!plain) return null;
+  return {
+    timestamp: formatCommentTimestamp(rows[0].FechaHora) || null,
+    text: plain,
+  };
+}
+
 function mapIncidentRow(r, extras = {}) {
   return {
     ...r,
@@ -166,7 +186,7 @@ async function resolveCatalogIds(
     eventoId = ev[0]?.ID_evento;
   }
 
-  const statusName = mapStatusToGi(status || 'Abierto');
+  const statusName = mapStatusToGi(status || 'Nuevo');
   const [est] = await pool.query(
     `SELECT ID_estado FROM estadosincidentes
      WHERE Nombre_estado = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
@@ -746,6 +766,51 @@ async function updateIncident(visibleId, body, user) {
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const cats = await resolveCatalogIds(agencyCode, body);
 
+  const [currentRows] = await pool.query(
+    `SELECT es.Nombre_estado FROM incidentes i
+     JOIN estadosincidentes es ON es.ID_estado = i.ID_estado
+     WHERE i.ID_incidente = ?`,
+    [internalId],
+  );
+  const currentStatusRaw = currentRows[0]?.Nombre_estado;
+  const currentStatus = mapStatusFromGi(currentStatusRaw);
+  const newStatus = body.status;
+
+  if (newStatus && newStatus !== currentStatus) {
+    if (isFinalState(currentStatus)) {
+      throw new HttpError(
+        409,
+        `El incidente está en estado final "${currentStatus}" y no puede modificarse.`,
+      );
+    }
+    if (!isForwardStatusTransition(currentStatus, newStatus, agencyCode)) {
+      throw new HttpError(
+        409,
+        `No se puede retroceder el estado del incidente: «${currentStatus}» → «${newStatus}».`,
+      );
+    }
+  }
+
+  if (String(agencyCode).toUpperCase() === 'CSJ' && newStatus !== 'Cerrado') {
+    const statusToValidate = newStatus || currentStatus;
+    const gestion = await getGestionByIncidente(visibleId);
+    const gestionError = validateGestionForStatus(statusToValidate, gestion);
+    if (gestionError) {
+      throw new HttpError(409, gestionError);
+    }
+  }
+
+  if (newStatus && newStatus !== 'Cerrado' && requiresMedidas(newStatus)) {
+    const tieneMedidas = await hasAssignedMedidas(visibleId);
+    if (!tieneMedidas) {
+      throw new HttpError(
+        409,
+        'Debe asignar al menos una medida de seguridad antes de guardar el estado «Medidas asignadas».',
+      );
+    }
+  }
+
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -936,6 +1001,7 @@ module.exports = {
   fetchIncidentRows,
   hydrateIncidents,
   loadComments,
+  loadLatestComment,
   mapPriorityFromGi,
   mapStatusFromGi,
   locationChannelToGi,

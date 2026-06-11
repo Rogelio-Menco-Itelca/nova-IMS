@@ -1,40 +1,30 @@
 export type IncidentStatus =
   | 'Nuevo'
-  | 'En gestión OSGE'
+  | 'En gestión OSEG'
   | 'Enviado a CERREM'
   | 'En evaluación CERREM'
-  | 'Aprobado con medidas'
   | 'Medidas asignadas'
-  | 'Seguimiento activo'
-  | 'Resuelto con medidas'
-  | 'Cerrado sin medidas'
+  | 'Cerrado'
   | 'Cancelado'
   | 'Asignado'
   | 'En camino'
-  | 'En situación'
-  | 'Resuelto'
-  | 'Cerrado'
-  | 'Cerrado con solución';
+  | 'En proceso'
+  | 'Resuelto';
 
 /** Estados visibles en el dashboard (incidentes que requieren seguimiento). */
 export const DASHBOARD_ACTIVE_STATUSES: readonly IncidentStatus[] = [
   'Nuevo',
-  'En gestión OSGE',
+  'En gestión OSEG',
   'Enviado a CERREM',
   'En evaluación CERREM',
-  'Aprobado con medidas',
   'Medidas asignadas',
-  'Seguimiento activo',
 ] as const;
 
 /** Estados cerrados: no aparecen en el dashboard. */
 export const DASHBOARD_CLOSED_STATUSES: readonly IncidentStatus[] = [
-  'Resuelto con medidas',
-  'Cerrado sin medidas',
+  'Cerrado',
   'Cancelado',
   'Resuelto',
-  'Cerrado',
-  'Cerrado con solución',
 ] as const;
 
 export function isDashboardActiveStatus(status: string | null | undefined): boolean {
@@ -49,25 +39,88 @@ export function isDashboardClosedStatus(status: string | null | undefined): bool
 
 /** Mapeo nombre catálogo BD → estado UI del API (alineado con backend maps.js). */
 export const CATALOG_STATUS_TO_UI: Record<string, IncidentStatus> = {
-  Abierto: 'Nuevo',
-  'En espera': 'Nuevo',
-  Asignado: 'Asignado',
-  'En proceso': 'En camino',
-  Cerrado: 'Cerrado',
-  Cancelado: 'Cancelado',
-  'En gestión OSGE': 'En gestión OSGE',
+  Nuevo: 'Nuevo',
+  'En gestión OSEG': 'En gestión OSEG',
   'Enviado a CERREM': 'Enviado a CERREM',
   'En evaluación CERREM': 'En evaluación CERREM',
-  'Aprobado con medidas': 'Aprobado con medidas',
   'Medidas asignadas': 'Medidas asignadas',
-  'Seguimiento activo': 'Seguimiento activo',
-  'Resuelto con medidas': 'Resuelto con medidas',
-  'Cerrado sin medidas': 'Cerrado sin medidas',
+  Cerrado: 'Cerrado',
+  Cancelado: 'Cancelado',
+  Asignado: 'Asignado',
+  'En camino': 'En camino',
+  'En proceso': 'En proceso',
+  Resuelto: 'Resuelto',
 };
 
 export function catalogStatusToUiStatus(catalogName: string): string {
   const name = String(catalogName ?? '').trim();
   return CATALOG_STATUS_TO_UI[name] || name;
+}
+
+/** Orden del flujo CSJ: mayor número = más avanzado (solo hacia adelante). */
+export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
+  Nuevo: 0,
+  'En gestión OSEG': 1,
+  'Enviado a CERREM': 2,
+  'En evaluación CERREM': 3,
+  'Medidas asignadas': 4,
+  Cerrado: 5,
+  Cancelado: 5,
+};
+
+/** Orden del flujo POL. */
+export const POL_STATUS_WORKFLOW_RANK: Record<string, number> = {
+  Nuevo: 0,
+  'En proceso': 1,
+  Asignado: 2,
+  'En camino': 3,
+  Resuelto: 4,
+  Cerrado: 4,
+  Cancelado: 5,
+};
+
+export function statusWorkflowRank(status: string, agency = 'CSJ'): number | undefined {
+  const ui = catalogStatusToUiStatus(status);
+  const ranks =
+    String(agency).trim().toUpperCase() === 'POL'
+      ? POL_STATUS_WORKFLOW_RANK
+      : CSJ_STATUS_WORKFLOW_RANK;
+  return ranks[ui];
+}
+
+/** Un incidente creado solo puede avanzar en el flujo, nunca retroceder. */
+export function isForwardStatusTransition(
+  fromStatus: string,
+  toStatus: string,
+  agency = 'CSJ',
+): boolean {
+  const fromUi = catalogStatusToUiStatus(fromStatus);
+  const toUi = catalogStatusToUiStatus(toStatus);
+  if (!toUi || fromUi === toUi) return true;
+
+  const fromRank = statusWorkflowRank(fromUi, agency);
+  const toRank = statusWorkflowRank(toUi, agency);
+  if (fromRank === undefined || toRank === undefined) return true;
+
+  return toRank > fromRank;
+}
+
+/** ¿Requiere datos CERREM al guardar según destino del flujo CSJ? */
+export function needsCerremGestionForTransition(targetStatus: string): boolean {
+  const target = catalogStatusToUiStatus(targetStatus);
+  if (target === 'Cerrado' || target === 'Cancelado') return false;
+  const targetRank = CSJ_STATUS_WORKFLOW_RANK[target];
+  if (targetRank === undefined) return false;
+  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En evaluación CERREM'];
+}
+
+/** ¿Requiere gestión OSEG al guardar según destino del flujo CSJ? */
+export function needsOsegGestionForTransition(targetStatus: string): boolean {
+  const target = catalogStatusToUiStatus(targetStatus);
+  if (target === 'Cerrado' || target === 'Cancelado') return false;
+  const targetRank = CSJ_STATUS_WORKFLOW_RANK[target];
+  if (targetRank === undefined) return false;
+  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'];
 }
 
 export function incidentMatchesCatalogStatus(
@@ -80,9 +133,9 @@ export function incidentMatchesCatalogStatus(
 
 /** Los 3 estados finales del flujo CSJ: ocultos en "Todos los activos", visibles al filtrar. */
 export const INCIDENT_LIST_HIDDEN_BY_DEFAULT: readonly IncidentStatus[] = [
-  'Resuelto con medidas',
-  'Cerrado sin medidas',
+  'Cerrado',
   'Cancelado',
+  'Resuelto',
 ] as const;
 
 export function isHiddenByDefaultInIncidentList(status: string | null | undefined): boolean {

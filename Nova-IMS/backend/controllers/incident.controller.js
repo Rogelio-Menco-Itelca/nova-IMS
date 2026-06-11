@@ -6,6 +6,7 @@ const { sendIncidentNotification } = require('../services/email.service');
 const { diffNewCommentEntries, truncateAuditText } = require('../utils/incidentNotes');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
+const giMedidas = require('../db/gestionincidentes/medidas');
 const comunicacion = require('../db/gestionincidentes/comunicacion');
 const { requireSessionAgency } = require('../utils/requestAgency');
 
@@ -72,7 +73,7 @@ async function loadIncidentAuditLogs(incidentId) {
   }));
 }
 
-const CLOSED_INCIDENT_STATUSES = ['Cerrado', 'Cerrado con solución'];
+const CLOSED_INCIDENT_STATUSES = ['Cerrado', 'Cancelado', 'Resuelto'];
 
 function resolveClosedAt(incident, auditLogs) {
   if (!CLOSED_INCIDENT_STATUSES.includes(incident.status)) return null;
@@ -470,6 +471,13 @@ const sendEmail = asyncHandler(async (req, res) => {
   const allAuditLogs = await loadIncidentAuditLogs(id);
   incident.closedAt = resolveClosedAt(incident, allAuditLogs);
   incident.auditLogs = allAuditLogs.length > 0 ? [allAuditLogs[allAuditLogs.length - 1]] : [];
+  incident.latestComment = await giIncidents.loadLatestComment(incRaw.internal_id);
+
+  const gestion = await giMedidas.getGestionByIncidente(id);
+  incident.gestion = gestion;
+  incident.medidasSeguridad = gestion?.ID_gestion
+    ? await giMedidas.getMedidasByGestion(gestion.ID_gestion)
+    : [];
 
   const result = await sendIncidentNotification({ to: recipients, incident });
 
@@ -483,6 +491,7 @@ const sendEmail = asyncHandler(async (req, res) => {
     }),
   );
 
+  const destinatarios = recipients.join(', ');
   res.json({
     ok: true,
     incidentId: id,
@@ -490,8 +499,8 @@ const sendEmail = asyncHandler(async (req, res) => {
     mode: result.mode,
     message:
       result.mode === 'console'
-        ? 'Correo simulado en consola del servidor (SMTP no configurado).'
-        : `Notificación enviada a ${recipients.length} destinatario(s).`,
+        ? `Correo simulado en consola del servidor (SMTP no configurado). Enviado a: ${destinatarios}`
+        : `Enviado a: ${destinatarios}`,
   });
 });
 

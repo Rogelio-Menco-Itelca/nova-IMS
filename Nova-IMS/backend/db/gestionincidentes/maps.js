@@ -1,42 +1,33 @@
 /** Mapeos entre contrato API del frontend y catálogos de gestionincidentes */
 
 const STATUS_TO_GI = {
-  Nuevo: 'Abierto',
-  Asignado: 'Asignado',
-  'En camino': 'En proceso',
-  'En situación': 'En proceso',
-  Resuelto: 'Cerrado',
-  Cerrado: 'Cerrado',
-  'Cerrado con solución': 'Cerrado',
-  Cancelado: 'Cancelado',
-  Abierto: 'Abierto',
-  'En espera': 'En espera',
-  'En proceso': 'En proceso',
-  'En gestión OSGE': 'En gestión OSGE',
+  Nuevo: 'Nuevo',
+  'En gestión OSEG': 'En gestión OSEG',
   'Enviado a CERREM': 'Enviado a CERREM',
   'En evaluación CERREM': 'En evaluación CERREM',
-  'Aprobado con medidas': 'Aprobado con medidas',
   'Medidas asignadas': 'Medidas asignadas',
-  'Seguimiento activo': 'Seguimiento activo',
-  'Resuelto con medidas': 'Resuelto con medidas',
-  'Cerrado sin medidas': 'Cerrado sin medidas',
+  Cerrado: 'Cerrado',
+  Cancelado: 'Cancelado',
+  // POL
+  Asignado: 'Asignado',
+  'En camino': 'En camino',
+  'En proceso': 'En proceso',
+  Resuelto: 'Resuelto',
 };
 
 const STATUS_FROM_GI = {
-  Abierto: 'Nuevo',
-  'En espera': 'Nuevo',
-  Asignado: 'Asignado',
-  'En proceso': 'En camino',
-  Cerrado: 'Cerrado',
-  Cancelado: 'Cancelado',
-  'En gestión OSGE': 'En gestión OSGE',
+  Nuevo: 'Nuevo',
+  'En gestión OSEG': 'En gestión OSEG',
   'Enviado a CERREM': 'Enviado a CERREM',
   'En evaluación CERREM': 'En evaluación CERREM',
-  'Aprobado con medidas': 'Aprobado con medidas',
   'Medidas asignadas': 'Medidas asignadas',
-  'Seguimiento activo': 'Seguimiento activo',
-  'Resuelto con medidas': 'Resuelto con medidas',
-  'Cerrado sin medidas': 'Cerrado sin medidas',
+  Cerrado: 'Cerrado',
+  Cancelado: 'Cancelado',
+  // POL
+  Asignado: 'Asignado',
+  'En camino': 'En camino',
+  'En proceso': 'En proceso',
+  Resuelto: 'Resuelto',
 };
 
 const PRIORITY_TO_GI = {
@@ -72,7 +63,7 @@ function resolveLegacyAgencyCode(code) {
 }
 
 function mapStatusToGi(status) {
-  return STATUS_TO_GI[status] || status || 'Abierto';
+  return STATUS_TO_GI[status] || status || 'Nuevo';
 }
 
 function mapStatusFromGi(name) {

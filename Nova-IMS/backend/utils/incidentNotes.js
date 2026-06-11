@@ -18,6 +18,18 @@ function parseIncidentNotes(raw) {
   if (!value) return [];
 
   if (!value.includes(INCIDENT_NOTE_SEPARATOR)) {
+    const lines = value.split('\n');
+    const match = HEADER_RE.exec(lines[0] || '');
+    if (match) {
+      const body = lines.slice(1).join('\n').trim();
+      return [
+        {
+          timestamp: match[1].trim(),
+          author: match[2].trim() || 'Operador',
+          text: body || match[2].trim(),
+        },
+      ];
+    }
     return [{ timestamp: null, author: 'Registro anterior', text: value }];
   }
 

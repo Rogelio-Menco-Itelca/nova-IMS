@@ -110,6 +110,34 @@
           </div>
 
           <div class="space-y-6">
+            @if (activeTabId() !== 'new' && showMedidasTab()) {
+              <div class="flex gap-6 border-b border-gray-700">
+                <button
+                  type="button"
+                  [class.border-indigo-500]="detailTab() === 'detalle'"
+                  [class.text-indigo-400]="detailTab() === 'detalle'"
+                  [class.border-transparent]="detailTab() !== 'detalle'"
+                  [class.text-gray-400]="detailTab() !== 'detalle'"
+                  (click)="setDetailTab('detalle')"
+                  class="py-2 border-b-2 text-sm font-medium transition-colors"
+                >
+                  Detalle
+                </button>
+                <button
+                  type="button"
+                  [class.border-indigo-500]="detailTab() === 'medidas'"
+                  [class.text-indigo-400]="detailTab() === 'medidas'"
+                  [class.border-transparent]="detailTab() !== 'medidas'"
+                  [class.text-gray-400]="detailTab() !== 'medidas'"
+                  (click)="setDetailTab('medidas')"
+                  class="py-2 border-b-2 text-sm font-medium transition-colors"
+                >
+                  Medidas
+                </button>
+              </div>
+            }
+
+            @if (activeTabId() === 'new' || detailTab() === 'detalle') {
             <!-- Protocolo de Respuesta (Pestaña Colapsable) -->
             @if (recommendedProtocol(); as protocol) {
               <div
@@ -246,7 +274,13 @@
                 >
                   <option value="" disabled>Seleccione estado</option>
                   @for (st of incidentStatuses(); track st.id) {
-                    <option [value]="st.name">{{ st.name }}</option>
+                    <option
+                      [value]="st.name"
+                      [disabled]="!isStatusAllowed(st.name)"
+                      [class.opacity-40]="!isStatusAllowed(st.name)"
+                    >
+                      {{ statusLabel(st.name) }}
+                    </option>
                   }
                 </select>
                 @if (incidentStatuses().length === 0) {
@@ -450,11 +484,13 @@
                     id="map"
                     class="w-full h-[240px] sm:h-[280px] lg:h-full min-h-[240px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
                   >
-                    <div
-                      class="absolute inset-0 flex items-center justify-center text-gray-600 pointer-events-none"
-                    >
-                      Map View
-                    </div>
+                    @if (!mapReady()) {
+                      <div
+                        class="absolute inset-0 flex items-center justify-center text-gray-600 pointer-events-none"
+                      >
+                        Map View
+                      </div>
+                    }
                   </div>
                 </div>
               </div>
@@ -1127,6 +1163,15 @@
                   </div>
                 }
               </div>
+            }
+            }
+
+            @if (activeTabId() !== 'new' && showMedidasTab() && detailTab() === 'medidas' && activeIncident(); as incident) {
+              <app-medidas
+                [incidentId]="incident.id"
+                [workflowStatus]="workflowStatusForMedidas()"
+                [agency]="currentAgency()"
+              />
             }
           </div>
 
