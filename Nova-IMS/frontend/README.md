@@ -13,7 +13,7 @@ El backend debe estar activo en `http://localhost:3000`. Si aún no lo iniciaste
 ```bash
 cd ../backend
 pnpm install
-pnpm run db:init
+pnpm run db:import
 pnpm dev
 ```
 
@@ -111,7 +111,7 @@ frontend/
 
 **Error: `ECONNREFUSED 127.0.0.1:3000`** → El backend no está corriendo.
 
-**Login no funciona / da 401** → Asegúrate de haber ejecutado `pnpm run db:init` en el backend para sembrar los usuarios demo.
+**Login no funciona / da 401** → Verifica MySQL, el dump del cliente o un operador creado en Administración / LDAP.
 
 **Socket.IO no conecta** → Revisa que el proxy esté activo (`proxy.conf.json`) y que el backend esté en el puerto 3000.
 

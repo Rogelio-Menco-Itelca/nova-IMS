@@ -90,7 +90,7 @@ cd nova-IMS/Nova-IMS
 cd backend
 cp .env.example .env        # edita con tus credenciales MySQL
 pnpm install
-pnpm run db:init            # crea base, tablas, catálogos y usuarios demo
+pnpm run db:import          # esquema + catálogos base (datos operativos: dump del cliente)
 pnpm dev                    # http://localhost:3000
 ```
 
@@ -151,8 +151,7 @@ SMTP_PASS=tu_app_password
 | ------ | ----------- |
 | `pnpm dev` | Nodemon (hot reload) |
 | `pnpm start` | Producción |
-| `pnpm run db:init` | Crea base y catálogos |
-| `pnpm run db:import` | Esquema + seed + geo |
+| `pnpm run db:import` | Esquema + catálogos base en MySQL |
 | `pnpm run ldap:test` | Prueba login LDAP |
 | `pnpm audit` | Verifica vulnerabilidades |
 | `pnpm run lint` | ESLint |

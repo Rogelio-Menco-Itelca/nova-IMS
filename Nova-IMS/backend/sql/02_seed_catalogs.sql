@@ -1,11 +1,10 @@
 -- =====================================================================
--- gestionincidentes — extraído de Dump20260607.sql
+-- gestionincidentes — catálogos base (estructura operativa)
 -- Nova-IMS backend
+--
+-- Ejecutar después de 01_schema.sql.
+-- NO incluye: geo, correos, usuarios ni datos operativos (viven en la BD del cliente).
 -- =====================================================================
-
-CREATE DATABASE IF NOT EXISTS gestionincidentes
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
 
 USE gestionincidentes;
 
@@ -36,12 +35,11 @@ UNLOCK TABLES;
 
 -- ---- correosincidentes ----
 --
--- Dumping data for table `correosincidentes`
+-- Sin datos iniciales: los correos autorizados se gestionan en Administración.
 --
 
 LOCK TABLES `correosincidentes` WRITE;
 /*!40000 ALTER TABLE `correosincidentes` DISABLE KEYS */;
-INSERT INTO `correosincidentes` VALUES ('alexandra.higuera@itelca.com.co','csj','2026-06-04 15:57:39'),('alexandra.higuera@itelca.com.co','pol','2026-06-04 15:57:50'),('dilan.novoa@itelca.com.co','csj','2026-06-04 15:57:39'),('dilan.novoa@itelca.com.co','pol','2026-06-04 15:57:50'),('juan.perez@example.com','csj','2026-06-04 15:53:30'),('juan.perez@example.com','POL','2026-06-04 15:53:45'),('rogelio.menco@itelca.com.co','csj','2026-06-04 15:57:39'),('rogelio.menco@itelca.com.co','pol','2026-06-04 15:57:50'),('rogeliomenco4@gmail.com','csj','2026-06-04 15:57:39'),('rogeliomenco4@gmail.com','pol','2026-06-04 15:57:50');
 /*!40000 ALTER TABLE `correosincidentes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -129,7 +127,69 @@ UNLOCK TABLES;
 
 LOCK TABLES `permisos_de_rol` WRITE;
 /*!40000 ALTER TABLE `permisos_de_rol` DISABLE KEYS */;
-INSERT INTO `permisos_de_rol` VALUES (1,'RP-1','csj',1,1,1,1,1,1),(2,'RP-1','csj',2,1,1,1,1,1),(3,'RP-1','csj',3,1,1,1,1,1),(4,'RP-1','csj',4,1,1,1,1,1),(5,'RP-2','csj',1,1,1,1,1,0),(6,'RP-2','csj',2,1,1,1,1,0),(7,'RP-2','csj',3,1,1,0,0,0),(8,'RP-2','csj',4,0,0,0,0,0),(9,'RP-3','csj',1,1,1,0,0,0),(10,'RP-3','csj',2,1,1,1,1,0),(11,'RP-3','csj',3,0,0,0,0,0),(12,'RP-3','csj',4,0,0,0,0,0),(13,'RP-4','csj',1,1,1,0,0,0),(14,'RP-4','csj',2,1,1,0,1,0),(15,'RP-4','csj',3,0,0,0,0,0),(16,'RP-4','csj',4,0,0,0,0,0),(17,'RP-5','csj',1,1,1,0,0,0),(18,'RP-5','csj',2,1,1,0,0,0),(19,'RP-5','csj',3,1,1,0,0,0),(20,'RP-5','csj',4,0,0,0,0,0),(21,'RP-6','csj',1,1,1,0,0,0),(22,'RP-6','csj',2,1,1,0,0,0),(23,'RP-6','csj',3,1,1,0,0,0),(24,'RP-6','csj',4,0,0,0,0,0),(49,'RP-8','pol',1,1,1,1,1,1),(50,'RP-8','pol',2,1,1,1,1,1),(51,'RP-8','pol',3,1,1,1,1,1),(52,'RP-8','pol',4,1,1,1,1,1),(53,'RP-9','pol',1,1,1,1,1,0),(54,'RP-9','pol',2,1,1,1,1,0),(55,'RP-9','pol',3,1,1,0,0,0),(56,'RP-9','pol',4,0,0,0,0,0),(57,'RP-10','pol',1,1,1,0,0,0),(58,'RP-10','pol',2,1,1,1,1,0),(59,'RP-10','pol',3,0,0,0,0,0),(60,'RP-10','pol',4,0,0,0,0,0),(61,'RP-11','pol',1,1,1,0,0,0),(62,'RP-11','pol',2,1,1,0,1,0),(63,'RP-11','pol',3,0,0,0,0,0),(64,'RP-11','pol',4,0,0,0,0,0),(65,'RP-12','pol',1,1,1,0,0,0),(66,'RP-12','pol',2,1,1,0,0,0),(67,'RP-12','pol',3,1,1,0,0,0),(68,'RP-12','pol',4,0,0,0,0,0),(69,'RP-13','pol',1,1,1,0,0,0),(70,'RP-13','pol',2,1,1,0,0,0),(71,'RP-13','pol',3,1,1,0,0,0),(72,'RP-13','pol',4,0,0,0,0,0);
+SET @perm_role_rp_1 = 'RP-1';
+SET @perm_role_rp_2 = 'RP-2';
+SET @perm_role_rp_3 = 'RP-3';
+SET @perm_role_rp_4 = 'RP-4';
+SET @perm_role_rp_5 = 'RP-5';
+SET @perm_role_rp_6 = 'RP-6';
+SET @perm_role_rp_8 = 'RP-8';
+SET @perm_role_rp_9 = 'RP-9';
+SET @perm_role_rp_10 = 'RP-10';
+SET @perm_role_rp_11 = 'RP-11';
+SET @perm_role_rp_12 = 'RP-12';
+SET @perm_role_rp_13 = 'RP-13';
+SET @perm_agency_csj = 'csj';
+SET @perm_agency_pol = 'pol';
+INSERT INTO `permisos_de_rol` (`id_permiso`, `id_rol`, `ID_Agencia`, `module_id`, `enabled`, `can_view`, `can_create`, `can_edit`, `can_delete`) VALUES
+(1, @perm_role_rp_1, @perm_agency_csj, 1, 1, 1, 1, 1, 1),
+(2, @perm_role_rp_1, @perm_agency_csj, 2, 1, 1, 1, 1, 1),
+(3, @perm_role_rp_1, @perm_agency_csj, 3, 1, 1, 1, 1, 1),
+(4, @perm_role_rp_1, @perm_agency_csj, 4, 1, 1, 1, 1, 1),
+(5, @perm_role_rp_2, @perm_agency_csj, 1, 1, 1, 1, 1, 0),
+(6, @perm_role_rp_2, @perm_agency_csj, 2, 1, 1, 1, 1, 0),
+(7, @perm_role_rp_2, @perm_agency_csj, 3, 1, 1, 0, 0, 0),
+(8, @perm_role_rp_2, @perm_agency_csj, 4, 0, 0, 0, 0, 0),
+(9, @perm_role_rp_3, @perm_agency_csj, 1, 1, 1, 0, 0, 0),
+(10, @perm_role_rp_3, @perm_agency_csj, 2, 1, 1, 1, 1, 0),
+(11, @perm_role_rp_3, @perm_agency_csj, 3, 0, 0, 0, 0, 0),
+(12, @perm_role_rp_3, @perm_agency_csj, 4, 0, 0, 0, 0, 0),
+(13, @perm_role_rp_4, @perm_agency_csj, 1, 1, 1, 0, 0, 0),
+(14, @perm_role_rp_4, @perm_agency_csj, 2, 1, 1, 0, 1, 0),
+(15, @perm_role_rp_4, @perm_agency_csj, 3, 0, 0, 0, 0, 0),
+(16, @perm_role_rp_4, @perm_agency_csj, 4, 0, 0, 0, 0, 0),
+(17, @perm_role_rp_5, @perm_agency_csj, 1, 1, 1, 0, 0, 0),
+(18, @perm_role_rp_5, @perm_agency_csj, 2, 1, 1, 0, 0, 0),
+(19, @perm_role_rp_5, @perm_agency_csj, 3, 1, 1, 0, 0, 0),
+(20, @perm_role_rp_5, @perm_agency_csj, 4, 0, 0, 0, 0, 0),
+(21, @perm_role_rp_6, @perm_agency_csj, 1, 1, 1, 0, 0, 0),
+(22, @perm_role_rp_6, @perm_agency_csj, 2, 1, 1, 0, 0, 0),
+(23, @perm_role_rp_6, @perm_agency_csj, 3, 1, 1, 0, 0, 0),
+(24, @perm_role_rp_6, @perm_agency_csj, 4, 0, 0, 0, 0, 0),
+(49, @perm_role_rp_8, @perm_agency_pol, 1, 1, 1, 1, 1, 1),
+(50, @perm_role_rp_8, @perm_agency_pol, 2, 1, 1, 1, 1, 1),
+(51, @perm_role_rp_8, @perm_agency_pol, 3, 1, 1, 1, 1, 1),
+(52, @perm_role_rp_8, @perm_agency_pol, 4, 1, 1, 1, 1, 1),
+(53, @perm_role_rp_9, @perm_agency_pol, 1, 1, 1, 1, 1, 0),
+(54, @perm_role_rp_9, @perm_agency_pol, 2, 1, 1, 1, 1, 0),
+(55, @perm_role_rp_9, @perm_agency_pol, 3, 1, 1, 0, 0, 0),
+(56, @perm_role_rp_9, @perm_agency_pol, 4, 0, 0, 0, 0, 0),
+(57, @perm_role_rp_10, @perm_agency_pol, 1, 1, 1, 0, 0, 0),
+(58, @perm_role_rp_10, @perm_agency_pol, 2, 1, 1, 1, 1, 0),
+(59, @perm_role_rp_10, @perm_agency_pol, 3, 0, 0, 0, 0, 0),
+(60, @perm_role_rp_10, @perm_agency_pol, 4, 0, 0, 0, 0, 0),
+(61, @perm_role_rp_11, @perm_agency_pol, 1, 1, 1, 0, 0, 0),
+(62, @perm_role_rp_11, @perm_agency_pol, 2, 1, 1, 0, 1, 0),
+(63, @perm_role_rp_11, @perm_agency_pol, 3, 0, 0, 0, 0, 0),
+(64, @perm_role_rp_11, @perm_agency_pol, 4, 0, 0, 0, 0, 0),
+(65, @perm_role_rp_12, @perm_agency_pol, 1, 1, 1, 0, 0, 0),
+(66, @perm_role_rp_12, @perm_agency_pol, 2, 1, 1, 0, 0, 0),
+(67, @perm_role_rp_12, @perm_agency_pol, 3, 1, 1, 0, 0, 0),
+(68, @perm_role_rp_12, @perm_agency_pol, 4, 0, 0, 0, 0, 0),
+(69, @perm_role_rp_13, @perm_agency_pol, 1, 1, 1, 0, 0, 0),
+(70, @perm_role_rp_13, @perm_agency_pol, 2, 1, 1, 0, 0, 0),
+(71, @perm_role_rp_13, @perm_agency_pol, 3, 1, 1, 0, 0, 0),
+(72, @perm_role_rp_13, @perm_agency_pol, 4, 0, 0, 0, 0, 0);
 /*!40000 ALTER TABLE `permisos_de_rol` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -234,12 +294,11 @@ UNLOCK TABLES;
 
 -- ---- usuarios ----
 --
--- Dumping data for table `usuarios`
+-- Sin datos iniciales: los operadores se crean en Administración (API /operators).
 --
 
 LOCK TABLES `usuarios` WRITE;
 /*!40000 ALTER TABLE `usuarios` DISABLE KEYS */;
-INSERT INTO `usuarios` VALUES ('MCHAPARRO','miguel','david','chaparro','menco','RP-2','CSJ','rogeliomenco4@gmail.com','3026172447','2026-06-06 21:17:48','INGchaparro04#+','Activo','OK'),('rbenavides','Rogelio','Andrés','Menco','Benavides','RP-1','CSJ','rogelio.menco@itelca.com.co','3026172447','2026-05-29 10:06:43','INGbenavides04#+','Activo','');
 /*!40000 ALTER TABLE `usuarios` ENABLE KEYS */;
 UNLOCK TABLES;
 SET FOREIGN_KEY_CHECKS = 1;
