@@ -2,7 +2,7 @@
  * Prueba conexión LDAP y credenciales de un uid.
  * Uso: npm run ldap:test -- <uid> <password>
  */
-const path = require('path');
+const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const ldapConfig = require('../config/ldap');

@@ -6,8 +6,8 @@
  * Geo, usuarios, correos e incidentes: ya en la BD del cliente (dump MySQL).
  * No se versionan en este repositorio.
  */
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const mysql = require("mysql2/promise");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 

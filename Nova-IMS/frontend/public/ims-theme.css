@@ -195,8 +195,8 @@ html.theme-light aside.ims-sidebar .bg-blue-600,
 
 html.theme-light aside.ims-sidebar .disabled\:bg-gray-500:disabled,
 .theme-light aside.ims-sidebar .disabled\:bg-gray-500:disabled {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 0.45) !important;
+  background-color: #356391 !important;
+  color: #f0f7ff !important;
 }
 
 /* ── HEADER ─────────────────────────────────────────────── */
@@ -642,11 +642,6 @@ html.theme-light .ims-main h3.text-white,
 .theme-light .ims-main h3.text-white {
   color: var(--lt-text-primary) !important;
   letter-spacing: -0.01em;
-}
-
-html.theme-light header.ims-header,
-.theme-light header.ims-header {
-  background-color: var(--lt-bg-card) !important;
 }
 
 /* Menú activo del sidebar — azul brillante */

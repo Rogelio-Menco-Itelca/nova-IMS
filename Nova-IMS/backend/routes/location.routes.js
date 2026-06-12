@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
+const path = require('node:path');
 const socket = require('../realtime/socket');
 const giLocation = require('../db/gestionincidentes/location');
 const { reverseGeocode } = require('../services/geocode.service');
