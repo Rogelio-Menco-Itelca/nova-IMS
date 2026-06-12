@@ -122,7 +122,7 @@ function parseNoteTimestamp(raw: string): Date | null {
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
-  const fallback = Date.parse(value.replace(/,/g, ''));
+  const fallback = Date.parse(value.replaceAll(',', ''));
   return Number.isNaN(fallback) ? null : new Date(fallback);
 }
 

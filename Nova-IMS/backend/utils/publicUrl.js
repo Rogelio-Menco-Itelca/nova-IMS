@@ -35,44 +35,67 @@ let cachedResolvedPublicUrl = null;
 let cachedNgrokDiscovery = { url: null, at: 0 };
 const DISCOVERY_TTL_MS = 15_000;
 
-function discoverNgrokPublicUrl() {
-  const now = Date.now();
-  if (cachedNgrokDiscovery.url && now - cachedNgrokDiscovery.at < DISCOVERY_TTL_MS) {
-    return Promise.resolve(cachedNgrokDiscovery.url);
+function pickHttpsNgrokUrl(tunnels) {
+  for (const tunnel of tunnels) {
+    const url = String(tunnel.public_url || '');
+    if (url.startsWith('https://')) {
+      return normalizeBaseUrl(url);
+    }
   }
+  return '';
+}
 
-  return new Promise((resolve) => {
+function parseNgrokTunnelsResponse(body) {
+  try {
+    const data = JSON.parse(body);
+    const tunnels = Array.isArray(data.tunnels) ? data.tunnels : [];
+    return pickHttpsNgrokUrl(tunnels) || null;
+  } catch {
+    return null;
+  }
+}
+
+function readHttpResponseBody(res) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    res.on('data', (chunk) => {
+      body += chunk;
+    });
+    res.on('end', () => resolve(body));
+    res.on('error', reject);
+  });
+}
+
+function fetchNgrokTunnelsBody() {
+  return new Promise((resolve, reject) => {
     const req = http.get('http://127.0.0.1:4040/api/tunnels', (res) => {
-      let body = '';
-      res.on('data', (chunk) => {
-        body += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const data = JSON.parse(body);
-          const tunnels = Array.isArray(data.tunnels) ? data.tunnels : [];
-          const httpsTunnel = tunnels.find((t) =>
-            String(t.public_url || '').startsWith('https://'),
-          );
-          const url = normalizeBaseUrl(httpsTunnel?.public_url || '');
-          cachedNgrokDiscovery = { url: url || null, at: Date.now() };
-          resolve(url || null);
-        } catch {
-          cachedNgrokDiscovery = { url: null, at: Date.now() };
-          resolve(null);
-        }
-      });
+      readHttpResponseBody(res).then(resolve).catch(reject);
     });
-    req.on('error', () => {
-      cachedNgrokDiscovery = { url: null, at: Date.now() };
-      resolve(null);
-    });
+    req.on('error', reject);
     req.setTimeout(2000, () => {
       req.destroy();
-      cachedNgrokDiscovery = { url: null, at: Date.now() };
-      resolve(null);
+      reject(new Error('ngrok discovery timeout'));
     });
   });
+}
+
+function cacheNgrokDiscovery(url) {
+  cachedNgrokDiscovery = { url: url || null, at: Date.now() };
+  return url || null;
+}
+
+async function discoverNgrokPublicUrl() {
+  const now = Date.now();
+  if (cachedNgrokDiscovery.url && now - cachedNgrokDiscovery.at < DISCOVERY_TTL_MS) {
+    return cachedNgrokDiscovery.url;
+  }
+
+  try {
+    const body = await fetchNgrokTunnelsBody();
+    return cacheNgrokDiscovery(parseNgrokTunnelsResponse(body));
+  } catch {
+    return cacheNgrokDiscovery(null);
+  }
 }
 
 async function resolvePublicUrl() {

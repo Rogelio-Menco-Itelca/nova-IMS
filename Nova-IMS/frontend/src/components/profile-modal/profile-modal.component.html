@@ -13,12 +13,12 @@
         <button
           type="button"
           (click)="close()"
-          class="absolute top-3 right-3 p-2 rounded-lg profile-modal-close transition-colors"
-          aria-label="Cerrar"
+          class="absolute top-3 right-3 flex flex-col items-center gap-0.5 p-2 rounded-lg profile-modal-close transition-colors"
         >
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
+          <span class="text-[10px] leading-none font-medium">Cerrar</span>
         </button>
 
         <div class="flex flex-col items-center text-center pt-2">
@@ -27,33 +27,35 @@
             class="profile-modal-avatar-wrap relative group"
             (click)="triggerPhotoPicker()"
             [disabled]="isUpdatingPhoto()"
-            aria-label="Cambiar foto de perfil"
           >
             @if (photoService.photoUrl(); as photo) {
               <img [src]="photo" alt="" class="profile-modal-avatar-img" />
             } @else {
-              <div class="profile-modal-avatar-fallback">
+              <div class="profile-modal-avatar-fallback" aria-hidden="true">
                 {{ photoService.initials(user.name) }}
               </div>
             }
             <span class="profile-modal-avatar-overlay">
               @if (isUpdatingPhoto()) {
-                <span class="text-xs font-medium">…</span>
+                <span class="text-xs font-medium">Guardando…</span>
               } @else {
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                  />
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
+                <span class="flex flex-col items-center gap-1 px-1 text-center">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  <span class="text-[10px] font-medium leading-tight">Cambiar foto</span>
+                </span>
               }
             </span>
           </button>

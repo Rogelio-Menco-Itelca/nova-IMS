@@ -635,6 +635,17 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  private isExactCatalogNameMatch(itemName: string, candidate: string): boolean {
+    return Boolean(candidate) && itemName === candidate;
+  }
+
+  private catalogPartialMatchScore(itemName: string, candidate: string): number {
+    if (!candidate) return 0;
+    if (candidate.includes(itemName)) return itemName.length;
+    if (itemName.includes(candidate) && candidate.length >= 4) return candidate.length;
+    return 0;
+  }
+
   private findBestCatalogMatch<T extends { name: string }>(
     catalog: T[],
     candidates: string[],
@@ -645,16 +656,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const itemName = this.normalizeGeoName(item.name);
       for (const raw of candidates) {
         const candidate = this.normalizeGeoName(raw);
-        if (!candidate) continue;
+        if (this.isExactCatalogNameMatch(itemName, candidate)) return item;
 
-        if (itemName === candidate) return item;
-
-        let score = 0;
-        if (candidate.includes(itemName)) {
-          score = itemName.length;
-        } else if (itemName.includes(candidate) && candidate.length >= 4) {
-          score = candidate.length;
-        }
+        const score = this.catalogPartialMatchScore(itemName, candidate);
         if (score > (best?.score ?? 0)) {
           best = { item, score };
         }
@@ -792,30 +796,56 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.runReverseGeocode(lat, lng, true);
   }
 
-  private runReverseGeocode(lat: number, lng: number, fromGpsRequest: boolean) {
-    this.ensureGeocoderReady()
-      .then(() => {
-        if (!this.geocoder) return;
+  private geocodeLatLng(
+    geocoder: google.maps.Geocoder,
+    lat: number,
+    lng: number,
+  ): Promise<{
+    results: google.maps.GeocoderResult[] | null;
+    status: google.maps.GeocoderStatusString;
+  }> {
+    return new Promise((resolve) => {
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        resolve({ results: results ?? null, status });
+      });
+    });
+  }
 
-        this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          this.ngZone.run(() => {
-            if (status === 'OK' && results?.[0]) {
-              const address = results[0].formatted_address;
-              if (fromGpsRequest) {
-                this.incidentForm.patchValue({ location: address }, { emitEvent: false });
-              } else {
-                const current = String(this.incidentForm.get('location')?.value || '').trim();
-                if (!current) {
-                  this.incidentForm.patchValue({ location: address }, { emitEvent: false });
-                }
-              }
-              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
-              this.cdr.markForCheck();
-            }
-          });
-        });
-      })
-      .catch(() => {});
+  private patchLocationFromReverseGeocode(address: string, fromGpsRequest: boolean): void {
+    if (fromGpsRequest) {
+      this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+      return;
+    }
+    const current = String(this.incidentForm.get('location')?.value || '').trim();
+    if (!current) {
+      this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+    }
+  }
+
+  private handleReverseGeocodeResult(
+    results: google.maps.GeocoderResult[] | null,
+    status: google.maps.GeocoderStatusString,
+    fromGpsRequest: boolean,
+  ): void {
+    if (status !== 'OK' || !results?.[0]) return;
+
+    this.patchLocationFromReverseGeocode(results[0].formatted_address, fromGpsRequest);
+    this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
+    this.cdr.markForCheck();
+  }
+
+  private async runReverseGeocode(lat: number, lng: number, fromGpsRequest: boolean) {
+    try {
+      await this.ensureGeocoderReady();
+      if (!this.geocoder) return;
+
+      const { results, status } = await this.geocodeLatLng(this.geocoder, lat, lng);
+      this.ngZone.run(() => {
+        this.handleReverseGeocodeResult(results, status, fromGpsRequest);
+      });
+    } catch {
+      // Sin Maps/geocoder: se mantienen coordenadas ya aplicadas.
+    }
   }
 
   private destroyMap() {
