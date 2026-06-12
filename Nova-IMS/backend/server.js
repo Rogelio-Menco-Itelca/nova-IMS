@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const http = require('http');
+const http = require('node:http');
 const notificationsRoutes = require('./routes/notification.route');
 const { pool, testConnection } = require('./config/db');
 const routes = require('./routes');

@@ -47,12 +47,12 @@ const THEME_KEY = 'ims_theme';
   ],
 })
 export class AppComponent implements OnInit {
-  notificationService = inject(NotificationService);
-  locationRequestService = inject(LocationRequestService);
-  authService = inject(AuthService);
-  inactivityService = inject(InactivityService);
-  profilePhotoService = inject(ProfilePhotoService);
-  private incidentLeaveGuard = inject(IncidentLeaveGuardService);
+  readonly notificationService = inject(NotificationService);
+  readonly locationRequestService = inject(LocationRequestService);
+  readonly authService = inject(AuthService);
+  readonly inactivityService = inject(InactivityService);
+  readonly profilePhotoService = inject(ProfilePhotoService);
+  private readonly incidentLeaveGuard = inject(IncidentLeaveGuardService);
 
   private readonly elementRef = inject(ElementRef);
 

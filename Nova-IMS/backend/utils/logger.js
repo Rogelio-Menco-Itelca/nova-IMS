@@ -4,7 +4,9 @@
  */
 
 function write(level, args) {
-  const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+  let fn = console.log;
+  if (level === 'error') fn = console.error;
+  else if (level === 'warn') fn = console.warn;
   fn(...args);
 }
 

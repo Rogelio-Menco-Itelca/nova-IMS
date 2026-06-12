@@ -9,7 +9,7 @@
  * 5. http://localhost:PORT
  */
 
-const http = require('http');
+const http = require('node:http');
 const logger = require('./logger');
 
 function isLoopbackHost(hostname) {

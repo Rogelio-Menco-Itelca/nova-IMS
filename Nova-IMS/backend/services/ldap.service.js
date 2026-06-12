@@ -67,9 +67,7 @@ class LdapAuthError extends Error {
  */
 function escapeFilter(value) {
   const str = String(value).replaceAll('\0', '\\00');
-  return str.replaceAll(/[\\*()]/g, (c) =>
-    '\\' + c.codePointAt(0).toString(16).padStart(2, '0'),
-  );
+  return str.replace(/[()*\\]/g, (c) => `\\${c.codePointAt(0).toString(16).padStart(2, '0')}`);
 }
 
 function entryDn(entry) {
@@ -89,7 +87,7 @@ function createClient() {
     timeout: ldapConfig.timeoutMs,
     connectTimeout: ldapConfig.timeoutMs,
   };
-  if (ldapConfig.url && ldapConfig.url.startsWith('ldaps://')) {
+  if (ldapConfig.url?.startsWith('ldaps://')) {
     options.tlsOptions = { rejectUnauthorized: ldapConfig.tlsRejectUnauthorized };
   }
   return new Client(options);

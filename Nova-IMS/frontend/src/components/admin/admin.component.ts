@@ -63,12 +63,12 @@ function adminSlicePage<T>(items: T[], page: number): T[] {
   host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class AdminComponent implements OnInit {
-  private fb = inject(FormBuilder);
-  private notificationService = inject(NotificationService);
-  configService = inject(ConfigurationService);
-  incidentService = inject(IncidentService);
-  personService = inject(PersonService);
-  private authService = inject(AuthService);
+  private readonly fb = inject(FormBuilder);
+  private readonly notificationService = inject(NotificationService);
+  readonly configService = inject(ConfigurationService);
+  readonly incidentService = inject(IncidentService);
+  readonly personService = inject(PersonService);
+  private readonly authService = inject(AuthService);
 
   activeTab = signal<AdminTab>('users');
 

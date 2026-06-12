@@ -15,12 +15,6 @@ function pickText(bodyVal, prevVal) {
   return nullIfEmpty(prevVal);
 }
 
-function pickDate(bodyVal, prevVal) {
-  const cleaned = nullIfEmpty(bodyVal);
-  if (cleaned !== null) return cleaned;
-  return nullIfEmpty(prevVal);
-}
-
 function pickInt(bodyVal, prevVal) {
   const raw = bodyVal !== undefined && bodyVal !== null && bodyVal !== '' ? bodyVal : null;
   if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
@@ -205,9 +199,9 @@ async function upsertGestion(visibleId, body, user) {
     ? prev.tramite_destino
     : pickText(body.tramite_destino, prev?.tramite_destino);
 
-  const fechaCerrem = pickDate(body.fecha_cerrem, prev?.fecha_cerrem);
+  const fechaCerrem = pickText(body.fecha_cerrem, prev?.fecha_cerrem);
   const resolucionCerrem = pickText(body.resolucion_cerrem, prev?.resolucion_cerrem);
-  const fechaResolucion = pickDate(body.fecha_resolucion, prev?.fecha_resolucion);
+  const fechaResolucion = pickText(body.fecha_resolucion, prev?.fecha_resolucion);
   const idRiesgo = pickInt(body.ID_riesgo, prev?.ID_riesgo);
   const tipoEsquema = pickText(body.tipo_esquema, prev?.tipo_esquema);
   const compartidoCon = pickText(body.compartido_con, prev?.compartido_con);
