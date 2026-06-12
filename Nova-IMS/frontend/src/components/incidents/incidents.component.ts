@@ -98,7 +98,7 @@ const BOGOTA_CENTER = { lat: 4.651, lng: -74.072 };
 const BOGOTA_DEFAULT_ZOOM = 11;
 const DASHBOARD_SINGLE_MARKER_ZOOM = 13;
 const DASHBOARD_FIT_MAX_ZOOM = 15;
-/** Límite de pan del mapa: todo el territorio colombiano */
+/** Límite de pan del mapa: territorio colombiano completo */
 const COLOMBIA_BOUNDS = {
   north: 13.5,
   south: -4.5,

@@ -80,7 +80,7 @@ export function describeClosedReviewStages(
 
 /**
  * Incidente cerrado/cancelado: solo bloques con datos guardados.
- * Flujo acumulativo: CERREM muestra OSEG+CERREM; medidas muestra todo lo guardado.
+ * Flujo acumulativo: CERREM muestra OSEG+CERREM; medidas muestra cada etapa registrada.
  */
 export function resolveClosedMedidasPermissions(
   gestion: GestionSnapshot | null | undefined,
