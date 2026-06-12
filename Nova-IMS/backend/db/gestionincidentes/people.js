@@ -263,7 +263,7 @@ async function updatePerson(id, data) {
 
   const agencyCode = normalizeAgencyCode(data.agencyCode || existing.id_agencia);
   let roleId = existing.id_rol_p;
-  if (data.roleId != null || data.roleName) {
+  if (data.roleId ?? data.roleName) {
     roleId = await resolvePersonRoleId(data.roleId, data.roleName, agencyCode);
     if (!roleId) throw new HttpError(400, 'Rol de persona no válido para la agencia');
   }
@@ -286,8 +286,7 @@ async function updatePerson(id, data) {
   const contacto = normalizeOptional(data.contacto ?? data.phone ?? existing.contacto);
   const newComment = normalizeOptional(data.comentarios ?? data.notes);
   const previousComment = normalizeOptional(existing.comentarios);
-  const estado =
-    data.status != null ? normalizePersonStatus(data.status) : normalizePersonStatus(existing.estado);
+  const estado = normalizePersonStatus(data.status ?? existing.estado);
 
   await pool.query(
     `UPDATE ${TABLE} SET
