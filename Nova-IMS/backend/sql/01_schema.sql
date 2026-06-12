@@ -209,6 +209,7 @@ CREATE TABLE `correosincidentes` (
   `Correo` varchar(150) NOT NULL,
   `ID_Agencia` varchar(5) NOT NULL,
   `FechaRegistro` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `estado` varchar(20) NOT NULL DEFAULT 'Activo',
   PRIMARY KEY (`Correo`,`ID_Agencia`),
   KEY `FK_CorreosIncidentes_Agencias` (`ID_Agencia`),
   CONSTRAINT `FK_CorreosIncidentes_Agencias` FOREIGN KEY (`ID_Agencia`) REFERENCES `agencias` (`IDAgencias`)

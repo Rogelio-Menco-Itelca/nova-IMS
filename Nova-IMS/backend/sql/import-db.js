@@ -1,8 +1,10 @@
 /**
- * Importa gestionincidentes desde los SQL del repo.
+ * Importa esquema y catálogos base en MySQL (gestionincidentes).
  *
- *   node sql/import-db.js --reset     → 01_schema + 02_seed_catalogs + 03_seed_geo
- *   node sql/import-db.js --full      → gestionincidentes_dump.sql (dump completo)
+ *   node sql/import-db.js
+ *
+ * Geo, usuarios, correos e incidentes: ya en la BD del cliente (dump MySQL).
+ * No se versionan en este repositorio.
  */
 const fs = require("fs");
 const path = require("path");
@@ -16,14 +18,6 @@ async function runSqlFile(conn, filePath) {
 }
 
 async function run() {
-  const full = process.argv.includes("--full");
-  const reset = process.argv.includes("--reset");
-
-  if (!full && !reset) {
-    console.error("[IMPORT] Indique --reset (esquema + catálogos) o --full (dump completo).");
-    process.exit(1);
-  }
-
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 3306),
@@ -35,14 +29,9 @@ async function run() {
   const sqlDir = __dirname;
 
   try {
-    if (full) {
-      await runSqlFile(conn, path.join(sqlDir, "gestionincidentes_dump.sql"));
-    } else {
-      await runSqlFile(conn, path.join(sqlDir, "01_schema.sql"));
-      await runSqlFile(conn, path.join(sqlDir, "02_seed_catalogs.sql"));
-      await runSqlFile(conn, path.join(sqlDir, "03_seed_geo.sql"));
-    }
-    console.log("[IMPORT] OK");
+    await runSqlFile(conn, path.join(sqlDir, "01_schema.sql"));
+    await runSqlFile(conn, path.join(sqlDir, "02_seed_catalogs.sql"));
+    console.log("[IMPORT] OK — catálogos base. Datos operativos: usar dump del cliente en MySQL.");
   } finally {
     await conn.end();
   }

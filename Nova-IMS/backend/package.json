@@ -7,8 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:import": "node sql/import-db.js --reset",
-    "db:import:full": "node sql/import-db.js --full",
+    "db:import": "node sql/import-db.js",
     "ldap:test": "node scripts/ldap-login-test.js"
   },
   "dependencies": {

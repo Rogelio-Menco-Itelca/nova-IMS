@@ -80,6 +80,8 @@ temp/
 # ============================================================
 *.sql.backup
 *.dump
+backend/sql/gestionincidentes_dump.sql
+backend/sql/*_dump.sql
 
 # ============================================================
 # Artefactos propios del proyecto

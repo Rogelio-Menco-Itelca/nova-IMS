@@ -21,7 +21,10 @@ async function buildRolePermissions() {
 
   const permByRole = {};
   perms.forEach((p) => {
-    (permByRole[p.id_rol] = permByRole[p.id_rol] || {})[p.module_id] = p;
+    if (!permByRole[p.id_rol]) {
+      permByRole[p.id_rol] = {};
+    }
+    permByRole[p.id_rol][p.module_id] = p;
   });
 
   return roles.map((r) => ({

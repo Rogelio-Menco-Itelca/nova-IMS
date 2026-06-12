@@ -13,7 +13,6 @@ const { resolveUserContext } = require('./users');
 const { requireAgencyInput } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
-const { ensureEmailStatusColumn } = require('./correosSchema');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident } = require('./location');
 const { isFinalState, requiresMedidas, isForwardStatusTransition } = require('./transitions');
@@ -1029,17 +1028,8 @@ async function loadAuditLogs(visibleId) {
   return rows;
 }
 
-async function listNotificationEmails() {
-  await ensureEmailStatusColumn();
-  const [rows] = await pool.query(
-    `SELECT Correo AS email FROM correosincidentes
-     WHERE COALESCE(NULLIF(estado, ''), 'Activo') = 'Activo'
-     GROUP BY Correo ORDER BY Correo`,
-  );
-  return rows;
-}
-
 async function emailAllowed(recipients) {
+  const { ensureEmailStatusColumn } = require('./correosSchema');
   await ensureEmailStatusColumn();
   const ph = recipients.map(() => '?').join(',');
   const [rows] = await pool.query(
@@ -1061,7 +1051,6 @@ module.exports = {
   lookupVehicleByPlate,
   writeAudit,
   loadAuditLogs,
-  listNotificationEmails,
   emailAllowed,
   mapIncidentRow,
   latestLocationForIncident,

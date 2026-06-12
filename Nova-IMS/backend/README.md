@@ -22,15 +22,13 @@ pnpm install
 pnpm dev                   # http://localhost:3000
 ```
 
-Importa la base **`gestionincidentes`** desde `backend/sql/` (extraído de `Dump20260607.sql`):
+Base **`gestionincidentes`**: en producción se usa el dump MySQL del cliente. Para solo esquema + catálogos base:
 
 ```bash
-pnpm run db:import        # esquema + catálogos + geo
-# o
-pnpm run db:import:full   # dump completo
+pnpm run db:import
 ```
 
-Ver `sql/README.md` para detalle de archivos.
+Ver `sql/README.md` (geo, usuarios y operación no van en el repo).
 
 ---
 

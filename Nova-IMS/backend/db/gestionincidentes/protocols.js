@@ -29,7 +29,10 @@ async function hydrateSteps(protocols) {
   );
   const byP = {};
   steps.forEach((s) => {
-    (byP[s.protocol_id] = byP[s.protocol_id] || []).push(s.description);
+    if (!byP[s.protocol_id]) {
+      byP[s.protocol_id] = [];
+    }
+    byP[s.protocol_id].push(s.description);
   });
   return protocols.map((p) => ({
     id: p.id,

@@ -1,39 +1,44 @@
 # Base de datos `gestionincidentes`
 
-Scripts extraídos del dump oficial **`Dump20260607.sql`**.
+## Política del proyecto
 
-## Archivos
+| Qué | Dónde vive |
+|-----|------------|
+| Esquema de tablas | `01_schema.sql` (repo) |
+| Catálogos base (agencias, roles, eventos CSJ, permisos…) | `02_seed_catalogs.sql` (repo) |
+| Geo, usuarios, correos, incidentes | **MySQL del cliente** (dump oficial, p. ej. `Dump20260612.sql`) |
+| Alta de operadores y correos en runtime | Módulo **Administración** (API) |
 
-| Archivo | Contenido |
-|---------|-----------|
-| `gestionincidentes_dump.sql` | Copia íntegra del dump (referencia / restore total) |
-| `01_schema.sql` | `CREATE DATABASE` + 39 tablas (sin datos operativos) |
-| `02_seed_catalogs.sql` | Catálogos: agencias, roles, eventos, prioridades, origen, estados, usuarios, etc. |
-| `03_seed_geo.sql` | Departamentos y municipios (DIVIPOLA CSJ) |
-| `import-db.js` | Script Node para importar |
+La aplicación **no** embebe DIVIPOLA ni datos operativos en código ni en seeds del repo.
 
-## Importar en MySQL
+## Archivos en este directorio
 
-### Opción A — Esquema + catálogos (recomendado dev)
+| Archivo | Uso |
+|---------|-----|
+| `01_schema.sql` | `CREATE DATABASE` + tablas |
+| `02_seed_catalogs.sql` | Catálogos mínimos (sin usuarios, correos ni geo) |
+| `import-db.js` | Ejecuta esquema + catálogos base |
 
-Recrea tablas y carga catálogos. **Borra datos** de las tablas del esquema.
+## Instalación
+
+### Entorno con BD del cliente (producción / CSJ)
+
+Restaurar el dump MySQL del cliente en Workbench o CLI. No hace falta `db:import` si la BD ya está poblada.
+
+### Entorno nuevo solo con catálogos base
 
 ```bash
 cd backend
-npm run db:import
+pnpm run db:import
 ```
 
-### Opción B — Dump completo
+Luego importar en MySQL el dump del cliente para geo y datos operativos.
 
-Restaura exactamente lo del dump (incluye auditoría, notificaciones, ubicaciones, etc.):
+### Manual (Workbench)
 
-```bash
-npm run db:import:full
-```
-
-### Opción C — MySQL Workbench
-
-Ejecute en orden: `01_schema.sql` → `02_seed_catalogs.sql` → `03_seed_geo.sql`
+1. `01_schema.sql`
+2. `02_seed_catalogs.sql`
+3. Dump del cliente (departamentos, municipios, usuarios existentes, etc.)
 
 ## Configuración `.env`
 
@@ -41,12 +46,12 @@ Ejecute en orden: `01_schema.sql` → `02_seed_catalogs.sql` → `03_seed_geo.sq
 DB_NAME=gestionincidentes
 ```
 
-## Catálogos pendientes para CSJ (según dump)
+## Catálogos CSJ pendientes en seed
 
-El dump trae catálogos completos para CSJ en geo, eventos, roles, etc., pero **faltan filas** para operar incidentes CSJ:
+El seed trae eventos y roles CSJ, pero **pueden faltar** filas para operar incidentes CSJ hasta alinear con el dump del cliente:
 
-- `origen` — solo POL (`Llamada 123`)
-- `estadosincidentes` — solo POL
-- `rolesvehiculo` / `tipovehiculo` — solo POL
+- `origen` — en seed solo hay fila POL
+- `estadosincidentes` — en seed solo POL
+- `rolesvehiculo` / `tipovehiculo` — en seed solo POL
 
-Esos registros deben cargarse en MySQL para la agencia CSJ antes de crear incidentes con usuario CSJ. La aplicación valida contra el catálogo de la agencia; no inventa valores.
+La app valida contra el catálogo de la agencia en MySQL; no inventa valores.

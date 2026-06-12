@@ -1,5 +1,117 @@
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
+const { mapStatusFromGi } = require('./maps');
+const { WORKFLOW_RANK_CSJ } = require('./transitions');
+
+function nullIfEmpty(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
+}
+
+function pickText(bodyVal, prevVal) {
+  const cleaned = nullIfEmpty(bodyVal);
+  if (cleaned !== null) return cleaned;
+  return nullIfEmpty(prevVal);
+}
+
+function pickDate(bodyVal, prevVal) {
+  const cleaned = nullIfEmpty(bodyVal);
+  if (cleaned !== null) return cleaned;
+  return nullIfEmpty(prevVal);
+}
+
+function pickInt(bodyVal, prevVal) {
+  const raw = bodyVal !== undefined && bodyVal !== null && bodyVal !== '' ? bodyVal : null;
+  if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return n;
+  }
+  if (prevVal !== null && prevVal !== undefined && String(prevVal).trim() !== '') {
+    const n = Number(prevVal);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function formatCodigoOficio(visibleId) {
+  const year = new Date().getFullYear();
+  const suffix = String(visibleId || '')
+    .replace(/^INC-/i, '')
+    .padStart(7, '0');
+  return `OSEG-${year}-${suffix}`;
+}
+
+async function getIncidentStatusUi(visibleId) {
+  const [rows] = await pool.query(
+    `SELECT es.Nombre_estado
+     FROM incidentes i
+     JOIN estadosincidentes es ON es.ID_estado = i.ID_estado
+     WHERE i.ID_visible = ?`,
+    [visibleId],
+  );
+  return mapStatusFromGi(rows[0]?.Nombre_estado || 'Nuevo');
+}
+
+async function resolveServidorJudicial(incidenteId) {
+  const [rows] = await pool.query(
+    `SELECT p.Primer_Nombre, p.Segundo_Nombre, p.Primer_Apellido, p.Segundo_Apellido,
+            p.Numero_documento AS cedula, rp.Nombre AS cargo
+     FROM personas p
+     LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+     WHERE p.ID_incidente = ?
+     ORDER BY
+       CASE
+         WHEN UPPER(rp.Nombre) LIKE '%EXTRAORDINARIO%' THEN 0
+         WHEN UPPER(rp.Nombre) LIKE '%VICTIMA%' OR UPPER(rp.Nombre) LIKE '%VÍCTIMA%' THEN 1
+         ELSE 2
+       END,
+       p.ID_persona
+     LIMIT 1`,
+    [incidenteId],
+  );
+  if (!rows.length) return null;
+  const p = rows[0];
+  const servidor_judicial = [p.Primer_Nombre, p.Segundo_Nombre, p.Primer_Apellido, p.Segundo_Apellido]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!servidor_judicial) return null;
+  return {
+    servidor_judicial,
+    cedula: p.cedula ?? null,
+    cargo: p.cargo ?? null,
+  };
+}
+
+function validateGestionForStatus(status, gestion) {
+  const rank = WORKFLOW_RANK_CSJ[status];
+  if (rank === undefined || status === 'Cancelado' || status === 'Cerrado') return null;
+
+  if (rank >= WORKFLOW_RANK_CSJ['En gestión OSEG']) {
+    if (!gestion) {
+      return 'Complete la gestión OSEG en la pestaña Medidas antes de guardar este estado.';
+    }
+    if (!String(gestion.codigo_oficio || '').trim()) {
+      return 'Falta el código de oficio trámite. Guarde la gestión en la pestaña Medidas.';
+    }
+    if (!String(gestion.tramite_destino || '').trim()) {
+      return 'Complete «Trámite / destino» en la pestaña Medidas.';
+    }
+  }
+
+  if (rank >= WORKFLOW_RANK_CSJ['En evaluación CERREM']) {
+    if (!String(gestion?.resolucion_cerrem || '').trim()) {
+      return 'Complete «Resolución CERREM» en la pestaña Medidas.';
+    }
+    if (!gestion?.ID_riesgo) {
+      return 'Seleccione el «Nivel de riesgo» en la pestaña Medidas.';
+    }
+  }
+
+  return null;
+}
 
 async function getTiposMedida(agency) {
   const [rows] = await pool.query(
@@ -14,7 +126,8 @@ async function getTiposMedida(agency) {
 
 async function getGestionByIncidente(visibleId) {
   const [rows] = await pool.query(
-    `SELECT gm.*, r.Nombre_riesgo AS nivel_riesgo
+    `SELECT gm.*,
+            r.Nombre_riesgo AS nivel_riesgo
      FROM gestion_medidas gm
      JOIN incidentes i ON i.ID_incidente = gm.ID_incidente
      LEFT JOIN riesgos r ON r.ID_riesgo = gm.ID_riesgo
@@ -24,11 +137,21 @@ async function getGestionByIncidente(visibleId) {
   return rows[0] || null;
 }
 
+async function getSolicitudFromPersonas(visibleId) {
+  const [incRows] = await pool.query(
+    `SELECT ID_incidente FROM incidentes WHERE ID_visible = ?`,
+    [visibleId],
+  );
+  if (!incRows.length) return null;
+  return resolveServidorJudicial(incRows[0].ID_incidente);
+}
+
 async function getMedidasByGestion(idGestion) {
   const [rows] = await pool.query(
     `SELECT im.ID_incidente_medida, im.ID_tipo_medida,
             tms.Nombre_medida AS nombre,
-            im.asignado, im.cantidad, im.observacion_medida, im.fecha_asignacion
+            im.asignado, im.cantidad,
+            im.observacion_medida, im.fecha_asignacion
      FROM incidente_medidas im
      JOIN tipos_medida_seguridad tms ON tms.ID_tipo_medida = im.ID_tipo_medida
      WHERE im.ID_gestion = ? AND im.asignado = 1
@@ -48,60 +171,115 @@ async function upsertGestion(visibleId, body, user) {
   );
   if (!incRows.length) throw new HttpError(404, 'Incidente no encontrado');
   const incidenteId = incRows[0].ID_incidente;
+  const incidentStatusDb = await getIncidentStatusUi(visibleId);
+  const incidentStatus =
+    String(body.workflowStatus || body.workflow_status || '').trim() || incidentStatusDb;
+  const solicitud = await resolveServidorJudicial(incidenteId);
 
   const [existing] = await pool.query(
-    `SELECT ID_gestion FROM gestion_medidas WHERE ID_incidente = ?`,
+    `SELECT * FROM gestion_medidas WHERE ID_incidente = ?`,
     [incidenteId],
   );
 
-  if (existing.length) {
+  const prev = existing[0] || null;
+  const rank = WORKFLOW_RANK_CSJ[incidentStatus];
+  const needsOficio = rank !== undefined && rank >= WORKFLOW_RANK_CSJ['En gestión OSEG'];
+
+  const osegBloqueada =
+    Boolean(String(prev?.codigo_oficio || '').trim()) &&
+    Boolean(String(prev?.tramite_destino || '').trim());
+
+  let codigoOficio = body.codigo_oficio ?? prev?.codigo_oficio ?? null;
+  if (needsOficio && !String(codigoOficio || '').trim()) {
+    codigoOficio = formatCodigoOficio(visibleId);
+  }
+  if (osegBloqueada) {
+    codigoOficio = prev.codigo_oficio;
+  }
+
+  const servidorJudicial =
+    body.servidor_judicial ?? prev?.servidor_judicial ?? solicitud?.servidor_judicial ?? null;
+  const cedula = body.cedula ?? prev?.cedula ?? solicitud?.cedula ?? null;
+  const cargo = body.cargo ?? prev?.cargo ?? solicitud?.cargo ?? null;
+  const tramiteDestino = osegBloqueada
+    ? prev.tramite_destino
+    : pickText(body.tramite_destino, prev?.tramite_destino);
+
+  const fechaCerrem = pickDate(body.fecha_cerrem, prev?.fecha_cerrem);
+  const resolucionCerrem = pickText(body.resolucion_cerrem, prev?.resolucion_cerrem);
+  const fechaResolucion = pickDate(body.fecha_resolucion, prev?.fecha_resolucion);
+  const idRiesgo = pickInt(body.ID_riesgo, prev?.ID_riesgo);
+  const tipoEsquema = pickText(body.tipo_esquema, prev?.tipo_esquema);
+  const compartidoCon = pickText(body.compartido_con, prev?.compartido_con);
+  const observaciones = pickText(body.observaciones, prev?.observaciones);
+
+  if (prev) {
     await pool.query(
       `UPDATE gestion_medidas SET
-         servidor_judicial=?, cedula=?, cargo=?,
-         codigo_oficio=?, tramite_destino=?,
-         fecha_cerrem=?, resolucion_cerrem=?, fecha_resolucion=?,
-         ID_riesgo=?, tipo_esquema=?, compartido_con=?, observaciones=?
-       WHERE ID_gestion=?`,
+         servidor_judicial = ?, cedula = ?, cargo = ?,
+         codigo_oficio = ?, tramite_destino = ?,
+         fecha_cerrem = ?, resolucion_cerrem = ?, fecha_resolucion = ?,
+         ID_riesgo = ?, tipo_esquema = ?, compartido_con = ?, observaciones = ?
+       WHERE ID_gestion = ?`,
       [
-        body.servidor_judicial ?? null, body.cedula ?? null, body.cargo ?? null,
-        body.codigo_oficio ?? null, body.tramite_destino ?? null,
-        body.fecha_cerrem ?? null, body.resolucion_cerrem ?? null, body.fecha_resolucion ?? null,
-        body.ID_riesgo ?? null, body.tipo_esquema ?? null,
-        body.compartido_con ?? null, body.observaciones ?? null,
-        existing[0].ID_gestion,
+        servidorJudicial,
+        cedula,
+        cargo,
+        codigoOficio,
+        tramiteDestino,
+        fechaCerrem,
+        resolucionCerrem,
+        fechaResolucion,
+        idRiesgo,
+        tipoEsquema,
+        compartidoCon,
+        observaciones,
+        prev.ID_gestion,
       ],
     );
-    return existing[0].ID_gestion;
-  } else {
-    // Generar código de oficio automático
-    const year = new Date().getFullYear();
-    const [countRows] = await pool.query(
-      `SELECT COUNT(*) AS total FROM gestion_medidas
-       WHERE ID_Agencia = ? AND YEAR(Fecha_registro) = ?`,
-      [agency, year],
+    await pool.query(
+      `UPDATE incidentes SET
+         codigo_oficio_tramite = COALESCE(?, codigo_oficio_tramite),
+         destino = COALESCE(?, destino)
+       WHERE ID_incidente = ?`,
+      [codigoOficio, tramiteDestino, incidenteId],
     );
-    const consecutivo = String(countRows[0].total + 1).padStart(4, '0');
-    const codigoOficio = `OSEG-${agency}-${year}-${consecutivo}`;
-
-    const [result] = await pool.query(
-      `INSERT INTO gestion_medidas
-         (ID_incidente, ID_Agencia, servidor_judicial, cedula, cargo,
-          codigo_oficio, tramite_destino, fecha_cerrem, resolucion_cerrem,
-          fecha_resolucion, ID_riesgo, tipo_esquema, compartido_con,
-          observaciones, ID_usuario_registro)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        incidenteId, agency,
-        body.servidor_judicial ?? null, body.cedula ?? null, body.cargo ?? null,
-        codigoOficio, body.tramite_destino ?? null,
-        body.fecha_cerrem ?? null, body.resolucion_cerrem ?? null, body.fecha_resolucion ?? null,
-        body.ID_riesgo ?? null, body.tipo_esquema ?? null,
-        body.compartido_con ?? null, body.observaciones ?? null,
-        userId,
-      ],
-    );
-    return { ID_gestion: result.insertId, codigo_oficio: codigoOficio };
+    return prev.ID_gestion;
   }
+
+  const [result] = await pool.query(
+    `INSERT INTO gestion_medidas
+       (ID_incidente, ID_Agencia, servidor_judicial, cedula, cargo,
+        codigo_oficio, tramite_destino, fecha_cerrem, resolucion_cerrem,
+        fecha_resolucion, ID_riesgo, tipo_esquema, compartido_con,
+        observaciones, ID_usuario_registro)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      incidenteId,
+      agency,
+      servidorJudicial,
+      cedula,
+      cargo,
+      codigoOficio,
+      tramiteDestino,
+      fechaCerrem,
+      resolucionCerrem,
+      fechaResolucion,
+      idRiesgo,
+      tipoEsquema,
+      compartidoCon,
+      observaciones,
+      userId,
+    ],
+  );
+  await pool.query(
+    `UPDATE incidentes SET
+       codigo_oficio_tramite = COALESCE(?, codigo_oficio_tramite),
+       destino = COALESCE(?, destino)
+     WHERE ID_incidente = ?`,
+    [codigoOficio, tramiteDestino, incidenteId],
+  );
+  return result.insertId;
 }
 
 async function asignarMedidas(idGestion, medidas, user) {
@@ -109,60 +287,38 @@ async function asignarMedidas(idGestion, medidas, user) {
   const userId = user?.sub;
 
   await pool.query(
-    `UPDATE incidente_medidas SET asignado=0, fecha_retiro=NOW() WHERE ID_gestion=?`,
+    `UPDATE incidente_medidas SET asignado = 0, fecha_retiro = NOW()
+     WHERE ID_gestion = ?`,
     [idGestion],
   );
 
   for (const m of medidas) {
     await pool.query(
       `INSERT INTO incidente_medidas
-         (ID_gestion, ID_tipo_medida, asignado, cantidad, observacion_medida, ID_usuario_asigna, ID_Agencia)
-       VALUES (?,?,1,?,?,?,?)
+         (ID_gestion, ID_tipo_medida, asignado, cantidad,
+          observacion_medida, ID_usuario_asigna, ID_Agencia)
+       VALUES (?, ?, 1, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-         asignado=1, cantidad=VALUES(cantidad),
-         observacion_medida=VALUES(observacion_medida),
-         fecha_asignacion=NOW(), fecha_retiro=NULL`,
-      [idGestion, m.ID_tipo_medida, m.cantidad ?? 1, m.observacion_medida ?? null, userId, agency],
+         asignado = 1, cantidad = VALUES(cantidad),
+         observacion_medida = VALUES(observacion_medida),
+         fecha_asignacion = NOW(), fecha_retiro = NULL`,
+      [
+        idGestion,
+        m.ID_tipo_medida,
+        m.cantidad ?? 1,
+        m.observacion_medida ?? null,
+        userId,
+        agency,
+      ],
     );
   }
 }
 
-async function getSolicitudFromPersonas(_visibleId) {
-  return null;
-}
-
 async function hasAssignedMedidas(visibleId) {
   const gestion = await getGestionByIncidente(visibleId);
-  if (!gestion?.ID_gestion) return false;
+  if (!gestion) return false;
   const medidas = await getMedidasByGestion(gestion.ID_gestion);
   return medidas.length > 0;
-}
-
-const WORKFLOW_RANK_CSJ = {
-  'En gestión OSEG': 1,
-  'Enviado a CERREM': 2,
-  'En evaluación CERREM': 3,
-  'Medidas asignadas': 4,
-  Cerrado: 5,
-};
-
-function validateGestionForStatus(status, gestion) {
-  const rank = WORKFLOW_RANK_CSJ[status];
-  if (rank === undefined || status === 'Cancelado') return null;
-
-  const hasOseg =
-    Boolean(String(gestion?.codigo_oficio ?? '').trim()) &&
-    Boolean(String(gestion?.tramite_destino ?? '').trim());
-  const hasCerrem =
-    Boolean(String(gestion?.resolucion_cerrem ?? '').trim()) && Boolean(gestion?.ID_riesgo);
-
-  if (rank >= WORKFLOW_RANK_CSJ['En gestión OSEG'] && !hasOseg) {
-    return 'Complete la gestión OSEG (oficio y trámite/destino) en la pestaña Medidas.';
-  }
-  if (rank >= WORKFLOW_RANK_CSJ['En evaluación CERREM'] && !hasCerrem) {
-    return 'Complete la decisión CERREM (resolución y nivel de riesgo) en la pestaña Medidas.';
-  }
-  return null;
 }
 
 module.exports = {
@@ -170,8 +326,9 @@ module.exports = {
   getGestionByIncidente,
   getMedidasByGestion,
   getSolicitudFromPersonas,
-  hasAssignedMedidas,
-  validateGestionForStatus,
   upsertGestion,
   asignarMedidas,
+  hasAssignedMedidas,
+  validateGestionForStatus,
+  formatCodigoOficio,
 };

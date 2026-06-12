@@ -144,56 +144,35 @@ async function verifyLocalPassword(user, password, agencyCode, rememberUser = fa
   }
 }
 
-async function login(credentials, options = {}) {
-  const { agencia, usuario, password, rememberMe } = credentials;
-  const rememberUser = !!rememberMe;
-  const logSuccess = options.logSuccess !== false;
-  if (!usuario || !password || !agencia) {
-    throw new HttpError(400, 'agencia, usuario y password son requeridos');
+async function rethrowInactiveLogin(err, user, agencyCode, rememberUser) {
+  if (err instanceof HttpError && err.status === 403) {
+    await recordFailedLogin(user, agencyCode, err.message, rememberUser);
   }
+  throw err;
+}
 
-  const dbUser = await findDbUser(usuario, agencia);
-  const directoryResult = await ldapService.tryAuthenticate(usuario, password);
-
-  if (directoryResult.ok) {
-    if (dbUser) {
-      try {
-        assertActive(dbUser);
-      } catch (err) {
-        if (err instanceof HttpError && err.status === 403) {
-          await recordFailedLogin(dbUser, agencia, err.message, rememberUser);
-        }
-        throw err;
-      }
-      if (logSuccess) {
-        await recordSuccessfulLogin(dbUser, {
-          agencyCode: agencia,
-          rememberUser,
-          description: 'Inicio de sesión LDAP exitoso',
-        });
-      }
-      return buildTokenResponse({ ...dbUser, auth_source: 'ldap' });
-    }
-    const session = await buildDirectorySession(usuario, agencia, directoryResult.profile);
-    return buildTokenResponse(session);
-  }
-
-  if (directoryResult.error) {
-    throw new HttpError(503, directoryResult.error);
-  }
-
-  if (!dbUser) {
-    throw new HttpError(401, INVALID_MSG);
-  }
-
+async function assertActiveUser(user, agencyCode, rememberUser) {
   try {
-    assertActive(dbUser);
+    assertActive(user);
   } catch (err) {
-    if (err instanceof HttpError && err.status === 403) {
-      await recordFailedLogin(dbUser, agencia, err.message, rememberUser);
-    }
-    throw err;
+    await rethrowInactiveLogin(err, user, agencyCode, rememberUser);
   }
+}
+
+async function completeDirectoryDbLogin(dbUser, agencia, rememberUser, logSuccess) {
+  await assertActiveUser(dbUser, agencia, rememberUser);
+  if (logSuccess) {
+    await recordSuccessfulLogin(dbUser, {
+      agencyCode: agencia,
+      rememberUser,
+      description: 'Inicio de sesión LDAP exitoso',
+    });
+  }
+  return buildTokenResponse({ ...dbUser, auth_source: 'ldap' });
+}
+
+async function completeLocalLogin(dbUser, password, agencia, rememberUser, logSuccess) {
+  await assertActiveUser(dbUser, agencia, rememberUser);
 
   if (normalizeAuthSource(dbUser.auth_source) === 'ldap') {
     await recordFailedLogin(
@@ -214,6 +193,36 @@ async function login(credentials, options = {}) {
     });
   }
   return buildTokenResponse(dbUser);
+}
+
+async function login(credentials, options = {}) {
+  const { agencia, usuario, password, rememberMe } = credentials;
+  const rememberUser = !!rememberMe;
+  const logSuccess = options.logSuccess !== false;
+  if (!usuario || !password || !agencia) {
+    throw new HttpError(400, 'agencia, usuario y password son requeridos');
+  }
+
+  const dbUser = await findDbUser(usuario, agencia);
+  const directoryResult = await ldapService.tryAuthenticate(usuario, password);
+
+  if (directoryResult.ok) {
+    if (dbUser) {
+      return completeDirectoryDbLogin(dbUser, agencia, rememberUser, logSuccess);
+    }
+    const session = await buildDirectorySession(usuario, agencia, directoryResult.profile);
+    return buildTokenResponse(session);
+  }
+
+  if (directoryResult.error) {
+    throw new HttpError(503, directoryResult.error);
+  }
+
+  if (!dbUser) {
+    throw new HttpError(401, INVALID_MSG);
+  }
+
+  return completeLocalLogin(dbUser, password, agencia, rememberUser, logSuccess);
 }
 
 async function getProfile(jwtUser) {
