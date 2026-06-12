@@ -50,8 +50,16 @@ import {
   shouldNavigateToMedidasTab,
 } from '../../utils/medidas-permissions';
 import { Subscription, of, firstValueFrom } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs/operators';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
+import { IncidentLeaveGuardService } from '../../services/incident-leave-guard.service';
 import { ConfigurationService } from '../../services/configuration.service';
 import { LocationRequestService, LocationData } from '../../services/location-request.service';
 import { IncidentService } from '../../services/incident.service';
@@ -73,6 +81,8 @@ import {
   formatNoteForDisplay,
   IncidentNoteEntry,
   buildCommentHistoryView,
+  noteAuthorInitials,
+  enrichCommentAuthors,
 } from '../../utils/incident-notes';
 
 declare let google: any;
@@ -153,8 +163,18 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private placeDeptSubs: Subscription[] = [];
   private fb = inject(FormBuilder);
   private notificationService = inject(NotificationService);
+  private incidentLeaveGuard = inject(IncidentLeaveGuardService);
   private configService = inject(ConfigurationService);
   private locationService = inject(LocationRequestService);
+
+  /** Teléfono opcional; si se escribe, solo dígitos/+ y formato colombiano válido. */
+  private validateOptionalPhone = (control: AbstractControl): ValidationErrors | null => {
+    const raw = String(control.value ?? '').trim();
+    if (!raw) return null;
+    if (!/^[0-9+ ]+$/.test(raw)) return { phoneChars: true };
+    return this.locationService.validateColombianPhone(raw).valid ? null : { phoneFormat: true };
+  };
+
   private incidentService = inject(IncidentService);
   private authService = inject(AuthService);
   private ngZone = inject(NgZone);
@@ -174,8 +194,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   readonly MAX_TABS = 5;
 
   emailModalIncident = signal<Incident | null>(null);
+  leaveConfirmOpen = signal(false);
+  /** true = modal abierto desde pestaña «Nuevo incidente» */
+  leaveConfirmForNewTab = signal(false);
+  private pendingLeaveAction: (() => void) | null = null;
+  private leaveAfterSave = false;
   commentsHistory = signal<IncidentNoteEntry[]>([]);
   readonly formatNoteHeader = formatNoteForDisplay;
+  readonly commentAuthorInitials = noteAuthorInitials;
 
   // Google Maps
   private map: google.maps.Map | null = null;
@@ -224,7 +250,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     priority_id: ['', Validators.required],
     status: ['', Validators.required],
     origin: ['', Validators.required],
-    phone: ['', Validators.pattern('^[0-9+ ]*$')],
+    phone: ['', this.validateOptionalPhone],
     location: ['', Validators.required],
     departmentId: [null as number | null],
     municipalityId: [null as number | null],
@@ -842,8 +868,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     } catch {
       this.notificationService.addNotification(
-        'Catálogo geográfico',
-        'No se pudieron cargar los departamentos. Ejecute npm run db:migrate en el backend.',
+        'No se cargó el mapa',
+        'No pudimos obtener los departamentos. Verifique la conexión o contacte al administrador.',
       );
     }
   }
@@ -861,8 +887,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     } catch {
       this.incidentMunicipalities.set([]);
       this.notificationService.addNotification(
-        'Municipios',
-        'No se pudo cargar la lista de municipios.',
+        'Municipios no disponibles',
+        'No se pudo cargar la lista de municipios. Seleccione el departamento de nuevo.',
       );
     }
     this.cdr.markForCheck();
@@ -1255,8 +1281,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     } catch {
       this.setPlaceMunicipalities(index, []);
       this.notificationService.addNotification(
-        'Municipios',
-        'No se pudieron cargar los municipios del departamento seleccionado.',
+        'Municipios no disponibles',
+        'No se pudo cargar la lista de municipios. Seleccione el departamento de nuevo.',
       );
     }
   }
@@ -1484,6 +1510,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.incidentLeaveGuard.register(
+      () => this.shouldConfirmLeave(),
+      (action) => this.requestLeaveOr(action),
+    );
+
     if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
 
     this.configService.getIncidentTypes().catch(() => {});
@@ -1568,6 +1599,16 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return phone.replace(/\D/g, '');
   }
 
+  private sanitizePhoneControl(ctrl: AbstractControl | null): boolean {
+    if (!ctrl) return false;
+    const sanitized = String(ctrl.value ?? '').replace(/[^0-9+ ]/g, '');
+    if (sanitized === ctrl.value) return false;
+    ctrl.setValue(sanitized, { emitEvent: false });
+    ctrl.markAsDirty();
+    ctrl.updateValueAndValidity({ emitEvent: false });
+    return true;
+  }
+
   private setupPhoneLookup(): void {
     this.phoneSub?.unsubscribe();
     const phoneControl = this.incidentForm.get('phone');
@@ -1575,6 +1616,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     this.phoneSub = phoneControl.valueChanges
       .pipe(
+        tap(() => {
+          if (this.sanitizePhoneControl(phoneControl)) {
+            this.cdr.markForCheck();
+          }
+        }),
         debounceTime(400),
         distinctUntilChanged(),
         filter((phone): phone is string => !!phone && this.normalizePhone(phone).length >= 7),
@@ -1795,9 +1841,100 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   setActiveTab(tabId: string | 'new') {
     if (this.activeTabId() === tabId) return;
-    if (this.activeTabId() === 'new')
+    this.requestLeaveOr(() => this.applyActiveTab(tabId));
+  }
+
+  private applyActiveTab(tabId: string | 'new') {
+    if (this.activeTabId() === 'new') {
       this.newIncidentFormState.set(this.incidentForm.getRawValue());
+    }
     this.activeTabId.set(tabId);
+  }
+
+  private hasPendingIncidentSave(): boolean {
+    const tabId = this.activeTabId();
+    if (!tabId || tabId === 'new') return false;
+    if (String(this.incidentForm.get('agregarComentario')?.value ?? '').trim()) return true;
+    if (this.incidentForm.dirty) return true;
+    const incident = this.activeIncident();
+    if (!incident) return false;
+    const formStatus = catalogStatusToUiStatus(
+      String(this.incidentForm.get('status')?.value ?? '').trim(),
+    );
+    const savedStatus = catalogStatusToUiStatus(String(incident.status ?? '').trim());
+    return formStatus !== savedStatus;
+  }
+
+  private hasPendingNewIncidentDraft(): boolean {
+    if (this.activeTabId() !== 'new' || !this.incidentForm.dirty) return false;
+    const v = this.incidentForm.getRawValue();
+    if (String(v.event_id || '').trim() || String(v.location || '').trim()) return true;
+    if (String(v.agregarComentario || '').trim()) return true;
+    if (this.involvedPeople.length > 0) return true;
+    if (this.involvedPlaces.length > 0) return true;
+    if (this.involvedVehicles.length > 0) return true;
+    return false;
+  }
+
+  private shouldConfirmLeave(): boolean {
+    const tabId = this.activeTabId();
+    if (!tabId) return false;
+    if (tabId === 'new') return this.hasPendingNewIncidentDraft();
+    return this.hasPendingIncidentSave();
+  }
+
+  private requestLeaveOr(action: () => void): void {
+    if (!this.shouldConfirmLeave()) {
+      action();
+      return;
+    }
+    this.pendingLeaveAction = action;
+    this.leaveConfirmForNewTab.set(this.activeTabId() === 'new');
+    this.leaveConfirmOpen.set(true);
+    this.cdr.markForCheck();
+  }
+
+  cancelLeaveConfirm(): void {
+    this.pendingLeaveAction = null;
+    this.leaveAfterSave = false;
+    this.leaveConfirmOpen.set(false);
+    this.leaveConfirmForNewTab.set(false);
+    this.cdr.markForCheck();
+  }
+
+  discardLeaveAndContinue(): void {
+    const action = this.pendingLeaveAction;
+    this.pendingLeaveAction = null;
+    this.leaveAfterSave = false;
+    this.leaveConfirmOpen.set(false);
+    this.leaveConfirmForNewTab.set(false);
+    this.incidentForm.markAsPristine();
+    action?.();
+    this.cdr.markForCheck();
+  }
+
+  saveAndLeave(): void {
+    this.leaveAfterSave = true;
+    if (this.activeTabId() === 'new') {
+      this.registerIncident();
+    } else {
+      this.updateIncident();
+    }
+  }
+
+  private completePendingLeaveAfterSave(): void {
+    if (!this.leaveAfterSave) return;
+    this.leaveAfterSave = false;
+    this.leaveConfirmOpen.set(false);
+    this.leaveConfirmForNewTab.set(false);
+    const action = this.pendingLeaveAction;
+    this.pendingLeaveAction = null;
+    action?.();
+    this.cdr.markForCheck();
+  }
+
+  private abortLeaveAfterSave(): void {
+    this.leaveAfterSave = false;
   }
 
   setDetailTab(tab: 'detalle' | 'medidas') {
@@ -1835,6 +1972,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   closeIncidentTab(idToClose: string, event: MouseEvent) {
     event.stopPropagation();
+    const doClose = () => this.applyCloseIncidentTab(idToClose);
+    if (this.activeTabId() === idToClose && this.hasPendingIncidentSave()) {
+      this.requestLeaveOr(doClose);
+      return;
+    }
+    doClose();
+  }
+
+  private applyCloseIncidentTab(idToClose: string): void {
     const tabs = this.openIncidentTabs();
     const index = tabs.findIndex((t) => t.id === idToClose);
     if (this.activeTabId() === idToClose) {
@@ -1847,10 +1993,21 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   closeNewIncidentTab(event?: MouseEvent) {
     event?.stopPropagation();
+    const doClose = () => this.applyCloseNewIncidentTab();
+    if (this.activeTabId() === 'new' && this.hasPendingNewIncidentDraft()) {
+      this.requestLeaveOr(doClose);
+      return;
+    }
+    doClose();
+  }
+
+  private applyCloseNewIncidentTab(): void {
     this.showNewIncidentTab.set(false);
     this.newIncidentFormState.set(null);
-    if (this.activeTabId() === 'new')
+    this.incidentForm.markAsPristine();
+    if (this.activeTabId() === 'new') {
       this.activeTabId.set(this.openIncidentTabs().at(-1)?.id ?? null);
+    }
   }
 
   private noteAuthor(): string {
@@ -1858,7 +2015,13 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private loadCommentsHistory(storedComments?: string, legacyDetails?: string): void {
-    this.commentsHistory.set(buildCommentHistoryView(storedComments, legacyDetails));
+    const operator =
+      this.activeIncident()?.operator?.trim() ||
+      this.authService.currentUser()?.name?.trim() ||
+      '';
+    this.commentsHistory.set(
+      enrichCommentAuthors(buildCommentHistoryView(storedComments, legacyDetails), operator),
+    );
   }
 
   private clearAgregarComentario(): void {
@@ -1874,11 +2037,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   registerIncident() {
     const newIncident = this.buildNewIncidentFromForm();
-    if (!newIncident) return;
+    if (!newIncident) {
+      this.abortLeaveAfterSave();
+      return;
+    }
 
     this.incidentService.createIncident(newIncident).subscribe({
       next: (saved) => this.finalizeNewIncident(saved),
       error: (err) => {
+        this.abortLeaveAfterSave();
         this.incidentService.handleCreateError(err);
         this.cdr.markForCheck();
       },
@@ -1966,17 +2133,36 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       `Se creó el incidente #${saved.id}.`,
       saved.id,
     );
-    this.closeNewIncidentTab();
-    this.openIncidentTab(saved);
+    this.incidentForm.markAsPristine();
+    this.showNewIncidentTab.set(false);
+    this.newIncidentFormState.set(null);
+
+    const fresh =
+      this.incidentService.incidents().find((i) => i.id === saved.id) ?? saved;
+    if (this.openIncidentTabs().some((tab) => tab.id === fresh.id)) {
+      this.openIncidentTabs.update((tabs) =>
+        tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),
+      );
+    } else if (this.openIncidentTabs().length < this.MAX_TABS) {
+      this.openIncidentTabs.update((tabs) => [...tabs, fresh]);
+    }
+
+    // Tras crear: cambiar de pestaña sin confirmación (el borrador ya se guardó).
+    this.applyActiveTab(fresh.id);
+    this.completePendingLeaveAfterSave();
     this.cdr.markForCheck();
   }
 
   updateIncident() {
     this.pruneEmptyInvolvedEntries();
 
-    if (!this.activeIncident()) return;
+    if (!this.activeIncident()) {
+      this.abortLeaveAfterSave();
+      return;
+    }
 
     if (!this.validateBeforeSave()) {
+      this.abortLeaveAfterSave();
       return;
     }
 
@@ -2010,6 +2196,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
                 'No se puede guardar',
                 'Complete la gestión OSEG en la pestaña Medidas (trámite/destino).',
               );
+              this.abortLeaveAfterSave();
               this.cdr.markForCheck();
               return;
             }
@@ -2021,6 +2208,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
                 'No se puede guardar',
                 'Complete la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo).',
               );
+              this.abortLeaveAfterSave();
               this.cdr.markForCheck();
               return;
             }
@@ -2031,6 +2219,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
               'No se puede guardar',
               'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
             );
+            this.abortLeaveAfterSave();
             this.cdr.markForCheck();
             return;
           }
@@ -2043,6 +2232,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
               'No se puede guardar',
               'Complete la información en la pestaña Medidas.',
             );
+            this.abortLeaveAfterSave();
             this.cdr.markForCheck();
           } else {
             this.commitIncidentUpdate(updatedData);
@@ -2059,8 +2249,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             this.detailTab.set('medidas');
             this.notificationService.addNotification(
               'No se puede guardar',
-              'Debe asignar al menos una medida de seguridad (por ejemplo chaleco) antes de actualizar el incidente.',
+              'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
             );
+            this.abortLeaveAfterSave();
             this.cdr.markForCheck();
             return;
           }
@@ -2072,6 +2263,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             'No se puede guardar',
             'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
           );
+          this.abortLeaveAfterSave();
           this.cdr.markForCheck();
         },
       });
@@ -2084,10 +2276,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private commitIncidentUpdate(updatedData: ReturnType<typeof this.incidentForm.getRawValue>) {
     const incidentId = this.activeIncident()!.id;
     const base = this.activeIncident()!;
-    const mergedComments = this.mergeCommentHistory(
-      base.comments ?? '',
-      updatedData.agregarComentario,
-    );
+    const draftComment = String(updatedData.agregarComentario ?? '').trim();
+    const mergedComments = this.mergeCommentHistory(base.comments ?? '', draftComment);
 
     const selectedType = this.incidentTypes().find((t) => t.name === updatedData.event_id);
     const finalData: Incident = {
@@ -2129,6 +2319,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.loadCommentsHistory(mergedComments);
       this.clearAgregarComentario();
       this.incidentForm.markAsPristine();
+      this.completePendingLeaveAfterSave();
       this.cdr.markForCheck();
     });
   }
@@ -2316,6 +2507,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.incidentLeaveGuard.unregister();
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();
     this.vehicleLastLookupPlate.clear();

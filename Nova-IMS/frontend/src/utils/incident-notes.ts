@@ -8,35 +8,61 @@ export interface IncidentNoteEntry {
 }
 
 const HEADER_RE = /^\[([^\]]+)\]\s*(.*)$/;
+const TIMESTAMP_ONLY_RE = /^\[([^\]]+)\]$/;
+
+function parseSingleNoteBlock(block: string): IncidentNoteEntry {
+  const trimmed = block.trim();
+  if (!trimmed) {
+    return { timestamp: null, author: 'Operador', text: '' };
+  }
+
+  const lines = trimmed.split('\n');
+  const header = (lines[0] || '').trim();
+  const body = lines.slice(1).join('\n').trim();
+
+  const withAuthor = HEADER_RE.exec(header);
+  if (withAuthor) {
+    const author = withAuthor[2].trim();
+    const body = lines.slice(1).join('\n').trim();
+    if (!body && author) {
+      return {
+        timestamp: withAuthor[1].trim(),
+        author: 'Operador',
+        text: author,
+      };
+    }
+    return {
+      timestamp: withAuthor[1].trim(),
+      author: author || 'Operador',
+      text: body || '',
+    };
+  }
+
+  const timestampOnly = TIMESTAMP_ONLY_RE.exec(header);
+  if (timestampOnly) {
+    return {
+      timestamp: timestampOnly[1].trim(),
+      author: 'Operador',
+      text: body,
+    };
+  }
+
+  return { timestamp: null, author: 'Registro anterior', text: trimmed };
+}
 
 export function parseIncidentNotes(raw: string | null | undefined): IncidentNoteEntry[] {
   const value = String(raw ?? '').trim();
   if (!value) return [];
 
   if (!value.includes(INCIDENT_NOTE_SEPARATOR)) {
-    return [{ timestamp: null, author: 'Registro anterior', text: value }];
+    return [parseSingleNoteBlock(value)];
   }
 
   return value
     .split(INCIDENT_NOTE_SEPARATOR)
     .map((block) => block.trim())
     .filter(Boolean)
-    .map((block) => {
-      const lines = block.split('\n');
-      const header = lines[0] || '';
-      const match = HEADER_RE.exec(header);
-      if (!match) {
-        return { timestamp: null, author: 'Registro anterior', text: block };
-      }
-      const author = match[2].trim();
-      const body = lines.slice(1).join('\n').trim();
-      const cleanBody = body.replace(/^\[[^\]]+\]\s*\n?/gm, '').trim();
-      return {
-        timestamp: match[1].trim(),
-        author: author || 'Operador',
-        text: cleanBody || (author && !body ? author : ''),
-      };
-    });
+    .map((block) => parseSingleNoteBlock(block));
 }
 
 export function formatNoteTimestamp(date = new Date()): string {
@@ -59,14 +85,68 @@ export function appendIncidentNote(
   const body = String(text ?? '').trim();
   if (!body) return String(existing ?? '').trim();
 
-  const entry = `[${formatNoteTimestamp()}]\n${body}`;
+  const author = String(_author || 'Operador').trim() || 'Operador';
+  const entry = `[${formatNoteTimestamp()}] ${author}\n${body}`;
   const prev = String(existing ?? '').trim();
   return prev ? `${prev}${INCIDENT_NOTE_SEPARATOR}${entry}` : entry;
 }
 
 export function formatNoteForDisplay(entry: IncidentNoteEntry): string {
-  if (!entry.timestamp) return 'Sin fecha';
+  if (!entry.timestamp) return 'Fecha no registrada';
+  const parsed = parseNoteTimestamp(entry.timestamp);
+  if (parsed) {
+    return parsed.toLocaleString('es-CO', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  }
   return entry.timestamp;
+}
+
+/** Interpreta fechas guardadas como [DD/MM/YYYY, HH:mm:ss] en comments. */
+function parseNoteTimestamp(raw: string): Date | null {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+
+  const match =
+    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(value);
+  if (match) {
+    const day = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    let year = Number(match[3]);
+    if (year < 100) year += 2000;
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = Number(match[6] ?? 0);
+    const d = new Date(year, month, day, hour, minute, second);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const fallback = Date.parse(value.replace(/,/g, ''));
+  return Number.isNaN(fallback) ? null : new Date(fallback);
+}
+
+/** Comentarios viejos sin nombre en cabecera: usar operador del incidente si existe. */
+export function enrichCommentAuthors(
+  entries: IncidentNoteEntry[],
+  fallbackAuthor?: string | null,
+): IncidentNoteEntry[] {
+  const fallback = String(fallbackAuthor ?? '').trim();
+  if (!fallback) return entries;
+  return entries.map((entry) => {
+    if (entry.author !== 'Operador' || !entry.timestamp) return entry;
+    return { ...entry, author: fallback };
+  });
+}
+
+export function noteAuthorInitials(author: string): string {
+  const parts = String(author || 'Operador')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return 'OP';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
 
 /** Última entrada del historial (campo details legado en API/correo). */
