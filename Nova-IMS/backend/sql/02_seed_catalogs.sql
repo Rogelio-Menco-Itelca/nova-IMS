@@ -11,6 +11,7 @@ USE gestionincidentes;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 SET UNIQUE_CHECKS = 0;
+SET @seed_pol_created_at = '2026-05-29 10:06:43';
 -- ---- agencias ----
 --
 -- Dumping data for table `agencias`
@@ -50,7 +51,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `estadosincidentes` WRITE;
 /*!40000 ALTER TABLE `estadosincidentes` DISABLE KEYS */;
-INSERT INTO `estadosincidentes` VALUES (1,'POL','Abierto','Incidente recién creado','2026-05-29 10:06:43'),(2,'POL','En espera','Incidente esperando asignación','2026-05-29 10:06:43'),(3,'POL','Asignado','Incidente asignado a una patrulla','2026-05-29 10:06:43'),(4,'POL','En proceso','Incidente en atención activa','2026-05-29 10:06:43'),(5,'POL','Cerrado','Incidente finalizado y resuelto','2026-05-29 10:06:43'),(6,'POL','Cancelado','Incidente cancelado sin resolver','2026-05-29 10:06:43');
+INSERT INTO `estadosincidentes` VALUES (1,'POL','Abierto','Incidente recién creado',@seed_pol_created_at),(2,'POL','En espera','Incidente esperando asignación',@seed_pol_created_at),(3,'POL','Asignado','Incidente asignado a una patrulla',@seed_pol_created_at),(4,'POL','En proceso','Incidente en atención activa',@seed_pol_created_at),(5,'POL','Cerrado','Incidente finalizado y resuelto',@seed_pol_created_at),(6,'POL','Cancelado','Incidente cancelado sin resolver',@seed_pol_created_at);
 /*!40000 ALTER TABLE `estadosincidentes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -61,7 +62,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `eventos` WRITE;
 /*!40000 ALTER TABLE `eventos` DISABLE KEYS */;
-INSERT INTO `eventos` VALUES (1,'POL','Disparos','911','2026-05-29 10:06:43',1),(2,'POL','Accidente de tránsito','Accidente','2026-05-29 10:06:43',1),(3,'CSJ','Amenaza contra juez o magistrado','Amenaza','2026-06-07 11:50:38',1),(4,'CSJ','Seguimiento o vigilancia a funcionario judicial','Vigilancia','2026-06-07 11:50:38',1),(5,'CSJ','Atentado o agresión física a funcionario judicial','Agresión','2026-06-07 11:50:38',1),(6,'CSJ','Extorsión a funcionario judicial','Extorsión','2026-06-07 11:50:38',1),(7,'CSJ','Acceso no autorizado a despacho judicial','Acceso indebido','2026-06-07 11:50:38',1),(8,'CSJ','Artefacto explosivo o sospechoso en sede','Explosivo','2026-06-07 11:50:38',1),(9,'CSJ','Vandalismo en instalaciones judiciales','Vandalismo','2026-06-07 11:50:38',2),(10,'CSJ','Incendio o emergencia en sede judicial','Emergencia','2026-06-07 11:50:38',1),(11,'CSJ','Hurto o destrucción de expedientes judiciales','Hurto','2026-06-07 11:50:38',1),(12,'CSJ','Interceptación de comunicaciones judiciales','Interceptación','2026-06-07 11:50:38',1),(13,'CSJ','Suplantación de funcionario judicial','Fraude','2026-06-07 11:50:38',1),(14,'CSJ','Fuga de información reservada','Fuga de información','2026-06-07 11:50:38',1),(15,'CSJ','Disturbio en audiencia pública','Disturbio','2026-06-07 11:50:38',2),(16,'CSJ','Ingreso de armas a sala de audiencias','Armas','2026-06-07 11:50:38',1),(17,'CSJ','Agresión entre partes procesales','Agresión entre partes','2026-06-07 11:50:38',2),(18,'CSJ','Desacato con alteración del orden','Desacato','2026-06-07 11:50:38',2),(19,'CSJ','Amenaza a testigos o víctimas','Amenaza a testigos','2026-06-07 11:50:38',1),(20,'CSJ','Coacción a jurado o perito','Coacción','2026-06-07 11:50:38',1),(21,'CSJ','Presión indebida sobre decisiones judiciales','Presión judicial','2026-06-07 11:50:38',1);
+INSERT INTO `eventos` VALUES (1,'POL','Disparos','911',@seed_pol_created_at,1),(2,'POL','Accidente de tránsito','Accidente',@seed_pol_created_at,1),(3,'CSJ','Amenaza contra juez o magistrado','Amenaza','2026-06-07 11:50:38',1),(4,'CSJ','Seguimiento o vigilancia a funcionario judicial','Vigilancia','2026-06-07 11:50:38',1),(5,'CSJ','Atentado o agresión física a funcionario judicial','Agresión','2026-06-07 11:50:38',1),(6,'CSJ','Extorsión a funcionario judicial','Extorsión','2026-06-07 11:50:38',1),(7,'CSJ','Acceso no autorizado a despacho judicial','Acceso indebido','2026-06-07 11:50:38',1),(8,'CSJ','Artefacto explosivo o sospechoso en sede','Explosivo','2026-06-07 11:50:38',1),(9,'CSJ','Vandalismo en instalaciones judiciales','Vandalismo','2026-06-07 11:50:38',2),(10,'CSJ','Incendio o emergencia en sede judicial','Emergencia','2026-06-07 11:50:38',1),(11,'CSJ','Hurto o destrucción de expedientes judiciales','Hurto','2026-06-07 11:50:38',1),(12,'CSJ','Interceptación de comunicaciones judiciales','Interceptación','2026-06-07 11:50:38',1),(13,'CSJ','Suplantación de funcionario judicial','Fraude','2026-06-07 11:50:38',1),(14,'CSJ','Fuga de información reservada','Fuga de información','2026-06-07 11:50:38',1),(15,'CSJ','Disturbio en audiencia pública','Disturbio','2026-06-07 11:50:38',2),(16,'CSJ','Ingreso de armas a sala de audiencias','Armas','2026-06-07 11:50:38',1),(17,'CSJ','Agresión entre partes procesales','Agresión entre partes','2026-06-07 11:50:38',2),(18,'CSJ','Desacato con alteración del orden','Desacato','2026-06-07 11:50:38',2),(19,'CSJ','Amenaza a testigos o víctimas','Amenaza a testigos','2026-06-07 11:50:38',1),(20,'CSJ','Coacción a jurado o perito','Coacción','2026-06-07 11:50:38',1),(21,'CSJ','Presión indebida sobre decisiones judiciales','Presión judicial','2026-06-07 11:50:38',1);
 /*!40000 ALTER TABLE `eventos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -94,7 +95,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `origen` WRITE;
 /*!40000 ALTER TABLE `origen` DISABLE KEYS */;
-INSERT INTO `origen` VALUES (1,'Llamada 123','Llamada de emergencia al 123','POL','2026-05-29 10:06:43');
+INSERT INTO `origen` VALUES (1,'Llamada 123','Llamada de emergencia al 123','POL',@seed_pol_created_at);
 /*!40000 ALTER TABLE `origen` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -105,7 +106,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `pasosprotocolo` WRITE;
 /*!40000 ALTER TABLE `pasosprotocolo` DISABLE KEYS */;
-INSERT INTO `pasosprotocolo` VALUES (1,1,1,'Verificar lesionados y neutralizar tirador','2026-05-29 10:06:43'),(2,1,2,'Acordonar el área','2026-05-29 10:06:43');
+INSERT INTO `pasosprotocolo` VALUES (1,1,1,'Verificar lesionados y neutralizar tirador',@seed_pol_created_at),(2,1,2,'Acordonar el área',@seed_pol_created_at);
 /*!40000 ALTER TABLE `pasosprotocolo` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -116,7 +117,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `permisos` WRITE;
 /*!40000 ALTER TABLE `permisos` DISABLE KEYS */;
-INSERT INTO `permisos` VALUES (1,'VER_INCIDENTES','Permiso para visualizar incidentes','2026-05-29 10:06:43');
+INSERT INTO `permisos` VALUES (1,'VER_INCIDENTES','Permiso para visualizar incidentes',@seed_pol_created_at);
 /*!40000 ALTER TABLE `permisos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -200,7 +201,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `prioridades` WRITE;
 /*!40000 ALTER TABLE `prioridades` DISABLE KEYS */;
-INSERT INTO `prioridades` VALUES (1,'Alta','Requiere atención inmediata - responder en menos de 15 minutos','2026-05-29 10:06:43'),(2,'Media','Puede esperar breve tiempo - responder en menos de 1 hora','2026-05-29 10:06:43'),(3,'Baja','No es urgente - responder en menos de 24 horas','2026-05-29 10:06:43');
+INSERT INTO `prioridades` VALUES (1,'Alta','Requiere atención inmediata - responder en menos de 15 minutos',@seed_pol_created_at),(2,'Media','Puede esperar breve tiempo - responder en menos de 1 hora',@seed_pol_created_at),(3,'Baja','No es urgente - responder en menos de 24 horas',@seed_pol_created_at);
 /*!40000 ALTER TABLE `prioridades` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -211,7 +212,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `protocolos` WRITE;
 /*!40000 ALTER TABLE `protocolos` DISABLE KEYS */;
-INSERT INTO `protocolos` VALUES (1,'PROT_911',1,'POL','Protocolo para atención de disparon','2026-05-29 10:06:43');
+INSERT INTO `protocolos` VALUES (1,'PROT_911',1,'POL','Protocolo para atención de disparon',@seed_pol_created_at);
 /*!40000 ALTER TABLE `protocolos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -255,7 +256,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `rolesvehiculo` WRITE;
 /*!40000 ALTER TABLE `rolesvehiculo` DISABLE KEYS */;
-INSERT INTO `rolesvehiculo` VALUES (1,'Implicado','Vehículo involucrado en el incidente','POL','2026-05-29 10:06:43'),(2,'Afectado','Vehículo con daños','POL','2026-05-29 10:06:43'),(3,'Testigo','Vehículo que presencia el incidente','POL','2026-05-29 10:06:43');
+INSERT INTO `rolesvehiculo` VALUES (1,'Implicado','Vehículo involucrado en el incidente','POL',@seed_pol_created_at),(2,'Afectado','Vehículo con daños','POL',@seed_pol_created_at),(3,'Testigo','Vehículo que presencia el incidente','POL',@seed_pol_created_at);
 /*!40000 ALTER TABLE `rolesvehiculo` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -277,7 +278,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `tipodocumentos` WRITE;
 /*!40000 ALTER TABLE `tipodocumentos` DISABLE KEYS */;
-INSERT INTO `tipodocumentos` VALUES ('CC','Cédula de ciudadanía','2026-05-29 10:06:43'),('CE','Cédula de extranjería','2026-05-29 10:06:43'),('NIT','Número de identificación tributaria','2026-05-29 10:06:43'),('PA','Pasaporte','2026-05-29 10:06:43'),('TI','Tarjeta de identidad','2026-05-29 10:06:43');
+INSERT INTO `tipodocumentos` VALUES ('CC','Cédula de ciudadanía',@seed_pol_created_at),('CE','Cédula de extranjería',@seed_pol_created_at),('NIT','Número de identificación tributaria',@seed_pol_created_at),('PA','Pasaporte',@seed_pol_created_at),('TI','Tarjeta de identidad',@seed_pol_created_at);
 /*!40000 ALTER TABLE `tipodocumentos` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -288,7 +289,7 @@ UNLOCK TABLES;
 
 LOCK TABLES `tipovehiculo` WRITE;
 /*!40000 ALTER TABLE `tipovehiculo` DISABLE KEYS */;
-INSERT INTO `tipovehiculo` VALUES (1,'Automóvil','Vehículo particular de 4 ruedas','POL','2026-05-29 10:06:43'),(2,'Motocicleta','Motocicleta o ciclomotor de 2 ruedas','POL','2026-05-29 10:06:43'),(3,'Camión','Vehículo de carga pesada','POL','2026-05-29 10:06:43'),(4,'Bicicleta','Vehículo de tracción humana','POL','2026-05-29 10:06:43'),(5,'Bus','Transporte público de pasajeros','POL','2026-05-29 10:06:43');
+INSERT INTO `tipovehiculo` VALUES (1,'Automóvil','Vehículo particular de 4 ruedas','POL',@seed_pol_created_at),(2,'Motocicleta','Motocicleta o ciclomotor de 2 ruedas','POL',@seed_pol_created_at),(3,'Camión','Vehículo de carga pesada','POL',@seed_pol_created_at),(4,'Bicicleta','Vehículo de tracción humana','POL',@seed_pol_created_at),(5,'Bus','Transporte público de pasajeros','POL',@seed_pol_created_at);
 /*!40000 ALTER TABLE `tipovehiculo` ENABLE KEYS */;
 UNLOCK TABLES;
 

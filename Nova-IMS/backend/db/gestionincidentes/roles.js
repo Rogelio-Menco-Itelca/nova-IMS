@@ -91,7 +91,17 @@ async function createRole(id, name, agencyCode) {
   }
 }
 
-async function updateRolePermissions(roleId, permissions) {
+function permissionValues(p) {
+  return [
+    p.enabled ? 1 : 0,
+    p.actions?.view ? 1 : 0,
+    p.actions?.create ? 1 : 0,
+    p.actions?.edit ? 1 : 0,
+    p.actions?.delete ? 1 : 0,
+  ];
+}
+
+async function loadRolePermissionContext(roleId) {
   const [modules] = await pool.query(`SELECT * FROM modules`);
   const modIdByName = Object.fromEntries(modules.map((m) => [m.name, m.id]));
   const [roleRow] = await pool.query(`SELECT ID_Agencia FROM roles WHERE ID_Rol = ? LIMIT 1`, [
@@ -99,6 +109,33 @@ async function updateRolePermissions(roleId, permissions) {
   ]);
   const agency = normalizeAgencyCode(roleRow[0]?.ID_Agencia || '');
   if (!agency) throw new Error('Rol sin agencia');
+  return { modIdByName, agency };
+}
+
+async function upsertRolePermission(conn, roleId, agency, modId, permission) {
+  const [existing] = await conn.query(
+    `SELECT id_permiso FROM permisos_de_rol WHERE id_rol = ? AND module_id = ? LIMIT 1`,
+    [roleId, modId],
+  );
+  const vals = permissionValues(permission);
+  if (existing.length) {
+    await conn.query(
+      `UPDATE permisos_de_rol SET enabled=?, can_view=?, can_create=?, can_edit=?, can_delete=?
+       WHERE id_permiso = ?`,
+      [...vals, existing[0].id_permiso],
+    );
+    return;
+  }
+  await conn.query(
+    `INSERT INTO permisos_de_rol
+      (id_rol, ID_Agencia, module_id, enabled, can_view, can_create, can_edit, can_delete)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [roleId, agency, modId, ...vals],
+  );
+}
+
+async function updateRolePermissions(roleId, permissions) {
+  const { modIdByName, agency } = await loadRolePermissionContext(roleId);
 
   const conn = await pool.getConnection();
   try {
@@ -106,31 +143,7 @@ async function updateRolePermissions(roleId, permissions) {
     for (const p of permissions) {
       const modId = modIdByName[p.module];
       if (!modId) continue;
-      const [existing] = await conn.query(
-        `SELECT id_permiso FROM permisos_de_rol WHERE id_rol = ? AND module_id = ? LIMIT 1`,
-        [roleId, modId],
-      );
-      const vals = [
-        p.enabled ? 1 : 0,
-        p.actions?.view ? 1 : 0,
-        p.actions?.create ? 1 : 0,
-        p.actions?.edit ? 1 : 0,
-        p.actions?.delete ? 1 : 0,
-      ];
-      if (existing.length) {
-        await conn.query(
-          `UPDATE permisos_de_rol SET enabled=?, can_view=?, can_create=?, can_edit=?, can_delete=?
-           WHERE id_permiso = ?`,
-          [...vals, existing[0].id_permiso],
-        );
-      } else {
-        await conn.query(
-          `INSERT INTO permisos_de_rol
-            (id_rol, ID_Agencia, module_id, enabled, can_view, can_create, can_edit, can_delete)
-           VALUES (?,?,?,?,?,?,?,?)`,
-          [roleId, agency, modId, ...vals],
-        );
-      }
+      await upsertRolePermission(conn, roleId, agency, modId, p);
     }
     await conn.commit();
   } catch (e) {
