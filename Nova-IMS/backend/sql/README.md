@@ -5,7 +5,7 @@
 | Qué | Dónde vive |
 |-----|------------|
 | Esquema de tablas | `01_schema.sql` (repo) |
-| Catálogos base (agencias, roles, eventos CSJ, permisos…) | `02_seed_catalogs.sql` (repo) |
+| Catálogos base (agencias, roles, eventos CSJ, permisos…) | `02_catalogos_referencia.sql` (repo) |
 | Geo, usuarios, correos, incidentes | **MySQL del cliente** (dump oficial, p. ej. `Dump20260612.sql`) |
 | Alta de operadores y correos en runtime | Módulo **Administración** (API) |
 
@@ -16,7 +16,7 @@ La aplicación **no** embebe DIVIPOLA ni datos operativos en código ni en seeds
 | Archivo | Uso |
 |---------|-----|
 | `01_schema.sql` | `CREATE DATABASE` + tablas |
-| `02_seed_catalogs.sql` | Catálogos mínimos (sin usuarios, correos ni geo) |
+| `02_catalogos_referencia.sql` | Catálogos de referencia iniciales (sin usuarios, correos ni geo) |
 | `import-db.js` | Ejecuta esquema + catálogos base |
 
 ## Instalación
@@ -37,7 +37,7 @@ Luego importar en MySQL el dump del cliente para geo y datos operativos.
 ### Manual (Workbench)
 
 1. `01_schema.sql`
-2. `02_seed_catalogs.sql`
+2. `02_catalogos_referencia.sql`
 3. Dump del cliente (departamentos, municipios, usuarios existentes, etc.)
 
 ## Configuración `.env`
