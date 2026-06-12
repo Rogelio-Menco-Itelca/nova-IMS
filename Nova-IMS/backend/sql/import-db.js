@@ -30,7 +30,7 @@ async function run() {
 
   try {
     await runSqlFile(conn, path.join(sqlDir, "01_schema.sql"));
-    await runSqlFile(conn, path.join(sqlDir, "02_seed_catalogs.sql"));
+    await runSqlFile(conn, path.join(sqlDir, "02_catalogos_referencia.sql"));
     console.log("[IMPORT] OK — catálogos base. Datos operativos: usar dump del cliente en MySQL.");
   } finally {
     await conn.end();
