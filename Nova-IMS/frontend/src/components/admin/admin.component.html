@@ -779,7 +779,6 @@
                                 </span>
                               </td>
                               <td class="px-6 py-4">
-                                <div class="text-gray-200 mb-2">{{ log.changes }}</div>
                                 @if (log.details && log.details.length > 0) {
                                   <div
                                     class="bg-black/20 rounded-lg p-3 space-y-2 border border-gray-700/50"
@@ -818,6 +817,8 @@
                                       </div>
                                     }
                                   </div>
+                                } @else {
+                                  <div class="text-gray-200">{{ log.changes }}</div>
                                 }
                               </td>
                             </tr>

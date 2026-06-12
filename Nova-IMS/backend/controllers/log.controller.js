@@ -1,16 +1,21 @@
 const asyncHandler = require('../utils/asyncHandler');
 const giLogs = require('../db/gestionincidentes/logs');
 
-function parseAuditDetailsField(raw) {
-  if (raw == null) return undefined;
+function parseAuditDetails(raw) {
+  if (raw == null) return [];
+  let value = raw;
   if (typeof raw === 'string') {
     try {
-      return JSON.parse(raw);
+      value = JSON.parse(raw);
     } catch {
-      return undefined;
+      return [];
     }
   }
-  return raw;
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object' && Array.isArray(value.changes)) {
+    return value.changes;
+  }
+  return [];
 }
 
 function mapAuditLogRow(r) {
@@ -20,7 +25,7 @@ function mapAuditLogRow(r) {
     user: r.user,
     action: r.action,
     changes: r.changes || '',
-    details: parseAuditDetailsField(r.details_json),
+    details: parseAuditDetails(r.details_json),
     timestamp: r.timestamp,
   };
 }
