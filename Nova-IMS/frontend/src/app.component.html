@@ -412,13 +412,13 @@
                 }
               </button>
 
-              <!-- Notifications Panel -->
               @if (isNotificationsOpen()) {
                 <div
                   class="absolute top-0 right-10 w-80 bg-gray-700 rounded-lg shadow-2xl border border-gray-600 z-20 animate-fadeInUp"
                 >
                   <div class="p-3 border-b border-gray-600">
                     <h3 class="font-semibold text-white">Notificaciones</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Actividad de esta sesión</p>
                   </div>
                   <div class="max-h-96 overflow-y-auto">
                     @for (
@@ -430,7 +430,9 @@
                         [class.opacity-60]="notification.read"
                       >
                         <p class="font-bold text-sm text-gray-200">{{ notification.title }}</p>
-                        <p class="text-sm text-gray-300">{{ notification.message }}</p>
+                        <p class="text-sm text-gray-300 whitespace-pre-line">
+                          {{ notification.message }}
+                        </p>
                         <p class="text-xs text-gray-400 mt-1">
                           {{ notification.timestamp.toLocaleTimeString('es-CO') }}
                         </p>

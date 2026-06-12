@@ -329,11 +329,31 @@
                 >
                 <input
                   id="phone"
-                  type="text"
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel"
                   formControlName="phone"
-                  placeholder="Número del llamante (opcional)"
+                  placeholder="Ej. 3026172447 (opcional)"
+                  [class.border-red-500]="
+                    incidentForm.get('phone')?.invalid &&
+                    (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched)
+                  "
                   class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
+                @if (
+                  incidentForm.get('phone')?.invalid &&
+                  (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched)
+                ) {
+                  <p class="text-red-400 text-[11px] mt-1">
+                    @if (incidentForm.get('phone')?.hasError('phoneChars')) {
+                      Solo se permiten números, espacios y el signo +.
+                    } @else if (incidentForm.get('phone')?.hasError('phoneFormat')) {
+                      El teléfono debe tener 10 dígitos (ej. 3026172447).
+                    } @else {
+                      Formato de teléfono no válido.
+                    }
+                  </p>
+                }
               </div>
             </div>
 
@@ -542,30 +562,52 @@
                     Historial de comentarios
                   </h5>
                   <section
-                    class="rounded-lg border border-gray-700/80 bg-gray-900/40 overflow-hidden"
+                    class="rounded-xl border border-gray-700/80 bg-gray-900/50 overflow-hidden"
                     aria-labelledby="comments-history-heading"
                   >
-                    <div class="max-h-56 overflow-y-auto divide-y divide-gray-700/60">
+                    <div class="max-h-64 overflow-y-auto p-4">
                       @if (commentsHistory().length === 0) {
-                        <p class="text-sm text-gray-500 italic p-4">Sin comentarios registrados.</p>
+                        <p class="text-sm text-gray-500 italic text-center py-6">
+                          Sin comentarios registrados.
+                        </p>
                       } @else {
-                        @for (entry of commentsHistory(); track $index) {
-                          <article class="p-3 hover:bg-gray-800/30 transition-colors">
-                            <div
-                              class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2"
-                            >
-                              <span class="text-xs font-medium text-indigo-300">{{
-                                entry.author || 'Operador'
-                              }}</span>
-                              <time class="text-[11px] text-gray-500 tabular-nums">{{
-                                formatNoteHeader(entry)
-                              }}</time>
-                            </div>
-                            <p class="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                              {{ entry.text }}
-                            </p>
-                          </article>
-                        }
+                        <div class="space-y-4 border-l-2 border-indigo-500/25 ml-2 pl-4">
+                          @for (entry of commentsHistory(); track $index) {
+                            <article class="relative">
+                              <span
+                                class="absolute -left-[1.35rem] top-3 h-2.5 w-2.5 rounded-full bg-indigo-500 ring-4 ring-gray-900/80"
+                                aria-hidden="true"
+                              ></span>
+                              <div
+                                class="rounded-lg border border-gray-700/60 bg-gray-800/50 p-3 shadow-sm"
+                              >
+                                <div class="flex items-start gap-3 mb-2">
+                                  <div
+                                    class="shrink-0 w-8 h-8 rounded-full bg-indigo-950 flex items-center justify-center text-[11px] font-bold text-indigo-300 border border-indigo-500/20"
+                                  >
+                                    {{ commentAuthorInitials(entry.author) }}
+                                  </div>
+                                    <div class="min-w-0 flex-1">
+                                      <span class="text-sm font-medium text-gray-100">{{
+                                        entry.author || 'Operador'
+                                      }}</span>
+                                      @if (entry.timestamp) {
+                                        <time
+                                          class="block text-[11px] text-indigo-300/80 mt-0.5 tabular-nums"
+                                          >{{ formatNoteHeader(entry) }}</time
+                                        >
+                                      }
+                                      <p
+                                        class="mt-2 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed border-l-2 border-indigo-500/30 pl-3"
+                                      >
+                                        {{ entry.text }}
+                                      </p>
+                                    </div>
+                                </div>
+                              </div>
+                            </article>
+                          }
+                        </div>
                       }
                     </div>
                   </section>
@@ -1363,4 +1405,60 @@
 
 @if (emailModalIncident(); as emailIncident) {
   <app-incident-email-modal [incident]="emailIncident" (closed)="closeIncidentEmailModal()" />
+}
+
+@if (leaveConfirmOpen()) {
+  <div
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="leave-confirm-title"
+  >
+    <div
+      class="w-full max-w-md rounded-xl border border-gray-600 bg-gray-800 shadow-2xl p-6 animate-fadeInUp"
+    >
+      @if (leaveConfirmForNewTab()) {
+        <h2 id="leave-confirm-title" class="text-lg font-semibold text-white mb-2">
+          Incidente sin crear
+        </h2>
+        <p class="text-sm text-gray-300 leading-relaxed mb-6">
+          Tiene un borrador en curso. Pulse
+          <span class="text-indigo-300 font-medium">«Crear incidente»</span> para guardarlo o salga
+          sin guardar para descartarlo.
+        </p>
+      } @else {
+        <h2 id="leave-confirm-title" class="text-lg font-semibold text-white mb-2">
+          Cambios sin guardar
+        </h2>
+        <p class="text-sm text-gray-300 leading-relaxed mb-6">
+          Hay cambios pendientes en este incidente (estado, datos o comentarios). Pulse
+          <span class="text-indigo-300 font-medium">«Actualizar incidente»</span> para guardarlos en
+          el servidor antes de salir.
+        </p>
+      }
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button
+          type="button"
+          (click)="cancelLeaveConfirm()"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors"
+        >
+          Seguir editando
+        </button>
+        <button
+          type="button"
+          (click)="discardLeaveAndContinue()"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-amber-300 border border-amber-500/40 hover:bg-amber-900/20 transition-colors"
+        >
+          Salir sin guardar
+        </button>
+        <button
+          type="button"
+          (click)="saveAndLeave()"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+        >
+          {{ leaveConfirmForNewTab() ? 'Crear y salir' : 'Actualizar y salir' }}
+        </button>
+      </div>
+    </div>
+  </div>
 }

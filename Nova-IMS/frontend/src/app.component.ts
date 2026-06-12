@@ -24,6 +24,7 @@ import { InactivityService } from './services/inactivity.service';
 import { SessionWarningComponent } from './components/session-warning/session-warning.component';
 import { ProfileModalComponent } from './components/profile-modal/profile-modal.component';
 import { ProfilePhotoService } from './services/profile-photo.service';
+import { IncidentLeaveGuardService } from './services/incident-leave-guard.service';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
 
@@ -51,6 +52,7 @@ export class AppComponent implements OnInit {
   authService = inject(AuthService);
   inactivityService = inject(InactivityService);
   profilePhotoService = inject(ProfilePhotoService);
+  private incidentLeaveGuard = inject(IncidentLeaveGuardService);
 
   private readonly elementRef = inject(ElementRef);
 
@@ -102,6 +104,9 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.authService.checkAuth();
+    if (this.authService.isAuthenticated()) {
+      this.notificationService.restoreSession();
+    }
     this.profilePhotoService.loadForUser(this.authService.currentUser()?.id);
     if (localStorage.getItem(THEME_KEY) === 'light') {
       this.isDarkTheme.set(false);
@@ -148,10 +153,21 @@ export class AppComponent implements OnInit {
       this.authService.currentView.set('change-password');
       return;
     }
-    this.authService.currentView.set(view);
-    if (window.innerWidth < 768) {
-      this.isSidebarOpen.set(false);
+
+    const navigate = () => {
+      this.authService.currentView.set(view);
+      if (window.innerWidth < 768) {
+        this.isSidebarOpen.set(false);
+      }
+    };
+
+    const leavingIncidents =
+      this.authService.currentView() === 'incidents' && view !== 'incidents';
+    if (leavingIncidents && !this.incidentLeaveGuard.tryLeaveIncidentsView(navigate)) {
+      return;
     }
+
+    navigate();
   }
 
   toggleSidebar(): void {
