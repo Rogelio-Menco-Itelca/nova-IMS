@@ -18,9 +18,11 @@ const logCtrl = require('../controllers/log.controller');
 const locCtrl = require('../controllers/locationRequest.controller');
 const catCtrl = require('../controllers/catalog.controller');
 const reportsCtrl = require('../controllers/reports.controller');
+const configCtrl = require('../controllers/config.controller');
 const medidas = require('../db/gestionincidentes/medidas');
 
 // ---------- Público ----------
+router.get('/config/public', configCtrl.publicConfig);
 router.post('/auth/login', authCtrl.login);
 router.post('/auth/verify-otp', authCtrl.verifyOtp);
 router.get('/auth/ldap-health', authCtrl.ldapHealth);
