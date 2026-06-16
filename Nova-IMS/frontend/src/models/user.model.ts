@@ -1,5 +1,3 @@
-export type UserRole = string;
-
 /** Origen de la sesión actual */
 export type AuthSource = 'ldap' | 'local';
 
@@ -17,7 +15,7 @@ export interface RoleOption {
 export interface User {
   id: string;
   name: string;
-  role: UserRole;
+  role: string;
   email: string;
   phone?: string;
   agency?: string;
