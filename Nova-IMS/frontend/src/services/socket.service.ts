@@ -33,15 +33,15 @@ export class SocketService {
     });
   }
 
-  on(eventName: string, callback: (data: any) => void): void {
+  on(eventName: string, callback: (data: unknown) => void): void {
     this.socket.on(eventName, callback);
   }
 
-  off(eventName: string, callback?: (data: any) => void): void {
+  off(eventName: string, callback?: (data: unknown) => void): void {
     this.socket.off(eventName, callback);
   }
 
-  emit(eventName: string, data: any): void {
+  emit(eventName: string, data: unknown): void {
     this.socket.emit(eventName, data);
   }
 }

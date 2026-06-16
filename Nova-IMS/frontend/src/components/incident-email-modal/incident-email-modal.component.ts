@@ -228,10 +228,11 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
         resp.message || `Enviado a: ${enviados}`,
       );
       this.closed.emit();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
       const msg =
-        err?.error?.error?.message ||
-        err?.error?.message ||
+        e?.error?.error?.message ||
+        e?.error?.message ||
         'No se pudo enviar la notificación por correo.';
       this.notificationService.addNotification('Error al enviar', msg);
     } finally {

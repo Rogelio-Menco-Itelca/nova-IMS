@@ -211,7 +211,7 @@ export class AppComponent implements OnInit {
     const number = this.phoneNumber();
     if (number) {
       this.authService.currentView.set('incidents');
-      this.locationRequestService.requestLocation(number).catch(() => {});
+      this.locationRequestService.requestLocation(number).catch(() => void 0);
     }
   }
 
@@ -219,7 +219,7 @@ export class AppComponent implements OnInit {
     const number = this.phoneNumber();
     if (number) {
       this.authService.currentView.set('incidents');
-      this.locationRequestService.requestLocationViaSms(number).catch(() => {});
+      this.locationRequestService.requestLocationViaSms(number).catch(() => void 0);
     }
   }
 }

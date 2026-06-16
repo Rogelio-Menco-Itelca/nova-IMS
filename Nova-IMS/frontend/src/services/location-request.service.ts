@@ -19,6 +19,22 @@ export interface LocationData {
   address?: string;
 }
 
+interface LocationReceivedPayload {
+  lat: number;
+  lng: number;
+  timestamp?: number;
+  phoneNumber?: string;
+  request_id?: string;
+  solicitudId?: number;
+  address?: string;
+}
+
+function isLocationReceivedPayload(data: unknown): data is LocationReceivedPayload {
+  if (typeof data !== 'object' || data === null) return false;
+  const row = data as LocationReceivedPayload;
+  return typeof row.lat === 'number' && typeof row.lng === 'number';
+}
+
 @Injectable({ providedIn: 'root' })
 export class LocationRequestService {
   locationReceived = signal<LocationData | null>(null);
@@ -52,7 +68,8 @@ export class LocationRequestService {
   private readonly notificationService = inject(NotificationService);
 
   constructor() {
-    this.socketService.on('location:received', (data: any) => {
+    this.socketService.on('location:received', (data: unknown) => {
+      if (!isLocationReceivedPayload(data)) return;
       const processedData: LocationData = {
         lat: data.lat,
         lng: data.lng,

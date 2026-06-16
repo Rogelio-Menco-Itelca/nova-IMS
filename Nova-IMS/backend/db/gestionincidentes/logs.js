@@ -1,6 +1,5 @@
 const { pool } = require('../../config/db');
 const { resolveUserContext } = require('./users');
-const { getInternalId } = require('./incidents');
 const { requireAgencyInput } = require('./agencyContext');
 
 async function writeAdminLog(jwtUser, action, details) {

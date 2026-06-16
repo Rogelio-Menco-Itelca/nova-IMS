@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
 const { writeAdminLog } = require('../utils/adminLog');
@@ -111,7 +112,7 @@ exports.create = asyncHandler(async (req, res) => {
     agencyCode: agency.code,
     role: b.role,
     telefono: b.telefono,
-  }).catch((err) => console.warn('[MAIL] No se pudo enviar correo de bienvenida:', err.message));
+  }).catch((err) => logger.warn('[MAIL] No se pudo enviar correo de bienvenida:', err.message));
 
   const user = await giUsers.findUserById(loginId, agencyCode);
   await writeAdminLog(

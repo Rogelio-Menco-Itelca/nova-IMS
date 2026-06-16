@@ -85,8 +85,6 @@ import {
   enrichCommentAuthors,
 } from '../../utils/incident-notes';
 
-declare let google: any;
-
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,
   Alta: 3,
@@ -295,7 +293,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.setActiveTab('new');
 
       setTimeout(() => {
-        this.applyReceivedLocation(locationData, lat, lng).catch(() => {});
+        this.applyReceivedLocation(locationData, lat, lng).catch(() => void 0);
       }, 150);
 
       this.locationService.clearLocation();
@@ -394,7 +392,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
           this.ngZone.run(() => {
             if (status === 'OK' && results?.[0]) {
-              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
+              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => void 0);
               this.cdr.markForCheck();
             }
           });
@@ -427,7 +425,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     this.personService.lookupByPhone(local).subscribe({
       next: (person) => this.applyPersonLookupResult(person),
-      error: () => {},
+      error: () => void 0,
     });
   }
 
@@ -546,7 +544,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const lng = place.geometry.location.lng();
 
       this.ngZone.run(() => {
-        this.applyLocationFromGeocode(lat, lng, place.formatted_address, place).catch(() => {});
+        this.applyLocationFromGeocode(lat, lng, place.formatted_address, place).catch(() => void 0);
       });
     });
   }
@@ -561,7 +559,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       );
       return;
     }
-    this.forwardGeocodeAddress(address).catch(() => {});
+    this.forwardGeocodeAddress(address).catch(() => void 0);
   }
 
   private async ensureGeocoder(): Promise<google.maps.Geocoder | null> {
@@ -592,7 +590,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           loc.lng(),
           results[0].formatted_address,
           results[0],
-        ).catch(() => {});
+        ).catch(() => void 0);
       });
     });
   }
@@ -830,7 +828,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (status !== 'OK' || !results?.[0]) return;
 
     this.patchLocationFromReverseGeocode(results[0].formatted_address, fromGpsRequest);
-    this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => {});
+    this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => void 0);
     this.cdr.markForCheck();
   }
 
@@ -950,7 +948,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const control = this.incidentForm.get('departmentId');
     if (!control) return;
     this.incidentDeptSub = control.valueChanges.subscribe((val) => {
-      this.refreshIncidentMunicipalities(Number(val)).catch(() => {});
+      this.refreshIncidentMunicipalities(Number(val)).catch(() => void 0);
     });
   }
 
@@ -1293,7 +1291,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const control = group.get('departmentId');
     if (!control) return;
     const sub = control.valueChanges.subscribe((val) => {
-      this.refreshPlaceMunicipalities(index, Number(val)).catch(() => {});
+      this.refreshPlaceMunicipalities(index, Number(val)).catch(() => void 0);
     });
     this.placeDeptSubs.push(sub);
   }
@@ -1551,10 +1549,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
 
-    this.configService.getIncidentTypes().catch(() => {});
-    this.configService.getResponseProtocols().catch(() => {});
-    this.configService.getAuditLogs().catch(() => {});
-    this.loadDepartments().catch(() => {});
+    this.configService.getIncidentTypes().catch(() => void 0);
+    this.configService.getResponseProtocols().catch(() => void 0);
+    this.configService.getAuditLogs().catch(() => void 0);
+    this.loadDepartments().catch(() => void 0);
     this.loadPlaceRoles();
     this.loadPersonCatalogs();
     this.loadIncidentCatalogs();
@@ -1981,7 +1979,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.initMap(
           lat == null ? undefined : Number(lat),
           lng == null ? undefined : Number(lng),
-        ).catch(() => {});
+        ).catch(() => void 0);
       }, 0);
     }
     this.cdr.markForCheck();
@@ -2343,7 +2341,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       this.setupStatusDropdownForEdit(agency, saved.status);
       this.populateFormWithState(saved);
-      this.configService.getAuditLogs().catch(() => {});
+      this.configService.getAuditLogs().catch(() => void 0);
       this.notificationService.addNotification(
         'Incidente Actualizado',
         `Se guardaron los cambios para #${incidentId}.`,
@@ -2383,7 +2381,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private populateFormWithState(state: Partial<Incident>) {
-    this.selectedIncidentTypeName.set(state.type || (state as any).event_id || null);
+    this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.skipStatusNav = true;
     this.incidentForm.reset(undefined, { emitEvent: false });
     const {
@@ -2410,7 +2408,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.lastIncidentTypeName = typeName;
     const selectedType = this.incidentTypes().find((t) => t.name === typeName);
     this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
-    this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).catch(() => {});
+    this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).catch(() => void 0);
     this.involvedPeople.clear();
     for (const p of involvedPeople ?? []) {
       this.involvedPeople.push(this.buildPersonGroup(p));
@@ -2421,7 +2419,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const places = placesState ?? [];
     places.forEach((pl, index) => {
       this.involvedPlaces.push(this.buildPlaceGroup(pl));
-      this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId).catch(() => {});
+      this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId).catch(() => void 0);
     });
     this.reattachPlaceDepartmentWatchers();
     this.involvedVehicles.clear();
