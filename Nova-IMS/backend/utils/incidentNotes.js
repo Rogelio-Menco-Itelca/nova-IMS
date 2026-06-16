@@ -66,7 +66,7 @@ function appendIncidentNote(existing, _author, text) {
 function latestIncidentNote(raw) {
   const entries = parseIncidentNotes(raw);
   if (!entries.length) return null;
-  return entries[entries.length - 1];
+  return entries.at(-1) ?? null;
 }
 
 /** Solo el último comentario gestionado (vitácora / correo). */
