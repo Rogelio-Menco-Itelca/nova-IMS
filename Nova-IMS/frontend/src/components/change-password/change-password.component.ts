@@ -12,8 +12,8 @@ const LOGIN_NOTICE_KEY = 'ims_login_notice';
   templateUrl: './change-password.component.html',
 })
 export class ChangePasswordComponent {
-  private fb = inject(FormBuilder);
-  private authService = inject(AuthService);
+  private readonly fb = inject(FormBuilder);
+  private readonly authService = inject(AuthService);
 
   error = signal<string | null>(null);
   isSubmitting = signal(false);
