@@ -24,6 +24,7 @@
 
 const { Client } = require('ldapts');
 const ldapConfig = require('../config/ldap');
+const logger = require('../utils/logger');
 
 /**
  * Códigos de error del módulo.
@@ -227,7 +228,7 @@ async function tryAuthenticate(username, password) {
         error: 'Autenticación con directorio no disponible. Contacte al administrador.',
       };
     }
-    console.error('[LDAP]', err.code, err.message);
+    logger.error('[LDAP]', err.code, err.message);
     return {
       ok: false,
       error: 'No se pudo validar con el directorio. Intente más tarde.',

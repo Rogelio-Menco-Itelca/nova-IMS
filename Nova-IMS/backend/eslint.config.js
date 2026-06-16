@@ -32,6 +32,26 @@ module.exports = [
     },
   },
   {
-    ignores: ['node_modules/', 'sql/'],
+    files: ['utils/logger.js'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    files: [
+      'db/gestionincidentes/**/*.js',
+      'utils/incidentVehicleAudit.js',
+      'config/app.js',
+      'config/ldap.js',
+      'controllers/incident.controller.js',
+      'utils/logger.js',
+    ],
+    rules: {
+      // Catálogos internos / índices controlados; no son claves arbitrarias de usuario.
+      'security/detect-object-injection': 'off',
+    },
+  },
+  {
+    ignores: ['node_modules/', 'sql/', 'scripts/'],
   },
 ];

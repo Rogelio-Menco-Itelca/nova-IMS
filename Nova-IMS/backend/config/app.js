@@ -5,14 +5,16 @@
  * @module config/app
  */
 
-function parseJsonEnv(name) {
-  const raw = process.env[name];
+const logger = require('../utils/logger');
+
+function parseLegacyAgencyAliases() {
+  const raw = process.env.LEGACY_AGENCY_ALIASES;
   if (!raw || !String(raw).trim()) return {};
   try {
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
-    console.warn(`[config] ${name} no es JSON válido; se ignora.`);
+    logger.warn('[config] LEGACY_AGENCY_ALIASES no es JSON válido; se ignora.');
     return {};
   }
 }
@@ -39,5 +41,5 @@ module.exports = Object.freeze({
   /** Solo si está definido en .env (opcional, evitar usar en flujos de login) */
   defaultAgencyCode,
   /** Mapa opcional LEGACY→real, p. ej. {"CENTRAL":"CSJ"} en .env */
-  legacyAgencyAliases: normalizeAliases(parseJsonEnv('LEGACY_AGENCY_ALIASES')),
+  legacyAgencyAliases: normalizeAliases(parseLegacyAgencyAliases()),
 });
