@@ -7,7 +7,9 @@
     "start": "ng serve",
     "build": "ng build",
     "preview": "ng serve --configuration=production",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@angular/build": "^20.3.0",
@@ -28,6 +30,8 @@
     "angular-eslint": "21.0.1",
     "eslint": "^9.39.1",
     "typescript": "~5.8.2",
-    "typescript-eslint": "8.46.4"
+    "typescript-eslint": "8.46.4",
+    "vitest": "^3.1.1",
+    "@vitest/coverage-v8": "^3.1.1"
   }
 }

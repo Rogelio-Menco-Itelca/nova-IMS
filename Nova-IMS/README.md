@@ -153,6 +153,8 @@ SMTP_PASS=tu_app_password
 | `pnpm start` | Producción |
 | `pnpm run db:import` | Esquema + catálogos base en MySQL |
 | `pnpm run ldap:test` | Prueba login LDAP |
+| `pnpm test` | Tests unitarios (`node:test`) |
+| `pnpm run test:coverage` | Tests + informe LCOV para Sonar |
 | `pnpm audit` | Verifica vulnerabilidades |
 | `pnpm run lint` | ESLint |
 
@@ -163,6 +165,8 @@ SMTP_PASS=tu_app_password
 | `pnpm dev` | Dev server (puerto 4200) |
 | `pnpm build` | Build producción |
 | `pnpm run lint` | ESLint Angular |
+| `pnpm test` | Tests unitarios (Vitest) |
+| `pnpm run test:coverage` | Tests + informe LCOV para Sonar |
 | `pnpm audit` | Verifica vulnerabilidades |
 
 ---
@@ -288,6 +292,7 @@ Authorization: Bearer <token>
 | pnpm 11 supply-chain policy | Ambos | ✅ Implementado |
 | pnpm audit | Ambos | ✅ 0 vulnerabilidades |
 | Dependabot | Ambos | ✅ Monitoreo semanal |
+| Tests unitarios (node:test / Vitest) | Ambos | 🟡 Cobertura inicial en utils |
 | Semgrep OSS | CI/CD | 🔄 Pendiente |
 | Playwright E2E | Frontend | 🔄 Pendiente |
 
