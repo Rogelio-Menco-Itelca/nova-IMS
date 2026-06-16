@@ -102,7 +102,9 @@
         <div class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div class="relative w-full sm:max-w-xs">
+              <label for="users-search" class="sr-only">Buscar por nombre, email, ID</label>
               <input
+                id="users-search"
                 (input)="onSearch($event)"
                 type="text"
                 placeholder="Buscar por nombre, email, ID..."
@@ -524,7 +526,9 @@
                     />
                   </svg>
                 </div>
+                <label for="incident-history-search" class="sr-only">Buscar incidente</label>
                 <input
+                  id="incident-history-search"
                   type="text"
                   [value]="incidentHistorySearchTerm()"
                   (input)="onIncidentHistorySearchInput($event)"
@@ -1005,7 +1009,11 @@
                           </button>
                         </td>
                         <td class="px-6 py-4 text-center">
+                          <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-view'" class="sr-only">
+                            Ver permiso de {{ perm.module }}
+                          </label>
                           <input
+                            [id]="'perm-' + role.id + '-' + modIdx + '-view'"
                             type="checkbox"
                             [checked]="perm.actions.view"
                             [disabled]="!perm.enabled"
@@ -1014,7 +1022,11 @@
                           />
                         </td>
                         <td class="px-6 py-4 text-center">
+                          <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-create'" class="sr-only">
+                            Crear permiso de {{ perm.module }}
+                          </label>
                           <input
+                            [id]="'perm-' + role.id + '-' + modIdx + '-create'"
                             type="checkbox"
                             [checked]="perm.actions.create"
                             [disabled]="!perm.enabled"
@@ -1023,7 +1035,11 @@
                           />
                         </td>
                         <td class="px-6 py-4 text-center">
+                          <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-edit'" class="sr-only">
+                            Editar permiso de {{ perm.module }}
+                          </label>
                           <input
+                            [id]="'perm-' + role.id + '-' + modIdx + '-edit'"
                             type="checkbox"
                             [checked]="perm.actions.edit"
                             [disabled]="!perm.enabled"
@@ -1032,7 +1048,11 @@
                           />
                         </td>
                         <td class="px-6 py-4 text-center">
+                          <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-delete'" class="sr-only">
+                            Eliminar permiso de {{ perm.module }}
+                          </label>
                           <input
+                            [id]="'perm-' + role.id + '-' + modIdx + '-delete'"
                             type="checkbox"
                             [checked]="perm.actions.delete"
                             [disabled]="!perm.enabled"
@@ -1176,7 +1196,11 @@
               </p>
             </div>
             <div class="relative w-full sm:max-w-xs">
+              <label for="admin-log-search" class="sr-only">
+                Filtrar log por acción o usuario
+              </label>
               <input
+                id="admin-log-search"
                 (input)="onAdminLogSearch($event)"
                 type="text"
                 placeholder="Filtrar por acción o usuario..."
