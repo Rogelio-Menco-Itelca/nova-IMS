@@ -136,7 +136,9 @@
         </div>
       </div>
       <div class="shrink-0 px-2 pb-3">
+        <label for="dashboard-incident-search" class="sr-only">Buscar incidentes activos</label>
         <input
+          id="dashboard-incident-search"
           (input)="onFilterText($event)"
           type="text"
           placeholder="Buscar por ID, tipo, ubicación..."
@@ -262,7 +264,6 @@
               @for (incident of paginatedDashboardIncidents(); track incident.id) {
                 <tr
                   [attr.data-incident-id]="incident.id"
-                  role="button"
                   tabindex="0"
                   (click)="selectDashboardIncident(incident); $event.stopPropagation()"
                   (keydown.enter)="selectDashboardIncident(incident); $event.stopPropagation()"

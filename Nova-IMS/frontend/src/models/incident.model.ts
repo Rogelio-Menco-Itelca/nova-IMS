@@ -192,17 +192,17 @@ export interface InvolvedPerson {
   segundoNombre?: string;
   primerApellido?: string;
   segundoApellido?: string;
-  role?: PersonRole | string;
+  role?: string;
   roleId?: number | null;
   contact?: string;
   /** Comentarios del solicitante (tabla comentariospersonas) */
   comentarios?: string;
   details?: string;
   phone?: string;
-  documentType?: DocumentType | string;
+  documentType?: string;
   documentTypeName?: string;
   documentId?: string;
-  gender?: PersonGender | string;
+  gender?: string;
   genderId?: number | null;
 }
 
@@ -254,7 +254,7 @@ export interface Person {
   primerApellido?: string;
   segundoApellido?: string;
   documentId: string;
-  documentType?: DocumentType | string;
+  documentType?: string;
   documentTypeName?: string;
   phone: string;
   contacto?: string;
@@ -277,7 +277,7 @@ export interface PersonFormPayload {
   segundoNombre?: string;
   primerApellido: string;
   segundoApellido?: string;
-  tipoDocumento: DocumentType | string;
+  tipoDocumento: string;
   numeroDocumento: string;
   contacto?: string;
   roleId: number;

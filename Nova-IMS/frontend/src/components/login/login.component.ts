@@ -41,9 +41,9 @@ const LOGIN_NOTICE_KEY = 'ims_login_notice';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginComponent implements OnInit, OnDestroy {
-  private fb = inject(FormBuilder);
-  private authService = inject(AuthService);
-  private notificationService = inject(NotificationService);
+  private readonly fb = inject(FormBuilder);
+  private readonly authService = inject(AuthService);
+  private readonly notificationService = inject(NotificationService);
 
   step = signal<Step>('credentials');
   isLoading = signal(false);

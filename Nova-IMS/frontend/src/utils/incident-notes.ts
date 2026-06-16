@@ -153,7 +153,7 @@ export function noteAuthorInitials(author: string): string {
 export function latestIncidentNoteText(raw: string | null | undefined): string {
   const entries = parseIncidentNotes(raw);
   if (!entries.length) return '';
-  return entries[entries.length - 1].text;
+  return entries.at(-1)?.text ?? '';
 }
 
 /** Historial unificado: comments + descripción antigua si solo existía details. */

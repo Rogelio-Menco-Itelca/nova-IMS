@@ -1,8 +1,7 @@
 @if (authService.currentUser(); as user) {
-  <div
+  <dialog
+    open
     class="profile-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
-    role="dialog"
-    aria-modal="true"
     aria-labelledby="profile-modal-title"
     (click)="onBackdropClick($event)"
     (keydown)="onBackdropKeydown($event)"
@@ -60,8 +59,10 @@
             </span>
           </button>
 
+            <label for="profile-photo-input" class="sr-only">Seleccionar foto de perfil</label>
           <input
             #photoInput
+            id="profile-photo-input"
             type="file"
             accept="image/*"
             class="hidden"
@@ -214,5 +215,5 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 }

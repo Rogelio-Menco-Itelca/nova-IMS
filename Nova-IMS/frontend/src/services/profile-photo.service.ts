@@ -49,7 +49,10 @@ export class ProfilePhotoService {
   private readAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onload = () => {
+        const result = reader.result;
+        resolve(typeof result === 'string' ? result : '');
+      };
       reader.onerror = () => {
         const err = reader.error;
         reject(err instanceof Error ? err : new Error('No se pudo leer el archivo de imagen.'));

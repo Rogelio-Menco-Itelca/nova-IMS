@@ -24,13 +24,13 @@ const MAX_NOTIFICATIONS = 10;
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
-  private http = inject(HttpClient);
-  private authService = inject(AuthService);
+  private readonly http = inject(HttpClient);
+  private readonly authService = inject(AuthService);
   private readonly apiUrl = apiUrl('/api/notifications');
 
-  private _notifications = signal<AppNotification[]>([]);
+  private readonly _notifications = signal<AppNotification[]>([]);
   readonly notifications = this._notifications.asReadonly();
-  lastNotification = signal<AppNotification | null>(null);
+  readonly lastNotification = signal<AppNotification | null>(null);
 
   readonly maxNotifications = MAX_NOTIFICATIONS;
 

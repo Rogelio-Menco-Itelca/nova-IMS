@@ -73,7 +73,7 @@ export class AppComponent implements OnInit {
   isNotificationsOpen = signal(false);
   isDarkTheme = signal(true);
   phoneNumber = signal('');
-  toastNotification = signal<any | null>(null);
+  toastNotification = signal<{ title: string; message: string } | null>(null);
 
   constructor() {
     effect(() => {

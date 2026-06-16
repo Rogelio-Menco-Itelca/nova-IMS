@@ -44,7 +44,7 @@ export interface ReportFilters {
 
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
 
   getSummary(filters: ReportFilters = {}): Observable<ReportSummary> {
     let params = new HttpParams();

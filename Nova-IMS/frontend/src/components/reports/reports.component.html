@@ -392,7 +392,9 @@
               </h3>
               <p class="text-xs text-gray-500 mt-0.5">{{ filteredHistory().length }} registros</p>
             </div>
+            <label for="reports-history-search" class="sr-only">Buscar en historial de incidentes</label>
             <input
+              id="reports-history-search"
               type="text"
               placeholder="Buscar por ID, tipo, ubicación, operador..."
               (input)="onSearchText($event)"

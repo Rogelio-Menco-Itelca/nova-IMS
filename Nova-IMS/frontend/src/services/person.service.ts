@@ -10,8 +10,8 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class PersonService {
-  private http = inject(HttpClient);
-  private apiUrl = '/api/people';
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = '/api/people';
 
   people = signal<Person[]>([]);
   isLoading = signal(false);

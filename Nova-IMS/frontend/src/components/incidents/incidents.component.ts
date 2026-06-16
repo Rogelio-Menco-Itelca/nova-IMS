@@ -134,22 +134,22 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.inferDocumentType(person.documentId);
   }
 
-  private fb = inject(FormBuilder);
-  private notificationService = inject(NotificationService);
-  private configService = inject(ConfigurationService);
-  private locationService = inject(LocationRequestService);
-  incidentService = inject(IncidentService);
-  private authService = inject(AuthService);
-  private ngZone = inject(NgZone);
-  private cdr = inject(ChangeDetectorRef);
+  private readonly fb = inject(FormBuilder);
+  private readonly notificationService = inject(NotificationService);
+  private readonly configService = inject(ConfigurationService);
+  private readonly locationService = inject(LocationRequestService);
+  readonly incidentService = inject(IncidentService);
+  private readonly authService = inject(AuthService);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   // Tab Management
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
-  activeTabId = signal<string | 'new' | null>(null);
+  activeTabId = signal<string | null>(null);
   selectedIncidentTypeName = signal<string | null>(null);
   isProtocolVisible = signal(true);
-  newIncidentFormState = signal<any | null>(null);
+  newIncidentFormState = signal<Partial<Incident> | null>(null);
   readonly MAX_TABS = 5;
 
   emailModalIncident = signal<Incident | null>(null);
@@ -159,7 +159,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private marker: MapPin | null = null;
 
   private dashboardMap: google.maps.Map | null = null;
-  private dashboardMarkers = new Map<
+  private readonly dashboardMarkers = new Map<
     string,
     {
       marker: MapPin;
@@ -316,9 +316,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardMapResizeObserver.observe(el);
   }
 
-  private scheduleNewIncidentMapInit(
-    savedState: ReturnType<typeof this.incidentForm.getRawValue> | null,
-  ): void {
+  private scheduleNewIncidentMapInit(savedState: Partial<Incident> | null): void {
     setTimeout(() => {
       const lat = this.incidentForm.get('lat')?.value || 4.645368;
       const lng = this.incidentForm.get('lng')?.value || -74.1131;
@@ -685,11 +683,11 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     const priorityColor = this.getMarkerColor(incident);
     const address = this.getExactAddress(incident);
     const coords = this.getIncidentCoordsLabel(incident);
-    const addressBlock = address
-      ? this.escapeHtml(address)
-      : this.isAddressLoading(incident.id)
-        ? 'Obteniendo dirección exacta…'
-        : 'Sin dirección registrada';
+    const addressBlock = (() => {
+      if (address) return this.escapeHtml(address);
+      if (this.isAddressLoading(incident.id)) return 'Obteniendo dirección exacta…';
+      return 'Sin dirección registrada';
+    })();
     return `
       <div style="min-width:260px;color:#111827;font-family:system-ui,sans-serif;">
         <h3 style="margin:0 0 8px;font-size:15px;">${this.escapeHtml(incident.id)}</h3>
@@ -1286,14 +1284,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  setActiveTab(tabId: string | 'new') {
+  setActiveTab(tabId: string) {
     if (this.activeTabId() === tabId) {
       this.activeTabId.set(null);
       setTimeout(() => this.activeTabId.set(tabId), 50);
       return;
     }
     if (this.activeTabId() === 'new') {
-      this.newIncidentFormState.set(this.incidentForm.getRawValue());
+      this.newIncidentFormState.set(this.incidentForm.getRawValue() as Partial<Incident>);
     }
     this.activeTabId.set(tabId);
   }
