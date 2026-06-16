@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const logger = require('../utils/logger');
 const giNotifications = require('../db/gestionincidentes/notifications');
 const { resolveDbUserIdFromString } = require('../utils/jwtUser');
 
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   try {
     res.json(await giNotifications.listNotifications());
   } catch (error) {
-    console.error('Error obteniendo notificaciones:', error);
+    logger.error('Error obteniendo notificaciones:', error);
     res.status(500).json({ error: 'Error obteniendo notificaciones' });
   }
 });
@@ -25,7 +26,7 @@ router.post('/', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    console.error('Error creando notificación:', error);
+    logger.error('Error creando notificación:', error);
     res.status(500).json({ error: 'Error creando notificación' });
   }
 });
@@ -40,7 +41,7 @@ async function markAllAsRead(req, res) {
     await giNotifications.markAllRead(userIdDb, req.user?.agency_code);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error actualizando notificaciones:', error);
+    logger.error('Error actualizando notificaciones:', error);
     res.status(500).json({ error: 'Error actualizando notificaciones' });
   }
 }

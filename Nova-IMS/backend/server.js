@@ -9,6 +9,7 @@ const { testConnection } = require('./config/db');
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const socket = require('./realtime/socket');
+const logger = require('./utils/logger');
 
 const app = express();
 const server = http.createServer(app);
@@ -51,24 +52,24 @@ async function bootstrap() {
   try {
     await testConnection();
   } catch (err) {
-    console.error('[DB] No se pudo conectar a MySQL:', err.message);
-    console.error('     Revisa tus credenciales en el archivo .env y que MySQL esté corriendo.');
+    logger.error('[DB] No se pudo conectar a MySQL:', err.message);
+    logger.error('     Revisa tus credenciales en el archivo .env y que MySQL esté corriendo.');
     process.exit(1);
   }
 
   const publicUrl = await getPublicUrlAsync();
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`╔════════════════════════════════════════════════════╗`);
-    console.log(`║  Backend IMS activo                                ║`);
-    console.log(`║  HTTP  : http://localhost:${PORT}${' '.repeat(21)}║`);
-    console.log(`║  Socket: ws://localhost:${PORT}/socket.io${' '.repeat(13)}║`);
-    console.log(`║  CORS  : ${(process.env.CORS_ORIGIN || '*').padEnd(41)}║`);
-    console.log(`║  PUBLIC: ${publicUrl.padEnd(41)}║`);
+    logger.info('╔════════════════════════════════════════════════════╗');
+    logger.info('║  Backend IMS activo                                ║');
+    logger.info(`║  HTTP  : http://localhost:${PORT}${' '.repeat(21)}║`);
+    logger.info(`║  Socket: ws://localhost:${PORT}/socket.io${' '.repeat(13)}║`);
+    logger.info(`║  CORS  : ${(process.env.CORS_ORIGIN || '*').padEnd(41)}║`);
+    logger.info(`║  PUBLIC: ${publicUrl.padEnd(41)}║`);
     if (publicUrl.includes('localhost')) {
-      console.log('║  ⚠ WhatsApp: ejecute ngrok http 3000              ║');
+      logger.info('║  ⚠ WhatsApp: ejecute ngrok http 3000              ║');
     }
-    console.log(`╚════════════════════════════════════════════════════╝`);
+    logger.info('╚════════════════════════════════════════════════════╝');
   });
 }
 
@@ -76,10 +77,10 @@ bootstrap();
 
 // Cierre gracioso
 process.on('SIGTERM', () => {
-  console.log('SIGTERM');
+  logger.info('SIGTERM');
   server.close(() => process.exit(0));
 });
 process.on('SIGINT', () => {
-  console.log('SIGINT');
+  logger.info('SIGINT');
   server.close(() => process.exit(0));
 });
