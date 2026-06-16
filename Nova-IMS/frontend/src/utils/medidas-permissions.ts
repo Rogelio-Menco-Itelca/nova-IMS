@@ -158,25 +158,6 @@ export function getMedidasPermissions(status: string, agency = 'CSJ'): MedidasPe
       };
 
     case 'Enviado a CERREM':
-      return {
-        showPanel: true,
-        showOsegBlock: true,
-        showCerremBlock: true,
-        showMedidasBlock: false,
-        servidorJudicial: 'readonly',
-        oficioTramite: 'readonly',
-        tramiteDestino: 'readonly',
-        fechaCerrem: 'editable',
-        resolucionCerrem: 'editable',
-        fechaResolucion: 'editable',
-        nivelRiesgo: 'editable',
-        tipoEsquema: 'editable',
-        observaciones: 'editable',
-        medidasFisicas: 'hidden',
-        canSaveGestion: true,
-        canSaveMedidas: false,
-      };
-
     case 'En evaluación CERREM':
       return {
         showPanel: true,

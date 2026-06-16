@@ -417,7 +417,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
 
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
 
   tiposMedida = signal<TipoMedida[]>([]);
   riesgos = signal<{ id: number; nombre: string }[]>([]);
@@ -507,8 +507,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     if (!changes['workflowStatus']) return;
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
     const ui = catalogStatusToUiStatus(this.workflowStatus);
-    const rank =
-      CSJ_STATUS_WORKFLOW_RANK[ui as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+    const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
     if (
       rank !== undefined &&
       rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
@@ -539,7 +538,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   /** El flujo ya pasó por CERREM (incluye «Medidas asignadas» aunque canSaveGestion sea false). */
   private flujoCerremAlcanzado(): boolean {
     const ui = catalogStatusToUiStatus(this.workflowStatus);
-    const rank = CSJ_STATUS_WORKFLOW_RANK[ui as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+    const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
     return (
       rank !== undefined &&
       rank >= CSJ_STATUS_WORKFLOW_RANK['Enviado a CERREM'] &&
@@ -698,8 +697,7 @@ export class MedidasComponent implements OnInit, OnChanges {
           this.cerremEditMode.set(false);
 
           const ui = catalogStatusToUiStatus(this.workflowStatus);
-          const rank =
-            CSJ_STATUS_WORKFLOW_RANK[ui as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+          const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
           if (
             rank !== undefined &&
             rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
@@ -835,8 +833,8 @@ export class MedidasComponent implements OnInit, OnChanges {
       .post(`/api/incidents/${this.incidentId}/gestion`, payload)
       .subscribe({
         next: () => {
-          this.osegGuardada.set(this.isOsegPersistida(this.form as Gestion));
-          this.cerremGuardada.set(this.isCerremPersistida(this.form as Gestion));
+          this.osegGuardada.set(this.isOsegPersistida(this.form));
+          this.cerremGuardada.set(this.isCerremPersistida(this.form));
           afterSuccess?.();
           this.showMensaje(modulo, successMsg, 'ok');
           this.loadGestion();

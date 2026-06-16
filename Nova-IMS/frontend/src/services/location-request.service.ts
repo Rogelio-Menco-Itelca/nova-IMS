@@ -44,12 +44,12 @@ export class LocationRequestService {
     this.pendingPhone.set(null);
   }
 
-  private lastRequestedNumber = signal<string | null>(null);
-  private lastRequestChannel = signal<'whatsapp' | 'sms'>('whatsapp');
-  private lastRequestId = signal<string | null>(null);
-  private lastSolicitudId = signal<number | null>(null);
-  private socketService = inject(SocketService);
-  private notificationService = inject(NotificationService);
+  private readonly lastRequestedNumber = signal<string | null>(null);
+  private readonly lastRequestChannel = signal<'whatsapp' | 'sms'>('whatsapp');
+  private readonly lastRequestId = signal<string | null>(null);
+  private readonly lastSolicitudId = signal<number | null>(null);
+  private readonly socketService = inject(SocketService);
+  private readonly notificationService = inject(NotificationService);
 
   constructor() {
     this.socketService.on('location:received', (data: any) => {

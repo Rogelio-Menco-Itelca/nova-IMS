@@ -1,5 +1,4 @@
-// eslint-disable-next-line no-unused-vars
-module.exports = (err, req, res, next) => {
+function errorHandler(err, req, res, next) {
   const status = err.status || 500;
   if (status >= 500) {
     console.error('[ERROR]', err);
@@ -10,4 +9,6 @@ module.exports = (err, req, res, next) => {
       details: err.details || undefined,
     },
   });
-};
+}
+
+module.exports = errorHandler;

@@ -19,8 +19,8 @@ export interface NotificationEmailEntry {
 
 @Injectable({ providedIn: 'root' })
 export class ConfigurationService {
-  private http = inject(HttpClient);
-  private socketService = inject(SocketService);
+  private readonly http = inject(HttpClient);
+  private readonly socketService = inject(SocketService);
 
   // ---------- Señales públicas ----------
   adminLogs = signal<AdminActionLog[]>([]);

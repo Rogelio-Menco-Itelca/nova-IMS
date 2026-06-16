@@ -5,8 +5,8 @@ import { socketUrl } from '../utils/api-base';
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
-  private socket: Socket;
-  private authService = inject(AuthService);
+  private readonly socket: Socket;
+  private readonly authService = inject(AuthService);
 
   isConnected = signal(false);
 

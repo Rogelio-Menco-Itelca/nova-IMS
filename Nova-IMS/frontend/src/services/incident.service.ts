@@ -7,10 +7,10 @@ import { NotificationService } from './notification.service';
 
 @Injectable({ providedIn: 'root' })
 export class IncidentService {
-  private http = inject(HttpClient);
-  private socketService = inject(SocketService);
-  private notificationService = inject(NotificationService);
-  private apiUrl = '/api/incidents';
+  private readonly http = inject(HttpClient);
+  private readonly socketService = inject(SocketService);
+  private readonly notificationService = inject(NotificationService);
+  private readonly apiUrl = '/api/incidents';
 
   incidents = signal<Incident[]>([]);
   dashboardMetrics = signal<DashboardResponseMetrics | null>(null);

@@ -100,8 +100,8 @@ function persistCurrentUser(user: User): void {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private http = inject(HttpClient);
-  private apiUrl = '/api/auth';
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = '/api/auth';
 
   isAuthenticated = signal(false);
   currentUser = signal<User | null>(null);

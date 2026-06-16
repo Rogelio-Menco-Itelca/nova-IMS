@@ -6,10 +6,10 @@ import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class ColombiaGeoService {
-  private http = inject(HttpClient);
-  private authService = inject(AuthService);
+  private readonly http = inject(HttpClient);
+  private readonly authService = inject(AuthService);
 
-  private departmentsCache = new Map<string, ColombiaDepartment[]>();
+  private readonly departmentsCache = new Map<string, ColombiaDepartment[]>();
 
   private sessionAgency(): string | null {
     return this.authService.currentUser()?.agency?.trim().toUpperCase() || null;

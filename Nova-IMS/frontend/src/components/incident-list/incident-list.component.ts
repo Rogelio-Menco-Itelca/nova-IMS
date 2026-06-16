@@ -185,12 +185,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   // --- Tab Management State ---
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
-  activeTabId = signal<string | 'new' | null>(null);
+  activeTabId = signal<string | null>(null);
   detailTab = signal<'detalle' | 'medidas'>('detalle');
   mapReady = signal(false);
   selectedIncidentTypeName = signal<string | null>(null);
   isProtocolVisible = signal(true);
-  newIncidentFormState = signal<any | null>(null);
+  newIncidentFormState = signal<Partial<Incident> | null>(null);
   readonly MAX_TABS = 5;
 
   emailModalIncident = signal<Incident | null>(null);
@@ -1288,8 +1288,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private attachPlaceDepartmentWatcher(index: number): void {
-    const group = this.involvedPlaces.at(index) as FormGroup | undefined;
-    const control = group?.get('departmentId');
+    const group = this.involvedPlaces.at(index);
+    if (!(group instanceof FormGroup)) return;
+    const control = group.get('departmentId');
     if (!control) return;
     const sub = control.valueChanges.subscribe((val) => {
       this.refreshPlaceMunicipalities(index, Number(val)).catch(() => {});
@@ -1299,8 +1300,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   /** Al cambiar departamento: limpia municipio y carga solo los de ese departamento. */
   private async refreshPlaceMunicipalities(index: number, deptId: number): Promise<void> {
-    const group = this.involvedPlaces.at(index) as FormGroup | undefined;
-    group?.patchValue({ municipalityId: null }, { emitEvent: false });
+    const group = this.involvedPlaces.at(index);
+    if (!(group instanceof FormGroup)) return;
+    group.patchValue({ municipalityId: null }, { emitEvent: false });
     if (!deptId) {
       this.setPlaceMunicipalities(index, []);
       return;
@@ -1337,8 +1339,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const rows = await firstValueFrom(this.colombiaGeo.getMunicipalities(deptId));
       this.setPlaceMunicipalities(index, rows);
       if (municipalityId != null) {
-        const group = this.involvedPlaces.at(index) as FormGroup | undefined;
-        group?.patchValue({ municipalityId }, { emitEvent: false });
+        const group = this.involvedPlaces.at(index);
+        if (group instanceof FormGroup) {
+          group.patchValue({ municipalityId }, { emitEvent: false });
+        }
       }
     } catch {
       this.setPlaceMunicipalities(index, []);
@@ -1375,8 +1379,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   onVehiclePlateInput(index: number): void {
-    const group = this.involvedVehicles.at(index) as FormGroup | undefined;
-    if (!group) return;
+    const group = this.involvedVehicles.at(index);
+    if (!(group instanceof FormGroup)) return;
     const currentPlate = String(group.get('plate')?.value || '')
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '');
@@ -1411,8 +1415,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   normalizeAndLookupVehicle(index: number): void {
     this.normalizeVehiclePlate(index);
-    const group = this.involvedVehicles.at(index) as FormGroup | undefined;
-    if (!group) return;
+    const group = this.involvedVehicles.at(index);
+    if (!(group instanceof FormGroup)) return;
     const plate = String(group.get('plate')?.value || '').trim();
     if (!plate) {
       this.clearVehicleRow(index);
@@ -1452,15 +1456,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private clearVehicleCatalogFields(index: number): void {
-    const group = this.involvedVehicles.at(index) as FormGroup | undefined;
-    if (!group) return;
+    const group = this.involvedVehicles.at(index);
+    if (!(group instanceof FormGroup)) return;
     group.patchValue({ make: '', model: '', color: '' }, { emitEvent: false });
     this.cdr.markForCheck();
   }
 
   private clearVehicleRow(index: number): void {
-    const group = this.involvedVehicles.at(index) as FormGroup | undefined;
-    if (!group) return;
+    const group = this.involvedVehicles.at(index);
+    if (!(group instanceof FormGroup)) return;
     group.patchValue(
       {
         role: '',
@@ -1616,9 +1620,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const savedStatus = catalogStatusToUiStatus(
       String(this.activeIncident()?.status ?? '').trim(),
     );
-    const formRank = CSJ_STATUS_WORKFLOW_RANK[formStatus as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
-    const savedRank =
-      CSJ_STATUS_WORKFLOW_RANK[savedStatus as keyof typeof CSJ_STATUS_WORKFLOW_RANK];
+    const formRank = CSJ_STATUS_WORKFLOW_RANK[formStatus];
+    const savedRank = CSJ_STATUS_WORKFLOW_RANK[savedStatus];
     if (formRank !== undefined && savedRank !== undefined) {
       return formRank >= savedRank ? formStatus : savedStatus;
     }
@@ -1869,14 +1872,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
   }
 
-  setActiveTab(tabId: string | 'new') {
+  setActiveTab(tabId: string) {
     if (this.activeTabId() === tabId) return;
     this.requestLeaveOr(() => this.applyActiveTab(tabId));
   }
 
-  private applyActiveTab(tabId: string | 'new') {
+  private applyActiveTab(tabId: string) {
     if (this.activeTabId() === 'new') {
-      this.newIncidentFormState.set(this.incidentForm.getRawValue());
+      this.newIncidentFormState.set(this.incidentForm.getRawValue() as Partial<Incident>);
     }
     this.activeTabId.set(tabId);
   }
@@ -1976,8 +1979,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         const lat = this.incidentForm.get('lat')?.value ?? incident?.lat;
         const lng = this.incidentForm.get('lng')?.value ?? incident?.lng;
         this.initMap(
-          lat != null ? Number(lat) : undefined,
-          lng != null ? Number(lng) : undefined,
+          lat == null ? undefined : Number(lat),
+          lng == null ? undefined : Number(lng),
         ).catch(() => {});
       }, 0);
     }

@@ -106,7 +106,7 @@
     </div>
 
     <script>
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(globalThis.location.search);
       const requestId = params.get('request_id');
 
       function setStatus(type, message) {
@@ -152,6 +152,7 @@
                 throw new Error('Error del servidor');
               }
             } catch (err) {
+              console.error('Error al enviar ubicación:', err);
               setStatus('error', '❌ Error al enviar. Por favor intenta de nuevo.');
               btn.disabled = false;
               btn.textContent = '📡 Compartir mi ubicación';

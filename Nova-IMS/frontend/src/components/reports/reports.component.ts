@@ -23,9 +23,9 @@ type Tab = 'analytics' | 'pbi';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportsComponent implements OnInit {
-  private svc = inject(ReportsService);
-  private fb = inject(FormBuilder);
-  private sanitizer = inject(DomSanitizer);
+  private readonly svc = inject(ReportsService);
+  private readonly fb = inject(FormBuilder);
+  private readonly sanitizer = inject(DomSanitizer);
 
   // ---------- pestañas ----------
   activeTab = signal<Tab>('analytics');
