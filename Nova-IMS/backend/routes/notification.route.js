@@ -23,6 +23,7 @@ router.post('/', async (req, res) => {
       triggeredBy,
       incidentId,
       agencyCode: req.user?.agency_code,
+      jwtUser: req.user,
     });
     res.json({ success: true });
   } catch (error) {

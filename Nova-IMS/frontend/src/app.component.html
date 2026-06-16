@@ -196,7 +196,7 @@
                 id="phone-number"
                 type="tel"
                 [value]="phoneNumber()"
-                (input)="phoneNumber.set($event.target.value)"
+                (input)="onQuickLocationPhoneInput($event)"
                 placeholder="Ej: 573001234567"
                 class="bg-gray-700 border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
               />

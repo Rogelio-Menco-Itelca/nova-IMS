@@ -35,7 +35,6 @@ import { Subscription, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
 import { ConfigurationService } from '../../services/configuration.service';
-import { LocationRequestService } from '../../services/location-request.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
@@ -47,6 +46,7 @@ import {
   MapPin,
   PlaceAutocompleteControl,
 } from '../../utils/google-maps-legacy';
+import { loadGoogleMaps } from '../../utils/google-maps-loader';
 
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,
@@ -135,7 +135,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
   private readonly configService = inject(ConfigurationService);
-  private readonly locationService = inject(LocationRequestService);
   readonly incidentService = inject(IncidentService);
   private readonly authService = inject(AuthService);
   private readonly ngZone = inject(NgZone);
@@ -221,42 +220,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor() {
     effect(() => {
-      const locationData = this.locationService.locationReceived();
-      if (!locationData) return;
-
-      const lat = Number(locationData.lat.toFixed(6));
-      const lng = Number(locationData.lng.toFixed(6));
-
-      // Limpiar señal inmediatamente para evitar re-triggers
-      this.locationService.clearLocation();
-
-      // Actualizar formulario (ubicación solo desde GPS, no desde persona registrada)
-      this.incidentForm.patchValue({
-        lat,
-        lng,
-        location: '',
-        origin: this.incidentForm.get('origin')?.value || 'Solicitud de Ubicación',
-        locationPhoneNumber: locationData.phoneNumber || '',
-      });
-
-      // Abrir pestaña si no existe
-      if (!this.showNewIncidentTab()) {
-        this.showNewIncidentTab.set(true);
-      }
-
-      if (this.activeTabId() === 'new') {
-        // Ya estamos en "new": mover mapa directamente
-        this.moveMapToLocation(lat, lng);
-      } else {
-        // Cambiar tab y mover mapa una vez renderizado
-        this.activeTabId.set('new');
-        setTimeout(() => this.moveMapToLocation(lat, lng), 500);
-      }
-
-      this.cdr.detectChanges();
-    });
-
-    effect(() => {
       const tabId = this.activeTabId();
 
       this.releaseMap();
@@ -328,20 +291,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 350);
   }
 
-  private moveMapToLocation(lat: number, lng: number) {
-    if (this.map && this.marker) {
-      this.map.setCenter({ lat, lng });
-      this.map.setZoom(17);
-      this.marker.setPosition({ lat, lng });
-      google.maps.event.trigger(this.map, 'resize');
-      setTimeout(() => this.reverseGeocode(lat, lng), 300);
-    } else {
-      this.initMap(lat, lng).then(() => {
-        setTimeout(() => this.reverseGeocode(lat, lng), 300);
-      });
-    }
-  }
-
   private releaseMap() {
     if (this.marker) {
       google.maps.event.clearInstanceListeners(this.marker);
@@ -362,23 +311,36 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     if (mapEl) mapEl.replaceChildren();
   }
 
-  private waitForGoogleMaps(): Promise<void> {
+  private async waitForGoogleMaps(): Promise<boolean> {
+    if (isGoogleMapsLoaded()) return true;
+
+    try {
+      await loadGoogleMaps();
+    } catch {
+      return false;
+    }
+
+    if (isGoogleMapsLoaded()) return true;
+
+    const deadline = Date.now() + 15000;
     return new Promise((resolve) => {
-      if (isGoogleMapsLoaded()) {
-        resolve();
-        return;
-      }
       const interval = setInterval(() => {
         if (isGoogleMapsLoaded()) {
           clearInterval(interval);
-          resolve();
+          resolve(true);
+          return;
+        }
+        if (Date.now() > deadline) {
+          clearInterval(interval);
+          resolve(false);
         }
       }, 200);
     });
   }
 
   private async initMap(lat = 4.645368, lng = -74.1131): Promise<void> {
-    await this.waitForGoogleMaps();
+    const mapsOk = await this.waitForGoogleMaps();
+    if (!mapsOk) return;
 
     const mapEl = document.getElementById('map');
     if (!mapEl) {

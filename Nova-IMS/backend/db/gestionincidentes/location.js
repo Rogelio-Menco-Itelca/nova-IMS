@@ -1,12 +1,19 @@
 const { pool } = require('../../config/db');
+const HttpError = require('../../utils/HttpError');
 const { locationChannelToGi, locationChannelFromGi } = require('./maps');
-const { resolveUserContext } = require('./users');
+const { resolveActorForDb } = require('../../utils/jwtUser');
 const { getInternalId } = require('./incidents');
 const { requireAgencyInput } = require('./agencyContext');
 
+const NO_DB_USER_MSG =
+  'No se pudo registrar el operador de esta sesión en MySQL. Verifique LDAP_DEFAULT_ROLE_ID y LDAP_DEFAULT_AGENCY_CODE en backend/.env.';
+
 async function createLocationRequest({ phone, channel, incidentId, user, requestUrl }) {
-  const agencyCode = requireAgencyInput(null, user);
-  const ctx = await resolveUserContext(user?.sub, agencyCode);
+  requireAgencyInput(null, user);
+  const actor = await resolveActorForDb(user);
+  if (!actor?.userId) {
+    throw new HttpError(400, NO_DB_USER_MSG);
+  }
   const internalIncident = incidentId ? await getInternalId(incidentId) : null;
 
   const [result] = await pool.query(
@@ -18,8 +25,8 @@ async function createLocationRequest({ phone, channel, incidentId, user, request
       locationChannelToGi(channel),
       internalIncident,
       requestUrl,
-      ctx.userId || user?.sub || 'SYSTEM',
-      ctx.agencyCode,
+      actor.userId,
+      actor.agencyCode,
     ],
   );
   return result.insertId;

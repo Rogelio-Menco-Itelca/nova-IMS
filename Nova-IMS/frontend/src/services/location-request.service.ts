@@ -145,6 +145,12 @@ export class LocationRequestService {
 
     const data = await response.json();
 
+    if (!response.ok) {
+      const msg =
+        data?.error?.message || data?.error || data?.message || 'No se pudo registrar la solicitud';
+      throw new Error(typeof msg === 'string' ? msg : 'No se pudo registrar la solicitud');
+    }
+
     if (!data?.requestUrl) {
       throw new Error('No se recibió requestUrl del backend');
     }
@@ -179,6 +185,10 @@ export class LocationRequestService {
     return this.lastSolicitudId();
   }
 
+  getLastRequestChannel(): 'whatsapp' | 'sms' {
+    return this.lastRequestChannel();
+  }
+
   private warnIfShareUrlNotPublic(shareUrl: string): void {
     if (isMobileShareUrl(shareUrl)) return;
     this.notificationService.addNotification(
@@ -188,18 +198,18 @@ export class LocationRequestService {
   }
 
   // ── WHATSAPP ──────────────────────────────────────────────────────────────
-  async requestLocation(phoneNumber: string): Promise<void> {
+  async requestLocation(phoneNumber: string): Promise<boolean> {
     // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
-      this.notificationService.addNotification('Número Inválido', validation.error!);
-      return;
+      this.notificationService.addNotification('Número Inválido', validation.error ?? 'Número inválido');
+      return false;
     }
 
     const digits = phoneNumber.replace(/\D/g, '');
     const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
-
-    this.openNewIncidentForm(localNumber);
+    this.lastRequestedNumber.set(localNumber);
+    this.lastRequestChannel.set('whatsapp');
 
     try {
       const shareUrl = await this.createLocationRequest(localNumber, 'whatsapp');
@@ -212,32 +222,34 @@ export class LocationRequestService {
       const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
 
+      this.openNewIncidentForm(localNumber);
+
       this.notificationService.addNotification(
         'Solicitud Enviada',
-        `Se envió un enlace de ubicación a ${localNumber} por WhatsApp.`,
+        `Enlace enviado a ${localNumber} por WhatsApp. Complete el formulario cuando llegue la ubicación GPS y pulse Guardar.`,
       );
+      return true;
     } catch (error) {
       console.error('Error WhatsApp:', error);
-      this.notificationService.addNotification(
-        'Error al Enviar',
-        'No se pudo enviar la solicitud por WhatsApp. Intente de nuevo.',
-      );
+      const detail = error instanceof Error ? error.message : 'Intente de nuevo.';
+      this.notificationService.addNotification('Error al Enviar', detail);
+      return false;
     }
   }
 
   // ── SMS ───────────────────────────────────────────────────────────────────
-  async requestLocationViaSms(phoneNumber: string): Promise<void> {
+  async requestLocationViaSms(phoneNumber: string): Promise<boolean> {
     // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
-      this.notificationService.addNotification('Número Inválido', validation.error!);
-      return;
+      this.notificationService.addNotification('Número Inválido', validation.error ?? 'Número inválido');
+      return false;
     }
 
     const digits = phoneNumber.replace(/\D/g, '');
     const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
-
-    this.openNewIncidentForm(localNumber);
+    this.lastRequestedNumber.set(localNumber);
+    this.lastRequestChannel.set('sms');
 
     try {
       const shareUrl = await this.createLocationRequest(localNumber, 'sms');
@@ -250,16 +262,18 @@ export class LocationRequestService {
       const smsUrl = `sms:+${smsPhone}?body=${encodeURIComponent(message)}`;
       window.open(smsUrl, '_blank');
 
+      this.openNewIncidentForm(localNumber);
+
       this.notificationService.addNotification(
         'Solicitud Enviada',
-        `Se envió un enlace de ubicación a ${localNumber} por SMS.`,
+        `Enlace enviado a ${localNumber} por SMS. Complete el formulario cuando llegue la ubicación GPS y pulse Guardar.`,
       );
+      return true;
     } catch (error) {
       console.error('Error SMS:', error);
-      this.notificationService.addNotification(
-        'Error al Enviar',
-        'No se pudo enviar la solicitud por SMS. Intente de nuevo.',
-      );
+      const detail = error instanceof Error ? error.message : 'Intente de nuevo.';
+      this.notificationService.addNotification('Error al Enviar', detail);
+      return false;
     }
   }
 

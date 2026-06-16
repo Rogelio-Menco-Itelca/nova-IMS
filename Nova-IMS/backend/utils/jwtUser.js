@@ -23,6 +23,25 @@ async function resolveDbUserIdFromString(id) {
   return exists ? id : null;
 }
 
+/** Usuario real en MySQL para FK (ubicacion, notificaciones, etc.). */
+async function resolveActorForDb(jwtUser) {
+  if (!jwtUser?.sub) return null;
+
+  if (isDirectorySessionId(jwtUser.sub)) {
+    const username =
+      jwtUser.username || jwtUser.sub.slice(DIRECTORY_USER_PREFIX.length);
+    const linked = await giUsers.findUserByLogin(username, jwtUser.agency_code);
+    if (linked) {
+      return { userId: linked.id, agencyCode: linked.agency_code };
+    }
+    return giUsers.ensureDirectoryActor(jwtUser);
+  }
+
+  const exists = await giUsers.userExists(jwtUser.sub);
+  if (!exists) return null;
+  return { userId: jwtUser.sub, agencyCode: jwtUser.agency_code };
+}
+
 function sessionDisplayName(jwtUser, fallback = 'Sistema') {
   return jwtUser?.name || fallback;
 }
@@ -32,5 +51,6 @@ module.exports = {
   isDirectorySessionId,
   resolveDbUserId,
   resolveDbUserIdFromString,
+  resolveActorForDb,
   sessionDisplayName,
 };

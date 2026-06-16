@@ -10,7 +10,10 @@ import { authInterceptor } from './src/interceptors/auth.interceptor';
 import { loadGoogleMaps } from './src/utils/google-maps-loader';
 
 loadGoogleMaps()
-  .catch((err) => console.warn('[Maps]', err))
+  .catch((err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[Maps]', msg);
+  })
   .finally(() => {
     bootstrapApplication(AppComponent, {
       providers: [

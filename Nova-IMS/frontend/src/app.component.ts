@@ -100,6 +100,14 @@ export class AppComponent implements OnInit {
         this.profilePhotoService.loadForUser(null);
       }
     });
+
+    effect(() => {
+      const locationData = this.locationRequestService.locationReceived();
+      if (!locationData) return;
+      if (this.authService.currentView() !== 'incidents') {
+        this.authService.currentView.set('incidents');
+      }
+    });
   }
 
   ngOnInit() {
@@ -207,19 +215,34 @@ export class AppComponent implements OnInit {
     this.applyTheme(next);
   }
 
-  sendLocationRequest(): void {
-    const number = this.phoneNumber();
-    if (number) {
-      this.authService.currentView.set('incidents');
-      this.locationRequestService.requestLocation(number).catch(() => void 0);
+  onQuickLocationPhoneInput(event: Event): void {
+    const el = event.target;
+    if (el instanceof HTMLInputElement) {
+      this.phoneNumber.set(el.value);
     }
   }
 
-  sendLocationRequestViaSms(): void {
-    const number = this.phoneNumber();
-    if (number) {
-      this.authService.currentView.set('incidents');
-      this.locationRequestService.requestLocationViaSms(number).catch(() => void 0);
+  async sendLocationRequest(): Promise<void> {
+    const number = this.phoneNumber().trim();
+    if (!number) return;
+    const ok = await this.locationRequestService.requestLocation(number);
+    if (ok) {
+      this.phoneNumber.set('');
+      if (this.authService.currentView() !== 'incidents') {
+        this.setView('incidents');
+      }
+    }
+  }
+
+  async sendLocationRequestViaSms(): Promise<void> {
+    const number = this.phoneNumber().trim();
+    if (!number) return;
+    const ok = await this.locationRequestService.requestLocationViaSms(number);
+    if (ok) {
+      this.phoneNumber.set('');
+      if (this.authService.currentView() !== 'incidents') {
+        this.setView('incidents');
+      }
     }
   }
 }

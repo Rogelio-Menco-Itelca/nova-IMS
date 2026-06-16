@@ -62,10 +62,9 @@ export function loadGoogleMaps(): Promise<void> {
 
   loadPromise = resolveGoogleMapsApiKey().then(async (key) => {
     if (!key) {
-      console.warn(
-        '[Maps] Sin clave. Configure GOOGLE_MAPS_API_KEY en backend/.env y reinicie con pnpm dev.',
+      throw new Error(
+        'Sin clave de Google Maps. Agregue GOOGLE_MAPS_API_KEY en backend/.env y reinicie el backend (pnpm dev).',
       );
-      return;
     }
     await injectMapsScript(key);
   });

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
+const ldapConfig = require('../../config/ldap');
 const { fullUserName, normalizeAgencyCode } = require('./maps');
 const { loadAgencyMap, resolveAgency } = require('./agencies');
 
@@ -296,6 +297,87 @@ async function resolveUserContext(userId, agencyCode) {
   };
 }
 
+const LDAP_ONLY_TOKEN = 'LDAP_ONLY';
+/** Hash imposible de adivinar; bloquea login local (solo directorio LDAP). */
+const LDAP_ONLY_PASSWORD = bcrypt.hashSync('LDAP_DIRECTORY_ONLY', 8);
+
+function splitDisplayName(displayName, fallbackUsername) {
+  const parts = String(displayName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return {
+      primerNombre: fallbackUsername,
+      segundoNombre: null,
+      primerApellido: 'LDAP',
+      segundoApellido: null,
+    };
+  }
+  if (parts.length === 1) {
+    return {
+      primerNombre: parts[0],
+      segundoNombre: null,
+      primerApellido: 'LDAP',
+      segundoApellido: null,
+    };
+  }
+  return {
+    primerNombre: parts[0],
+    segundoNombre: parts.length > 2 ? parts.slice(1, -1).join(' ') : null,
+    primerApellido: parts[parts.length - 1],
+    segundoApellido: null,
+  };
+}
+
+/**
+ * Usuarios que solo existen en LDAP (Docker / AD): fila mínima en MySQL para FK de ubicacion, etc.
+ * No habilita login local; el acceso sigue siendo por directorio.
+ */
+async function ensureDirectoryActor(jwtUser) {
+  const username = String(jwtUser?.username || '').trim();
+  const agencyCode = normalizeAgencyCode(jwtUser?.agency_code);
+  if (!username || !agencyCode) return null;
+
+  const existing = await findUserByLogin(username, agencyCode);
+  if (existing) {
+    return { userId: existing.id, agencyCode: existing.agency_code };
+  }
+
+  const roleId = String(jwtUser?.role_id || ldapConfig.defaultRoleId || '').trim();
+  if (!roleId) return null;
+
+  const names = splitDisplayName(jwtUser?.name, username);
+  const email = String(jwtUser?.email || `${username}@ims.local`).trim().toLowerCase();
+
+  try {
+    await pool.query(
+      `INSERT INTO usuarios
+        (ID_Usuario, Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido,
+         ID_Rol, ID_Agencia, Correo, Telefono, Contraseña, estado, Token_Contraseña)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        username,
+        names.primerNombre,
+        names.segundoNombre,
+        names.primerApellido,
+        names.segundoApellido,
+        roleId,
+        agencyCode,
+        email,
+        null,
+        LDAP_ONLY_PASSWORD,
+        'Activo',
+        LDAP_ONLY_TOKEN,
+      ],
+    );
+  } catch (err) {
+    if (err?.code !== 'ER_DUP_ENTRY') throw err;
+    const retry = await findUserByLogin(username, agencyCode);
+    if (!retry) return null;
+    return { userId: retry.id, agencyCode: retry.agency_code };
+  }
+
+  return { userId: username, agencyCode };
+}
+
 module.exports = {
   findUserByLogin,
   findUserById,
@@ -311,5 +393,6 @@ module.exports = {
   updateOperator,
   deleteOperator,
   resolveUserContext,
+  ensureDirectoryActor,
   fullUserName,
 };

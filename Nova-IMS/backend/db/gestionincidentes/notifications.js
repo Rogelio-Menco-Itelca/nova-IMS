@@ -1,6 +1,7 @@
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
 const { resolveUserContext } = require('./users');
+const { resolveActorForDb } = require('../../utils/jwtUser');
 const { normalizeAgencyCode } = require('./maps');
 const { requireAgencyInput } = require('./agencyContext');
 const { ensureEmailStatusColumn, normalizeEmailStatus } = require('./correosSchema');
@@ -24,17 +25,30 @@ async function listNotifications() {
   return rows;
 }
 
-async function createNotification({ id, title, message, triggeredBy, incidentId, agencyCode }) {
+async function createNotification({
+  id,
+  title,
+  message,
+  triggeredBy,
+  incidentId,
+  agencyCode,
+  jwtUser,
+}) {
   const { getInternalId } = require('./incidents');
   const agency = requireAgencyInput(agencyCode);
-  const ctx = await resolveUserContext(triggeredBy, agency);
+  const actor =
+    (jwtUser && (await resolveActorForDb(jwtUser))) ||
+    (triggeredBy ? await resolveUserContext(triggeredBy, agency) : null);
+  if (!actor?.userId) {
+    return;
+  }
   const internalIncident = incidentId ? await getInternalId(incidentId) : null;
 
   await pool.query(
     `INSERT INTO notificaciones_usuarios
       (id_notificaciones, incidente_id, triggered_by, titulo, mensaje, fue_leida, ID_agencia, ID_usuario)
      VALUES (?,?,?,?,?,0,?,?)`,
-    [id, internalIncident, ctx.userId, title, message, ctx.agencyCode, ctx.userId],
+    [id, internalIncident, actor.userId, title, message, actor.agencyCode, actor.userId],
   );
 }
 

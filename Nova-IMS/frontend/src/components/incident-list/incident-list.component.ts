@@ -76,6 +76,7 @@ import {
   MapPin,
   PlaceAutocompleteControl,
 } from '../../utils/google-maps-legacy';
+import { loadGoogleMaps } from '../../utils/google-maps-loader';
 import {
   appendIncidentNote,
   formatNoteForDisplay,
@@ -186,6 +187,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   activeTabId = signal<string | null>(null);
   detailTab = signal<'detalle' | 'medidas'>('detalle');
   mapReady = signal(false);
+  mapsError = signal<string | null>(null);
   selectedIncidentTypeName = signal<string | null>(null);
   isProtocolVisible = signal(true);
   newIncidentFormState = signal<Partial<Incident> | null>(null);
@@ -297,6 +299,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       }, 150);
 
       this.locationService.clearLocation();
+      this.notificationService.addNotification(
+        'Ubicación recibida',
+        'Complete el formulario y pulse Guardar para registrar el incidente en activos.',
+      );
     });
 
     effect(() => {
@@ -409,7 +415,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.incidentForm.patchValue({
       phone: local,
       origin:
-        this.incidentForm.get('origin')?.value || this.pickOriginForLocationChannel('whatsapp'),
+        this.incidentForm.get('origin')?.value ||
+        this.pickOriginForLocationChannel(this.locationService.getLastRequestChannel()),
     });
     const locationPhoneCtrl = this.incidentForm.get('locationPhoneNumber');
     locationPhoneCtrl?.enable({ emitEvent: false });
@@ -431,23 +438,44 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   // ------ Google Maps ------
 
-  private waitForGoogleMaps(): Promise<void> {
+  private async waitForGoogleMaps(): Promise<boolean> {
+    if (isGoogleMapsLoaded()) return true;
+
+    try {
+      await loadGoogleMaps();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'No se pudo cargar Google Maps';
+      this.mapsError.set(msg);
+      this.cdr.markForCheck();
+      return false;
+    }
+
+    if (isGoogleMapsLoaded()) return true;
+
+    const deadline = Date.now() + 15000;
     return new Promise((resolve) => {
-      if (isGoogleMapsLoaded()) {
-        resolve();
-        return;
-      }
       const interval = setInterval(() => {
         if (isGoogleMapsLoaded()) {
           clearInterval(interval);
-          resolve();
+          resolve(true);
+          return;
+        }
+        if (Date.now() > deadline) {
+          clearInterval(interval);
+          this.mapsError.set(
+            'Google Maps no cargó a tiempo. Verifique GOOGLE_MAPS_API_KEY en backend/.env.',
+          );
+          this.cdr.markForCheck();
+          resolve(false);
         }
       }, 200);
     });
   }
 
   private async initMap(lat?: number, lng?: number) {
-    await this.waitForGoogleMaps();
+    this.mapsError.set(null);
+    const mapsOk = await this.waitForGoogleMaps();
+    if (!mapsOk) return;
     await this.ensureGeocoderReady();
 
     const mapEl = document.getElementById('map');
