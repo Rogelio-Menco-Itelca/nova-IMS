@@ -120,7 +120,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
   /** Placa opcional en BD; si se escribe, debe cumplir el formato. */
-  private validateOptionalPlate = (control: AbstractControl): ValidationErrors | null => {
+  private readonly validateOptionalPlate = (control: AbstractControl): ValidationErrors | null => {
     const value = String(control.value ?? '').trim();
     if (!value) return null;
     return this.platePattern.test(value) ? null : { pattern: true };
@@ -158,29 +158,29 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
     return this.inferDocumentType(person.documentId);
   }
-  private vehicleLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
-  private vehicleLastLookupPlate = new Map<number, string>();
+  private readonly vehicleLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  private readonly vehicleLastLookupPlate = new Map<number, string>();
   private placeDeptSubs: Subscription[] = [];
-  private fb = inject(FormBuilder);
-  private notificationService = inject(NotificationService);
-  private incidentLeaveGuard = inject(IncidentLeaveGuardService);
-  private configService = inject(ConfigurationService);
-  private locationService = inject(LocationRequestService);
+  private readonly fb = inject(FormBuilder);
+  private readonly notificationService = inject(NotificationService);
+  private readonly incidentLeaveGuard = inject(IncidentLeaveGuardService);
+  private readonly configService = inject(ConfigurationService);
+  private readonly locationService = inject(LocationRequestService);
 
   /** Teléfono opcional; si se escribe, solo dígitos/+ y formato colombiano válido. */
-  private validateOptionalPhone = (control: AbstractControl): ValidationErrors | null => {
+  private readonly validateOptionalPhone = (control: AbstractControl): ValidationErrors | null => {
     const raw = String(control.value ?? '').trim();
     if (!raw) return null;
     if (!/^[0-9+ ]+$/.test(raw)) return { phoneChars: true };
     return this.locationService.validateColombianPhone(raw).valid ? null : { phoneFormat: true };
   };
 
-  private incidentService = inject(IncidentService);
-  private authService = inject(AuthService);
-  private ngZone = inject(NgZone);
-  private cdr = inject(ChangeDetectorRef);
-  private colombiaGeo = inject(ColombiaGeoService);
-  private http = inject(HttpClient);
+  private readonly incidentService = inject(IncidentService);
+  private readonly authService = inject(AuthService);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly colombiaGeo = inject(ColombiaGeoService);
+  private readonly http = inject(HttpClient);
 
   // --- Tab Management State ---
   openIncidentTabs = signal<Incident[]>([]);
@@ -243,7 +243,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
   sortColumn = signal<'priority' | 'status' | 'default'>('default');
   sortDirection = signal<'asc' | 'desc'>('desc');
-  personService = inject(PersonService);
+  readonly personService = inject(PersonService);
 
   incidentForm = this.fb.group({
     event_id: ['', Validators.required],

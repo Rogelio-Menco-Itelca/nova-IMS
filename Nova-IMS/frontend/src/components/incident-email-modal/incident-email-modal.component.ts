@@ -49,13 +49,13 @@ const PAGE_SIZE = 10;
   ],
 })
 export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
-  private dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('emailDialog');
+  private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('emailDialog');
   incident = input.required<Incident>();
   closed = output<void>();
 
-  private configService = inject(ConfigurationService);
-  private incidentService = inject(IncidentService);
-  private notificationService = inject(NotificationService);
+  private readonly configService = inject(ConfigurationService);
+  private readonly incidentService = inject(IncidentService);
+  private readonly notificationService = inject(NotificationService);
 
   searchTerm = signal('');
   currentPage = signal(1);
