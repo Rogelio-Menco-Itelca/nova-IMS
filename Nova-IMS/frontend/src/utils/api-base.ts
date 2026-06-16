@@ -14,6 +14,6 @@ export function apiUrl(path: string): string {
 export function socketUrl(): string {
   const base = apiBaseUrl();
   if (base) return base;
-  if (typeof globalThis.window !== 'undefined') return globalThis.window.location.origin;
+  if (globalThis.window !== undefined) return globalThis.window.location.origin;
   return 'http://localhost:3000';
 }

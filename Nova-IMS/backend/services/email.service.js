@@ -56,7 +56,7 @@ async function sendWelcomeEmail({
 }) {
   init();
 
-  logger.info('📧 Intentando enviar correo a:', to);
+  logger.info('📧 Intentando enviar correo de bienvenida');
 
   const displayName = formatPersonName(name);
   const agencyLabel =
@@ -145,7 +145,7 @@ Equipo IMS NOVA
       html,
     });
 
-    logger.info('✅ Correo enviado a', to);
+    logger.info('✅ Correo de bienvenida enviado');
   } catch (err) {
     logger.error('❌ Error enviando email:', err.message);
   }
@@ -604,7 +604,7 @@ async function sendIncidentNotification({ to, incident }) {
 
   if (!transporter) {
     logger.info('📧 EMAIL incidente (modo consola)');
-    logger.info('Para:', recipients.join(', '));
+    logger.info('Destinatarios: [REDACTED]');
     logger.info('Asunto:', subject);
     logger.info(text);
     return { mode: 'console', recipients };
@@ -642,7 +642,7 @@ async function sendOtpEmail({ to, name, code }) {
 </div>`.trim();
 
   if (!transporter) {
-    logger.info('\n📧 OTP (modo consola) → Para:', to, '| Código:', code);
+    logger.info('📧 OTP (modo consola) [REDACTED]');
     return;
   }
 
