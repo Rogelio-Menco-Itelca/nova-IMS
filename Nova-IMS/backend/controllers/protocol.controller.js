@@ -1,6 +1,5 @@
 const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
-const { nextId } = require('../utils/ids');
 const { requireSessionAgency } = require('../utils/requestAgency');
 const giProtocols = require('../db/gestionincidentes/protocols');
 

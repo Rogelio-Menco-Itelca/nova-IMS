@@ -1,4 +1,5 @@
 function errorHandler(err, req, res, next) {
+  void next;
   const status = err.status || 500;
   if (status >= 500) {
     console.error('[ERROR]', err);

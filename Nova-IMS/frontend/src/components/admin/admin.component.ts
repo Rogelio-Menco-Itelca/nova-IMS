@@ -430,9 +430,9 @@ export class AdminComponent implements OnInit {
         );
       }
       this.showPersonForm.set(false);
-    } catch (err: any) {
-      const msg =
-        err?.error?.error?.message || err?.error?.message || 'No se pudo guardar la persona.';
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo guardar la persona.';
       this.notificationService.addNotification('Error', msg);
     }
   }
@@ -451,9 +451,9 @@ export class AdminComponent implements OnInit {
         nextStatus === 'Inactivo' ? 'Persona Desactivada' : 'Persona Activada',
         `${person.name} quedó en estado ${nextStatus}.`,
       );
-    } catch (err: any) {
-      const msg =
-        err?.error?.error?.message || err?.error?.message || 'No se pudo cambiar el estado.';
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo cambiar el estado.';
       this.notificationService.addNotification('Error', msg);
     }
   }
@@ -495,7 +495,7 @@ export class AdminComponent implements OnInit {
   setTab(tab: AdminTab) {
     this.activeTab.set(tab);
     if (tab === 'incident_history') {
-      this.refreshIncidentHistoryView().catch(() => {});
+      this.refreshIncidentHistoryView().catch(() => void 0);
     }
   }
 
@@ -517,7 +517,7 @@ export class AdminComponent implements OnInit {
   onIncidentHistorySearchInput(event: Event): void {
     this.onIncidentHistorySearch(event);
     this.selectedIncidentIdForHistory.set('all');
-    this.refreshIncidentHistoryView().catch(() => {});
+    this.refreshIncidentHistoryView().catch(() => void 0);
   }
 
   previousOperatorsPage(): void {
@@ -672,9 +672,9 @@ export class AdminComponent implements OnInit {
         await this.configService.addOperator(payload);
       }
       this.closeForm();
-    } catch (err: any) {
-      const msg =
-        err?.error?.error?.message || err?.error?.message || 'No se pudo guardar el usuario.';
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo guardar el usuario.';
       if (/contraseña|password/i.test(msg)) {
         this.operatorPasswordError.set(msg);
         this.operatorFormError.set(null);
@@ -817,11 +817,9 @@ export class AdminComponent implements OnInit {
     }
     try {
       await this.configService.addNotificationEmail(raw);
-    } catch (err: any) {
-      const msg =
-        err?.error?.error?.message ||
-        err?.error?.message ||
-        'No se pudo registrar el correo.';
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo registrar el correo.';
       this.notificationEmailFeedback.set({ type: 'warn', message: msg });
       return;
     }
@@ -899,9 +897,9 @@ export class AdminComponent implements OnInit {
         nextStatus === 'Inactivo' ? 'Correo desactivado' : 'Correo activado',
         `${entry.email} quedó en estado ${nextStatus}.`,
       );
-    } catch (err: any) {
-      const msg =
-        err?.error?.error?.message || err?.error?.message || 'No se pudo cambiar el estado.';
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo cambiar el estado.';
       this.notificationService.addNotification('Error', msg);
     }
   }

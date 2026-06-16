@@ -91,7 +91,7 @@ async function recordSuccessfulLogin(user, meta = {}) {
   );
 }
 
-function buildTokenResponse(user, loginMeta = {}) {
+function buildTokenResponse(user) {
   const authSource = normalizeAuthSource(user.auth_source);
   const mustChangePassword = authSource === 'ldap' ? false : !!user.must_change_password;
 

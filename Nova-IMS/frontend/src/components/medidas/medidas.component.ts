@@ -110,8 +110,9 @@ interface ModuloMensaje {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @if (fieldVisible('servidorJudicial')) {
                 <div class="md:col-span-2">
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Solicitud — Servidor judicial</label>
+                  <label for="medidas-servidor-judicial" class="text-xs text-gray-400 uppercase tracking-wider">Solicitud — Servidor judicial</label>
                   <input
+                    id="medidas-servidor-judicial"
                     type="text"
                     [value]="displayServidor()"
                     readonly
@@ -126,8 +127,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('oficioTramite')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Oficio trámite</label>
+                  <label for="medidas-oficio-tramite" class="text-xs text-gray-400 uppercase tracking-wider">Oficio trámite</label>
                   <input
+                    id="medidas-oficio-tramite"
                     type="text"
                     [ngModel]="form.codigo_oficio"
                     (ngModelChange)="form.codigo_oficio = $event"
@@ -141,8 +143,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('tramiteDestino')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Trámite / destino</label>
+                  <label for="medidas-tramite-destino" class="text-xs text-gray-400 uppercase tracking-wider">Trámite / destino</label>
                   <input
+                    id="medidas-tramite-destino"
                     [(ngModel)]="form.tramite_destino"
                     type="text"
                     [readonly]="!isTramiteEditable()"
@@ -194,8 +197,9 @@ interface ModuloMensaje {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @if (fieldVisible('fechaCerrem')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Fecha CERREM</label>
+                  <label for="medidas-fecha-cerrem" class="text-xs text-gray-400 uppercase tracking-wider">Fecha CERREM</label>
                   <input
+                    id="medidas-fecha-cerrem"
                     [(ngModel)]="form.fecha_cerrem"
                     type="date"
                     [readonly]="!isCerremFieldEditable('fechaCerrem')"
@@ -206,8 +210,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('resolucionCerrem')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Resolución CERREM</label>
+                  <label for="medidas-resolucion-cerrem" class="text-xs text-gray-400 uppercase tracking-wider">Resolución CERREM</label>
                   <input
+                    id="medidas-resolucion-cerrem"
                     [(ngModel)]="form.resolucion_cerrem"
                     type="text"
                     [readonly]="!isCerremFieldEditable('resolucionCerrem')"
@@ -219,8 +224,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('fechaResolucion')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Fecha resolución</label>
+                  <label for="medidas-fecha-resolucion" class="text-xs text-gray-400 uppercase tracking-wider">Fecha resolución</label>
                   <input
+                    id="medidas-fecha-resolucion"
                     [(ngModel)]="form.fecha_resolucion"
                     type="date"
                     [readonly]="!isCerremFieldEditable('fechaResolucion')"
@@ -231,8 +237,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('nivelRiesgo')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Nivel de riesgo</label>
+                  <label for="medidas-nivel-riesgo" class="text-xs text-gray-400 uppercase tracking-wider">Nivel de riesgo</label>
                   <select
+                    id="medidas-nivel-riesgo"
                     [(ngModel)]="form.ID_riesgo"
                     [disabled]="!isCerremFieldEditable('nivelRiesgo')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
@@ -246,8 +253,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('tipoEsquema')) {
                 <div>
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Tipo de esquema</label>
+                  <label for="medidas-tipo-esquema" class="text-xs text-gray-400 uppercase tracking-wider">Tipo de esquema</label>
                   <select
+                    id="medidas-tipo-esquema"
                     [(ngModel)]="form.tipo_esquema"
                     [disabled]="!isCerremFieldEditable('tipoEsquema')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
@@ -260,8 +268,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('tipoEsquema') && form.tipo_esquema === 'Colectivo') {
                 <div class="md:col-span-2">
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Compartido con</label>
+                  <label for="medidas-compartido-con" class="text-xs text-gray-400 uppercase tracking-wider">Compartido con</label>
                   <input
+                    id="medidas-compartido-con"
                     [(ngModel)]="form.compartido_con"
                     type="text"
                     [readonly]="!isCerremFieldEditable('tipoEsquema')"
@@ -271,8 +280,9 @@ interface ModuloMensaje {
               }
               @if (fieldVisible('observaciones')) {
                 <div class="md:col-span-2">
-                  <label class="text-xs text-gray-400 uppercase tracking-wider">Observaciones</label>
+                  <label for="medidas-observaciones" class="text-xs text-gray-400 uppercase tracking-wider">Observaciones</label>
                   <textarea
+                    id="medidas-observaciones"
                     [(ngModel)]="form.observaciones"
                     rows="2"
                     [readonly]="!isCerremFieldEditable('observaciones')"
@@ -350,8 +360,9 @@ interface ModuloMensaje {
                     @if (isMedidaSelected(tipo.id)) {
                       <div class="mt-2 grid grid-cols-2 gap-2">
                         <div>
-                          <label class="text-xs text-gray-400">Cantidad</label>
+                          <label [for]="'medidas-cantidad-' + tipo.id" class="text-xs text-gray-400">Cantidad</label>
                           <input
+                            [id]="'medidas-cantidad-' + tipo.id"
                             type="number"
                             min="1"
                             [ngModel]="getMedidaSeleccionada(tipo.id)!.cantidad"
@@ -361,8 +372,9 @@ interface ModuloMensaje {
                           />
                         </div>
                         <div>
-                          <label class="text-xs text-gray-400">Observación</label>
+                          <label [for]="'medidas-obs-' + tipo.id" class="text-xs text-gray-400">Observación</label>
                           <input
+                            [id]="'medidas-obs-' + tipo.id"
                             type="text"
                             [ngModel]="getMedidaSeleccionada(tipo.id)!.observacion_medida"
                             (ngModelChange)="updateObservacion(tipo.id, $event)"
@@ -645,7 +657,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   private loadRiesgos() {
     this.http.get<{ id: number; nombre: string }[]>('/api/catalog/riesgos').subscribe({
       next: (rows) => this.riesgos.set(rows),
-      error: () => {},
+      error: () => void 0,
     });
   }
 

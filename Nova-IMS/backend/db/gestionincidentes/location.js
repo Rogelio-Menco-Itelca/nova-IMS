@@ -1,5 +1,5 @@
 const { pool } = require('../../config/db');
-const { locationChannelToGi, locationChannelFromGi, normalizeAgencyCode } = require('./maps');
+const { locationChannelToGi, locationChannelFromGi } = require('./maps');
 const { resolveUserContext } = require('./users');
 const { getInternalId } = require('./incidents');
 const { requireAgencyInput } = require('./agencyContext');

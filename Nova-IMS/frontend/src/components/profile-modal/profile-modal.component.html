@@ -1,6 +1,7 @@
 @if (authService.currentUser(); as user) {
   <dialog
     open
+    tabindex="0"
     class="profile-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
     aria-labelledby="profile-modal-title"
     (click)="onBackdropClick($event)"

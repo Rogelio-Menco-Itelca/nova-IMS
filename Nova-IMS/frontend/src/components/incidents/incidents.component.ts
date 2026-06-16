@@ -48,8 +48,6 @@ import {
   PlaceAutocompleteControl,
 } from '../../utils/google-maps-legacy';
 
-declare let google: any;
-
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,
   Alta: 3,
@@ -326,7 +324,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
             setTimeout(() => this.reverseGeocode(savedState.lat, savedState.lng), 300);
           }
         })
-        .catch(() => {});
+        .catch(() => void 0);
     }, 350);
   }
 
@@ -733,7 +731,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
           },
         );
       })
-      .catch(() => {});
+      .catch(() => void 0);
   }
 
   private applyCoordsGeocodeResult(
@@ -777,7 +775,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
           this.ngZone.run(() => this.applyAddressGeocodeResult(incident, results, status));
         });
       })
-      .catch(() => {});
+      .catch(() => void 0);
   }
 
   private applyAddressGeocodeResult(
@@ -1383,7 +1381,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     };
     this.incidentService.updateIncident(finalData, (saved) => {
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
-      this.configService.getAuditLogs().catch(() => {});
+      this.configService.getAuditLogs().catch(() => void 0);
       this.cdr.markForCheck();
     });
     this.notificationService.addNotification(
@@ -1413,10 +1411,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private populateFormWithState(state: Partial<Incident>) {
-    this.selectedIncidentTypeName.set(state.type || (state as any).event_id || null);
+    this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.incidentForm.reset(undefined, { emitEvent: false });
     this.incidentForm.patchValue(state, { emitEvent: false });
-    const typeName = state.type || (state as any).event_id || null;
+    const typeName = state.type || state.event_id || null;
     this.lastIncidentTypeName = typeName;
     const selectedType = this.incidentTypes().find((t) => t.name === typeName);
     this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;

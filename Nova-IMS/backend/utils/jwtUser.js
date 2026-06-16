@@ -1,4 +1,3 @@
-const { pool } = require('../config/db');
 const giUsers = require('../db/gestionincidentes/users');
 
 const DIRECTORY_USER_PREFIX = 'LDAP:';

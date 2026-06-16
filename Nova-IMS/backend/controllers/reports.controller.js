@@ -1,5 +1,3 @@
-const { pool } = require('../config/db');
-const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
 const giReports = require('../db/gestionincidentes/reports');
 
