@@ -162,6 +162,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
   private readonly vehicleLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly vehicleLastLookupPlate = new Map<number, string>();
+  private readonly vehicleLookupNotified = new Set<string>();
   private readonly personLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly personLastLookupKey = new Map<number, string>();
   private placeDeptSubs: Subscription[] = [];
@@ -1764,20 +1765,28 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
     if (group.get('plate')?.invalid) return;
 
+    const normalizedPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (normalizedPlate.length < 5) return;
+    if (this.vehicleLastLookupPlate.get(index) === normalizedPlate) return;
+
     this.incidentService.lookupVehicleByPlate(plate).subscribe({
       next: (vehicle) => {
-        // Solo datos del vehículo; rol y detalles son propios de este incidente.
+        // Solo datos del vehículo en `vehiculos`; rol y comentarios son de este incidente.
         const patch: Partial<InvolvedVehicle> = {
           make: vehicle.make || '',
           model: vehicle.model || '',
           color: vehicle.color || '',
         };
         group.patchValue(patch, { emitEvent: false });
-        this.vehicleLastLookupPlate.set(index, plate.toUpperCase().replace(/[^A-Z0-9]/g, ''));
-        this.notificationService.addNotification(
-          'Vehículo identificado',
-          `Se cargó información previa para la placa ${plate}.`,
-        );
+        this.vehicleLastLookupPlate.set(index, normalizedPlate);
+        const notifyKey = `vehicle:${normalizedPlate}`;
+        if (!this.vehicleLookupNotified.has(notifyKey)) {
+          this.vehicleLookupNotified.add(notifyKey);
+          this.notificationService.addNotification(
+            'Vehículo encontrado',
+            `Marca, modelo y color cargados para la placa ${plate}.`,
+          );
+        }
         this.cdr.markForCheck();
       },
       error: (err) => {

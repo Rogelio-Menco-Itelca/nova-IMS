@@ -1,4 +1,27 @@
+const { pool } = require('../../config/db');
 const { normalizeAgencyCode } = require('./maps');
+
+function normalizePlate(plate) {
+  return String(plate || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+/** Último registro en `vehiculos` por placa (sin comentariosvehiculos). */
+async function lookupByPlate(plate) {
+  const normalized = normalizePlate(plate);
+  if (!normalized || normalized.length < 5) return null;
+
+  const [rows] = await pool.query(
+    `SELECT v.Placa AS plate, v.Marca AS make, v.Modelo_linea AS model, v.Color AS color
+     FROM vehiculos v
+     WHERE UPPER(REPLACE(REPLACE(REPLACE(v.Placa, '-', ''), ' ', ''), '.', '')) = ?
+     ORDER BY v.FechaRegistro DESC, v.ID_vehiculo DESC
+     LIMIT 1`,
+    [normalized],
+  );
+  return rows[0] || null;
+}
 
 async function insertVehicleComment(executor, vehicleId, text, userId, agencyCode) {
   const commentText = String(text || '').trim();
@@ -20,6 +43,8 @@ async function deleteVehicleCommentsForIncident(executor, internalId) {
 }
 
 module.exports = {
+  normalizePlate,
+  lookupByPlate,
   insertVehicleComment,
   deleteVehicleCommentsForIncident,
 };

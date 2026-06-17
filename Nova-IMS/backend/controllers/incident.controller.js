@@ -9,6 +9,7 @@ const {
 } = require('../utils/incidentVehicleAudit');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
+const giVehicles = require('../db/gestionincidentes/vehicles');
 const giLogs = require('../db/gestionincidentes/logs');
 const { getCsjDashboardMetrics } = require('../db/gestionincidentes/dashboardMetrics');
 const giMedidas = require('../db/gestionincidentes/medidas');
@@ -357,13 +358,18 @@ const update = asyncHandler(async (req, res) => {
 });
 
 const lookupVehicleByPlate = asyncHandler(async (req, res) => {
-  const normalized = String(req.params.plate || '')
-    .toUpperCase()
-    .replaceAll(/[^A-Z0-9]/g, '');
-  if (!normalized) throw new HttpError(400, 'Placa requerida');
-  const row = await giIncidents.lookupVehicleByPlate(normalized);
+  const normalized = giVehicles.normalizePlate(req.params.plate);
+  if (!normalized || normalized.length < 5) {
+    throw new HttpError(400, 'Placa inválida (mínimo 5 caracteres)');
+  }
+  const row = await giVehicles.lookupByPlate(normalized);
   if (!row) throw new HttpError(404, 'Vehículo no encontrado');
-  res.json(row);
+  res.json({
+    plate: row.plate || normalized,
+    make: row.make || '',
+    model: row.model || '',
+    color: row.color || '',
+  });
 });
 
 const remove = asyncHandler(async (req, res) => {

@@ -951,23 +951,6 @@ async function deleteIncident(visibleId) {
   return r.affectedRows;
 }
 
-async function lookupVehicleByPlate(plate) {
-  const normalized = String(plate)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
-  const [rows] = await pool.query(
-    `SELECT v.Placa AS plate, v.Marca AS make, v.Modelo_linea AS model, v.Color AS color,
-            i.ID_visible AS incidentId
-     FROM vehiculos v
-     JOIN incidentes i ON i.ID_incidente = v.ID_incidente
-     WHERE REPLACE(UPPER(v.Placa), '-', '') = ?
-     ORDER BY i.FechaHora DESC, v.ID_vehiculo DESC
-     LIMIT 1`,
-    [normalized],
-  );
-  return rows[0] || null;
-}
-
 function auditActorFields(actor, isCreation) {
   if (!String(actor || '').trim()) return {};
   if (isCreation) {
@@ -1052,7 +1035,6 @@ module.exports = {
   createIncident,
   updateIncident,
   deleteIncident,
-  lookupVehicleByPlate,
   writeAudit,
   loadAuditLogs,
   emailAllowed,
