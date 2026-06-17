@@ -250,6 +250,18 @@ export const MEDIADAS_WORKFLOW_STATUSES = [
   'Medidas asignadas',
 ] as const;
 
+/** Pasos del flujo CSJ mostrados en la pestaña Medidas cuando el incidente aún está en «Nuevo». */
+export const CSJ_MEDIADAS_WORKFLOW_STEPS = [
+  'Nuevo',
+  'En gestión OSEG',
+  'Enviado a CERREM',
+  'Medidas asignadas',
+] as const;
+
+export function isNuevoLockedMedidasPanel(status: string, agency = 'CSJ'): boolean {
+  return isCsjMedidasWorkflow(agency) && catalogStatusToUiStatus(status) === 'Nuevo';
+}
+
 export function shouldNavigateToMedidasTab(status: string): boolean {
   const ui = catalogStatusToUiStatus(status);
   return (MEDIADAS_WORKFLOW_STATUSES as readonly string[]).includes(ui);
@@ -272,4 +284,17 @@ export function medidasTabHint(status: string): string {
     default:
       return '';
   }
+}
+
+export function medidasPanelLockedMessage(status: string, agency = 'CSJ'): string {
+  if (!isCsjMedidasWorkflow(agency)) {
+    return 'La gestión OSEG / CERREM aplica solo al flujo CSJ.';
+  }
+
+  const ui = catalogStatusToUiStatus(status);
+  if (ui === 'Nuevo') {
+    return 'En la pestaña Detalle cambie el estado a «En gestión OSEG» y guarde para habilitar OSEG, CERREM y medidas.';
+  }
+
+  return `Estado «${ui}». Esta pestaña se habilita desde «En gestión OSEG» en adelante.`;
 }

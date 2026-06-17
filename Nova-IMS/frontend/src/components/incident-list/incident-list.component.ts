@@ -200,6 +200,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   leaveConfirmOpen = signal(false);
   /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);
+  updateConfirmOpen = signal(false);
   private pendingLeaveAction: (() => void) | null = null;
   private leaveAfterSave = false;
   commentsHistory = signal<IncidentNoteEntry[]>([]);
@@ -215,6 +216,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
   private statusSub: Subscription | undefined;
+  private formDirtySub: Subscription | undefined;
   private skipStatusNav = false;
   /** Evita pisar la prioridad que el operador eligió manualmente. */
   private lastIncidentTypeName: string | null = null;
@@ -1788,6 +1790,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     this.setupPhoneLookup();
     this.setupStatusChangeHandler();
+    this.formDirtySub = this.incidentForm.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
 
   private setupStatusChangeHandler(): void {
@@ -2096,6 +2099,35 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     );
     const savedStatus = catalogStatusToUiStatus(String(incident.status ?? '').trim());
     return formStatus !== savedStatus;
+  }
+
+  hasPendingIncidentChanges(): boolean {
+    return this.hasPendingIncidentSave();
+  }
+
+  onIncidentFormSubmit(): void {
+    if (this.activeTabId() === 'new') {
+      this.registerIncident();
+      return;
+    }
+    if (!this.hasPendingIncidentChanges()) return;
+    this.openUpdateConfirm();
+  }
+
+  openUpdateConfirm(): void {
+    this.updateConfirmOpen.set(true);
+    this.cdr.markForCheck();
+  }
+
+  cancelUpdateConfirm(): void {
+    this.updateConfirmOpen.set(false);
+    this.cdr.markForCheck();
+  }
+
+  confirmUpdateIncident(): void {
+    this.updateConfirmOpen.set(false);
+    this.updateIncident();
+    this.cdr.markForCheck();
   }
 
   private hasPendingNewIncidentDraft(): boolean {
@@ -2745,6 +2777,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.typeSub?.unsubscribe();
     this.phoneSub?.unsubscribe();
     this.statusSub?.unsubscribe();
+    this.formDirtySub?.unsubscribe();
     this.incidentDeptSub?.unsubscribe();
     this.detachPlaceDepartmentWatchers();
   }

@@ -1,6 +1,8 @@
 import {
   Component,
   Input,
+  Output,
+  EventEmitter,
   OnInit,
   OnChanges,
   SimpleChanges,
@@ -13,9 +15,12 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ConfigurationService } from '../../services/configuration.service';
 import {
+  CSJ_MEDIADAS_WORKFLOW_STEPS,
   describeClosedReviewStages,
   getMedidasPermissions,
   isClosedWorkflowStatus,
+  isNuevoLockedMedidasPanel,
+  medidasPanelLockedMessage,
   medidasTabHint,
   resolveClosedMedidasPermissions,
   type MedidasFieldMode,
@@ -77,10 +82,72 @@ interface ModuloMensaje {
   template: `
     <div class="space-y-6">
       @if (!permissions().showPanel) {
-        <div class="bg-gray-800/60 border border-gray-700 rounded-lg p-6 text-center text-gray-400 text-sm">
-          La gestión OSEG / CERREM estará disponible cuando el incidente pase a
-          <span class="text-indigo-300">«En gestión OSEG»</span> o un estado posterior.
-        </div>
+        @if (isNuevoLocked()) {
+          <div class="rounded-lg border border-gray-700 bg-gray-900/50 p-5 sm:p-6">
+            <div class="flex items-start gap-4">
+              <div
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-600 bg-gray-800 text-gray-400"
+                aria-hidden="true"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.75"
+                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                  />
+                </svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-base font-semibold text-gray-100 mb-2">
+                  Aún no puede gestionar OSEG ni CERREM
+                </h3>
+                <p class="text-sm text-gray-400 leading-relaxed">
+                  El incidente está en «{{ uiStatus() }}». Cambie el estado a «En gestión OSEG» desde
+                  la pestaña Detalle y guarde para habilitar el registro del oficio, la decisión
+                  CERREM y las medidas de seguridad.
+                </p>
+              </div>
+            </div>
+
+            <div
+              class="mt-5 flex items-center gap-2 overflow-x-auto pb-1"
+              role="list"
+              aria-label="Flujo de estados CSJ"
+            >
+              @for (step of workflowSteps; track step; let i = $index; let last = $last) {
+                <div class="flex items-center gap-2 shrink-0" role="listitem">
+                  <span
+                    class="inline-flex items-center rounded-full border px-3 py-1 text-xs sm:text-sm whitespace-nowrap"
+                    [class.border-gray-500]="step === uiStatus()"
+                    [class.bg-gray-800]="step === uiStatus()"
+                    [class.text-gray-100]="step === uiStatus()"
+                    [class.border-gray-700]="step !== uiStatus()"
+                    [class.bg-gray-900/60]="step !== uiStatus()"
+                    [class.text-gray-500]="step !== uiStatus()"
+                  >
+                    {{ step }}
+                  </span>
+                  @if (!last) {
+                    <span class="text-gray-600 text-xs" aria-hidden="true">→</span>
+                  }
+                </div>
+              }
+            </div>
+
+            <button
+              type="button"
+              (click)="goToDetalle.emit()"
+              class="mt-5 w-full rounded-lg border border-gray-600 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-200 hover:bg-gray-800 hover:border-gray-500 transition-colors"
+            >
+              Ir a Detalle para cambiar el estado →
+            </button>
+          </div>
+        } @else {
+          <div class="rounded-lg border border-gray-700 bg-gray-800/60 p-4 text-center text-sm text-gray-400">
+            {{ panelLockedMessage() }}
+          </div>
+        }
       } @else if (closedReviewEmpty()) {
         <div class="bg-gray-800/60 border border-gray-700 rounded-lg p-6 text-center text-gray-400 text-sm">
           Este incidente se cerró sin registros en Medidas (OSEG, CERREM ni medidas de seguridad).
@@ -429,6 +496,9 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() incidentId!: string;
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
+  @Output() goToDetalle = new EventEmitter<void>();
+
+  readonly workflowSteps = CSJ_MEDIADAS_WORKFLOW_STEPS;
 
   private readonly http = inject(HttpClient);
   private readonly configService = inject(ConfigurationService);
@@ -465,6 +535,11 @@ export class MedidasComponent implements OnInit, OnChanges {
       !this.permissions().showMedidasBlock,
   );
   hint = computed(() => medidasTabHint(this.workflowStatus));
+  uiStatus = computed(() => catalogStatusToUiStatus(this.workflowStatus));
+  isNuevoLocked = computed(() => isNuevoLockedMedidasPanel(this.workflowStatus, this.agency));
+  panelLockedMessage = computed(() =>
+    medidasPanelLockedMessage(this.workflowStatus, this.agency),
+  );
   /** OSEG ya guardado en BD: oficio + trámite/destino completos. */
   osegGuardada = signal(false);
   /** CERREM ya guardado en BD: resolución + nivel de riesgo. */

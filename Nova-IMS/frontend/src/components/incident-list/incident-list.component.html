@@ -95,7 +95,7 @@
       <div class="p-6">
         <form
           [formGroup]="incidentForm"
-          (ngSubmit)="activeTabId() === 'new' ? registerIncident() : updateIncident()"
+          (ngSubmit)="onIncidentFormSubmit()"
         >
           <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-3">
             <h3 class="text-xl font-bold text-white">
@@ -1356,6 +1356,7 @@
                 [incidentId]="incident.id"
                 [workflowStatus]="workflowStatusForMedidas()"
                 [agency]="currentAgency()"
+                (goToDetalle)="setDetailTab('detalle')"
               />
             }
           </div>
@@ -1393,7 +1394,13 @@
             } @else {
               <button
                 type="submit"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
+                [disabled]="!hasPendingIncidentChanges()"
+                class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 disabled:text-indigo-200/50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
+                [title]="
+                  hasPendingIncidentChanges()
+                    ? 'Guardar los cambios del incidente'
+                    : 'No hay cambios pendientes por guardar'
+                "
               >
                 Actualizar Incidente
               </button>
@@ -1598,6 +1605,42 @@
           class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
         >
           {{ leaveConfirmForNewTab() ? 'Crear y salir' : 'Actualizar y salir' }}
+        </button>
+      </div>
+    </div>
+  </dialog>
+}
+
+@if (updateConfirmOpen()) {
+  <dialog
+    open
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+    aria-labelledby="update-confirm-title"
+  >
+    <div
+      class="w-full max-w-sm rounded-xl border border-gray-600 bg-gray-800 shadow-2xl p-5 animate-fadeInUp"
+    >
+      <h2 id="update-confirm-title" class="text-base font-semibold text-white mb-2">
+        Confirmar actualización
+      </h2>
+      <p class="text-sm text-gray-300 leading-relaxed mb-5">
+        ¿Guardar los cambios en el incidente
+        <span class="text-indigo-300 font-medium">{{ activeTabId() }}</span>?
+      </p>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button
+          type="button"
+          (click)="cancelUpdateConfirm()"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmUpdateIncident()"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+        >
+          Actualizar incidente
         </button>
       </div>
     </div>
