@@ -3,13 +3,13 @@ const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
 const socket = require('../realtime/socket');
 const { sendIncidentNotification } = require('../services/email.service');
-const { diffNewCommentEntries, truncateAuditText } = require('../utils/incidentNotes');
 const {
   appendVehicleAuditDetails,
   vehiclesAuditFingerprint,
 } = require('../utils/incidentVehicleAudit');
 const { sessionDisplayName } = require('../utils/jwtUser');
 const giIncidents = require('../db/gestionincidentes/incidents');
+const giLogs = require('../db/gestionincidentes/logs');
 const { getCsjDashboardMetrics } = require('../db/gestionincidentes/dashboardMetrics');
 const giMedidas = require('../db/gestionincidentes/medidas');
 const comunicacion = require('../db/gestionincidentes/comunicacion');
@@ -60,7 +60,11 @@ function parseAuditDetailsJson(raw) {
   if (raw == null) return [];
   try {
     const value = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Array.isArray(value) ? value : [];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object' && Array.isArray(value.changes)) {
+      return value.changes;
+    }
+    return [];
   } catch {
     return [];
   }
@@ -70,7 +74,8 @@ async function loadIncidentAuditLogs(incidentId) {
   const auditRows = await giIncidents.loadAuditLogs(incidentId);
   return auditRows.map((r) => ({
     id: r.id,
-    user: r.user_id || 'Sistema',
+    user:
+      giLogs.parseAuditActorFromDetails(r.details_json) || r.user_id || 'Sistema',
     action: r.action,
     changes: r.changes || '',
     timestamp: r.timestamp,
@@ -180,31 +185,6 @@ function resolveUpdateAuditDetails(details, statusChanged, beforeStatus, newStat
   return [{ field: 'Registro', old: '—', new: 'Guardado sin cambios en campos principales' }];
 }
 
-function appendCommentHistoryAudit(details, before, after) {
-  const beforeComments = String(before.comments ?? '').trim();
-  const afterComments = String(after.comments ?? '').trim();
-  if (beforeComments === afterComments) return;
-  const { added, bulkChanged } = diffNewCommentEntries(beforeComments, afterComments);
-  if (added.length) {
-    for (const entry of added) {
-      const when = entry.timestamp ? `${entry.timestamp}: ` : '';
-      details.push({
-        field: 'Comentario agregado',
-        old: '—',
-        new: truncateAuditText(`${when}${entry.text}`),
-      });
-    }
-    return;
-  }
-  if (bulkChanged) {
-    details.push({
-      field: 'Historial de comentarios',
-      old: '(contenido anterior)',
-      new: '(actualizado)',
-    });
-  }
-}
-
 function buildAuditDetails(before, after) {
   const fields = [
     ['status', 'Estado'],
@@ -231,7 +211,6 @@ function buildAuditDetails(before, after) {
       new: locPhoneNew,
     });
   }
-  appendCommentHistoryAudit(details, before, after);
   const peopleOld = summarizePeople(before.involvedPeople);
   const peopleNew = summarizePeople(after.involvedPeople);
   if (peopleOld !== peopleNew) {
@@ -354,19 +333,21 @@ const update = asyncHandler(async (req, res) => {
   const statusChanged = before.status !== newStatus;
   const actorName = sessionDisplayName(req.user, 'Sistema');
 
-  await giIncidents.writeAudit(pool, {
-    incidentId: id,
-    user: req.user,
-    action: resolveUpdateAuditAction(statusChanged, newStatus, details.length),
-    changes: resolveUpdateAuditChanges(
-      statusChanged,
-      before.status,
-      newStatus,
-      details.length,
-    ),
-    details: resolveUpdateAuditDetails(details, statusChanged, before.status, newStatus),
-    actorDisplayName: actorName,
-  });
+  if (statusChanged || details.length > 0) {
+    await giIncidents.writeAudit(pool, {
+      incidentId: id,
+      user: req.user,
+      action: resolveUpdateAuditAction(statusChanged, newStatus, details.length),
+      changes: resolveUpdateAuditChanges(
+        statusChanged,
+        before.status,
+        newStatus,
+        details.length,
+      ),
+      details: resolveUpdateAuditDetails(details, statusChanged, before.status, newStatus),
+      actorDisplayName: actorName,
+    });
+  }
 
   const after = mapIncidentRow(await giIncidents.getIncident(id));
   after.operator = actorName;

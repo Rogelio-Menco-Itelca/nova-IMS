@@ -304,6 +304,7 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
             p.Contacto AS phone,
             p.Numero_documento AS documentId,
             p.Tipo_documento AS documentType,
+            td.Descripcion AS documentTypeName,
             p.ID_genero AS gender_id,
             g.Descripcion_genero AS gender,
             COALESCE(
@@ -315,6 +316,7 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
      FROM personas p
      LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
      LEFT JOIN genero g ON g.ID_genero = p.ID_genero
+     LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento
      WHERE p.ID_incidente IN (${ph})`,
     internalIds,
   );
@@ -333,6 +335,7 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
       phone: r.phone,
       documentId: r.documentId,
       documentType: r.documentType,
+      documentTypeName: r.documentTypeName,
       gender: r.gender,
       genderId: r.gender_id,
       comentarios: r.details,
@@ -1019,7 +1022,8 @@ async function loadAuditLogs(visibleId) {
   if (!internalId) return [];
   const [rows] = await pool.query(
     `SELECT id_transaccion_incidentes AS id, accion AS action,
-            Numero_de_Cambios AS changes, detalles AS details_json, fecha AS timestamp
+            Numero_de_Cambios AS changes, detalles AS details_json, fecha AS timestamp,
+            usuarios_id AS user_id
      FROM auditoria_incidente
      WHERE incidentes_id = ?
      ORDER BY fecha ASC, id_transaccion_incidentes ASC`,

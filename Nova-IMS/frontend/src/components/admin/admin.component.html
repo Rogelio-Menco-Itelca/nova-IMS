@@ -497,6 +497,7 @@
       }
       @case ('incident_history') {
         <div class="flex min-h-0 flex-1 flex-col gap-6">
+          @if (!selectedIncidentForHistory()) {
           <!-- Search Header -->
           <div class="bg-gray-800/50 p-6 rounded-xl border border-gray-700">
             <div
@@ -557,285 +558,344 @@
               </div>
             </div>
           </div>
+          }
 
           @if (selectedIncidentForHistory(); as incident) {
-            <!-- Incident Detailed View (Same as before) -->
-            <div
-              class="min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl animate-fadeIn"
-            >
-              <!-- Sub-tabs Navigation -->
-              <div class="flex bg-gray-900/50 border-b border-gray-700">
-                <button
-                  (click)="historySubTab.set('details')"
-                  [class]="
-                    historySubTab() === 'details'
-                      ? 'text-indigo-400 border-b-2 border-indigo-500 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                  "
-                  class="px-6 py-3 font-semibold text-sm transition-all duration-200"
-                >
-                  Detalles del Incidente
-                </button>
-                <button
-                  (click)="historySubTab.set('history')"
-                  [class]="
-                    historySubTab() === 'history'
-                      ? 'text-indigo-400 border-b-2 border-indigo-500 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                  "
-                  class="px-6 py-3 font-semibold text-sm transition-all duration-200"
-                >
-                  Historial de Cambios
+            <div class="ih-panel animate-fadeIn">
+              <div class="ih-toolbar">
+                <div class="ih-toolbar-left">
+                  <button type="button" class="ih-back" (click)="clearIncidentHistorySelection()">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Volver al historial
+                  </button>
+                  <div class="ih-breadcrumb">/ <span>{{ incident.id }}</span></div>
+                </div>
+                <button type="button" class="ih-toolbar-menu" aria-label="Opciones">
+                  <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                  </svg>
                 </button>
               </div>
 
-              <div class="p-6">
+              <div class="ih-tabs">
+                <button
+                  type="button"
+                  (click)="historySubTab.set('details')"
+                  [class]="historySubTab() === 'details' ? 'ih-tab ih-tab-active' : 'ih-tab'"
+                >
+                  Detalles del incidente
+                </button>
+                <button
+                  type="button"
+                  (click)="historySubTab.set('history')"
+                  [class]="historySubTab() === 'history' ? 'ih-tab ih-tab-active' : 'ih-tab'"
+                >
+                  Historial de cambios
+                </button>
+              </div>
+
+              <div class="ih-content">
                 @if (historySubTab() === 'details') {
-                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn">
-                    <!-- Left Column: Basic Info -->
-                    <div class="space-y-6">
-                      <div class="flex items-center gap-4">
-                        <div
-                          class="px-3 py-1 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 font-mono font-bold"
-                        >
-                          {{ incident.id }}
-                        </div>
-                        <span class="text-sm text-gray-500">{{ incident.timestamp }}</span>
-                      </div>
-
-                      <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-gray-700/30 p-3 rounded-lg border border-gray-700">
-                          <span class="block text-xs text-gray-500 uppercase font-bold mb-1"
-                            >Tipo</span
-                          >
-                          <span class="text-white font-medium">{{ incident.type }}</span>
-                        </div>
-                        <div class="bg-gray-700/30 p-3 rounded-lg border border-gray-700">
-                          <span class="block text-xs text-gray-500 uppercase font-bold mb-1"
-                            >Prioridad</span
-                          >
-                          <span
-                            [class]="
-                              'font-bold ' +
-                              (incident.priority === 'Crítica'
-                                ? 'text-red-500'
-                                : incident.priority === 'Alta'
-                                  ? 'text-orange-400'
-                                  : 'text-indigo-400')
-                            "
-                          >
-                            {{ incident.priority }}
-                          </span>
-                        </div>
-                        <div class="bg-gray-700/30 p-3 rounded-lg border border-gray-700">
-                          <span class="block text-xs text-gray-500 uppercase font-bold mb-1"
-                            >Estado</span
-                          >
-                          <span
-                            class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-600 text-white"
-                            >{{ incident.status }}</span
-                          >
-                        </div>
-                        <div class="bg-gray-700/30 p-3 rounded-lg border border-gray-700">
-                          <span class="block text-xs text-gray-500 uppercase font-bold mb-1"
-                            >Operador</span
-                          >
-                          <span class="text-white">{{ incident.operator || '—' }}</span>
+                  <div class="ih-details ih-details-ref">
+                    <div class="ih-head-row">
+                      <div class="ih-head-main">
+                        <h3 class="ih-title">{{ incident.type }}</h3>
+                        <div class="ih-badges ih-badges-inline">
+                          <span class="ih-badge-pill ih-badge-priority">{{
+                            priorityShortLabel(incident.priority)
+                          }}</span>
+                          <span class="ih-badge-pill" [class]="statusBadgeClass(incident.status)">{{
+                            incident.status
+                          }}</span>
                         </div>
                       </div>
+                      <div class="ih-reported">{{ formatHistoryTimestamp(incident.timestamp) }}</div>
+                    </div>
 
-                      <div class="bg-gray-700/30 p-4 rounded-lg border border-gray-700">
-                        <span class="block text-xs text-gray-500 uppercase font-bold mb-2"
-                          >Ubicación</span
-                        >
-                        <p class="text-gray-200 mb-2">{{ incident.location }}</p>
-                        <div class="text-xs text-gray-500 font-mono">
-                          LAT: {{ incident.lat }} | LNG: {{ incident.lng }}
-                        </div>
+                    <div class="ih-kv-grid ih-kv-grid-flat">
+                      <div>
+                        <span class="ih-kv-label">Origen</span>
+                        <span class="ih-kv-value">{{ incident.origin || '—' }}</span>
                       </div>
-
-                      <div class="bg-gray-700/30 p-4 rounded-lg border border-gray-700">
-                        <span class="block text-xs text-gray-500 uppercase font-bold mb-2"
-                          >Descripción</span
-                        >
-                        <p class="text-gray-200 whitespace-pre-wrap">{{ incident.details }}</p>
+                      <div>
+                        <span class="ih-kv-label">Teléfono</span>
+                        <span class="ih-kv-value">{{ incident.phone || '—' }}</span>
+                      </div>
+                      <div>
+                        <span class="ih-kv-label">Municipio</span>
+                        <span class="ih-kv-value">{{ incidentMunicipalityDisplay(incident) }}</span>
+                      </div>
+                      <div>
+                        <span class="ih-kv-label">Coordenadas</span>
+                        <span class="ih-kv-value ih-kv-mono">{{ incidentCoordinatesDisplay(incident) }}</span>
                       </div>
                     </div>
 
-                    <!-- Right Column: Involved Parties -->
-                    <div class="space-y-6">
-                      <div>
-                        <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">
-                          Personas Involucradas
-                        </h4>
-                        <div class="space-y-3">
-                          @for (person of incident.involvedPeople; track person.name) {
-                            <div
-                              class="bg-gray-700/20 p-3 rounded-lg border border-gray-700 flex justify-between items-center"
-                            >
-                              <div>
-                                <div class="text-white font-medium">{{ person.name }}</div>
-                                <div class="text-xs text-gray-500">{{ person.role }}</div>
-                              </div>
-                              <div class="text-xs text-indigo-400">{{ person.contact }}</div>
-                            </div>
-                          } @empty {
-                            <p class="text-sm text-gray-500 italic">No hay personas registradas.</p>
-                          }
-                        </div>
-                      </div>
+                    <div class="ih-location ih-location-flat">
+                      <svg class="h-4 w-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>{{ incidentFullAddress(incident) }}</span>
+                    </div>
 
-                      <div>
-                        <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">
-                          Lugares Involucrados
-                        </h4>
-                        <div class="space-y-3">
-                          @for (place of incident.involvedPlaces; track place.name) {
-                            <div
-                              class="bg-gray-700/20 p-3 rounded-lg border border-gray-700 flex justify-between items-start"
-                            >
-                              <div>
-                                <div class="text-white font-medium">{{ place.name }}</div>
-                                <div class="text-xs text-gray-500">{{ place.roleName }}</div>
-                                <div class="text-xs text-gray-400 mt-1">{{ place.address }}</div>
-                                @if (place.comments) {
-                                  <div class="text-xs text-gray-500 mt-1 italic">
-                                    {{ place.comments }}
+                    <section class="ih-section ih-section-tight">
+                      <h4 class="ih-section-title">Descripción</h4>
+                      <p class="ih-description-text">{{ incidentLatestCommentDisplay(incident) }}</p>
+                      @if (incidentLatestCommentMeta(incident); as commentMeta) {
+                        <p class="ih-description-meta">{{ commentMeta }}</p>
+                      }
+                    </section>
+
+                    <section class="ih-section ih-section-tight">
+                      <h4 class="ih-section-title">Solicitantes</h4>
+                      @if (incident.involvedPeople?.length) {
+                        <div class="ih-entity-stack">
+                          @for (person of incident.involvedPeople; track person.id || person.name; let last = $last) {
+                            <div class="ih-entity-block">
+                              <div class="ih-entity-head">
+                                <span class="ih-entity-title">{{ personDisplayName(person) }}</span>
+                                @if (personPhone(person)) {
+                                  <span class="ih-entity-side">{{ personPhone(person) }}</span>
+                                }
+                              </div>
+                              <div class="ih-kv-grid ih-kv-grid-flat ih-entity-grid">
+                                @if (person.role) {
+                                  <div>
+                                    <span class="ih-kv-label">Rol</span>
+                                    <span class="ih-kv-value">{{ person.role }}</span>
+                                  </div>
+                                }
+                                @if (person.gender) {
+                                  <div>
+                                    <span class="ih-kv-label">Género</span>
+                                    <span class="ih-kv-value">{{ person.gender }}</span>
+                                  </div>
+                                }
+                                @if (personDocumentLabel(person)) {
+                                  <div>
+                                    <span class="ih-kv-label">Tipo de documento</span>
+                                    <span class="ih-kv-value">{{ personDocumentLabel(person) }}</span>
+                                  </div>
+                                }
+                                @if (person.documentId) {
+                                  <div>
+                                    <span class="ih-kv-label">Número de documento</span>
+                                    <span class="ih-kv-value">{{ person.documentId }}</span>
                                   </div>
                                 }
                               </div>
-                              <div class="text-xs text-indigo-400">{{ place.contact }}</div>
-                            </div>
-                          } @empty {
-                            <p class="text-sm text-gray-500 italic">No hay lugares registrados.</p>
-                          }
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">
-                          Vehículos Involucrados
-                        </h4>
-                        <div class="space-y-3">
-                          @for (vehicle of incident.involvedVehicles; track vehicle.plate) {
-                            <div
-                              class="bg-gray-700/20 p-3 rounded-lg border border-gray-700 flex justify-between items-center"
-                            >
-                              <div>
-                                <div class="text-white font-medium">{{ vehicle.plate }}</div>
-                                <div class="text-xs text-gray-500">
-                                  {{ vehicle.make }} {{ vehicle.model }} ({{ vehicle.color }})
+                              @if (personComments(person)) {
+                                <div class="ih-entity-field">
+                                  <span class="ih-kv-label">Comentarios del solicitante</span>
+                                  <p class="ih-entity-text">{{ personComments(person) }}</p>
                                 </div>
-                                @if (vehicle.incidentDate) {
-                                  <div class="text-xs text-gray-500 mt-1">
-                                    Registrado:
-                                    {{ vehicle.incidentDate | date: 'dd/MM/yyyy HH:mm:ss' }}
+                              }
+                            </div>
+                            @if (!last) {
+                              <hr class="ih-entity-divider" />
+                            }
+                          }
+                        </div>
+                      } @else {
+                        <p class="ih-empty">No hay solicitantes registrados.</p>
+                      }
+                    </section>
+
+                    <section class="ih-section ih-section-tight">
+                      <h4 class="ih-section-title">Lugares asociados</h4>
+                      @if (incident.involvedPlaces?.length) {
+                        <div class="ih-entity-stack">
+                          @for (place of incident.involvedPlaces; track place.name; let last = $last) {
+                            <div class="ih-entity-block">
+                              <div class="ih-entity-head">
+                                <span class="ih-entity-title">{{ place.name }}</span>
+                                @if (place.roleName) {
+                                  <span class="ih-entity-side">{{ place.roleName }}</span>
+                                }
+                              </div>
+                              @if (place.address) {
+                                <div class="ih-entity-field">
+                                  <span class="ih-kv-label">Dirección</span>
+                                  <p class="ih-entity-text">{{ place.address }}</p>
+                                </div>
+                              }
+                              @if (place.comments) {
+                                <div class="ih-entity-field">
+                                  <span class="ih-kv-label">Comentarios</span>
+                                  <p class="ih-entity-text">{{ place.comments }}</p>
+                                </div>
+                              }
+                            </div>
+                            @if (!last) {
+                              <hr class="ih-entity-divider" />
+                            }
+                          }
+                        </div>
+                      } @else {
+                        <p class="ih-empty">No hay lugares asociados.</p>
+                      }
+                    </section>
+
+                    <section class="ih-section ih-section-tight">
+                      <h4 class="ih-section-title">Vehículos asociados</h4>
+                      @if (incident.involvedVehicles?.length) {
+                        <div class="ih-entity-stack">
+                          @for (vehicle of incident.involvedVehicles; track vehicle.plate; let last = $last) {
+                            <div class="ih-entity-block">
+                              <div class="ih-entity-head">
+                                <span class="ih-entity-title">{{ vehicleLabel(vehicle) }}</span>
+                                <span class="ih-entity-side">Placa {{ vehicle.plate }}</span>
+                              </div>
+                              <div class="ih-kv-grid ih-kv-grid-flat ih-entity-grid">
+                                @if (vehicle.role) {
+                                  <div>
+                                    <span class="ih-kv-label">Rol</span>
+                                    <span class="ih-kv-value">{{ vehicle.role }}</span>
+                                  </div>
+                                }
+                                @if (vehicle.color) {
+                                  <div>
+                                    <span class="ih-kv-label">Color</span>
+                                    <span class="ih-kv-value">{{ vehicle.color }}</span>
                                   </div>
                                 }
                               </div>
-                              <div class="text-xs text-indigo-400">{{ vehicle.role }}</div>
+                              @if (vehicleDetails(vehicle)) {
+                                <div class="ih-entity-field">
+                                  <span class="ih-kv-label">Comentarios</span>
+                                  <p class="ih-entity-text">{{ vehicleDetails(vehicle) }}</p>
+                                </div>
+                              }
                             </div>
-                          } @empty {
-                            <p class="text-sm text-gray-500 italic">
-                              No hay vehículos registrados.
-                            </p>
+                            @if (!last) {
+                              <hr class="ih-entity-divider" />
+                            }
                           }
                         </div>
-                      </div>
-                    </div>
+                      } @else {
+                        <p class="ih-empty">No hay vehículos registrados.</p>
+                      }
+                    </section>
+
+                    @if (showIncidentGestionSection(incident)) {
+                      <section class="ih-section ih-section-gestion">
+                        <h4 class="ih-section-heading">Gestión y medidas (CSJ)</h4>
+                        @if (incidentHistoryMedidasLoading()) {
+                          <p class="ih-empty">Cargando gestión y medidas…</p>
+                        } @else {
+                          <div class="ih-gestion-block">
+                            @if (incidentHistoryGestion(); as gestion) {
+                              <div class="ih-kv-grid ih-kv-grid-flat ih-gestion-grid">
+                                <div>
+                                  <span class="ih-kv-label">Oficio OSEG</span>
+                                  <span class="ih-kv-value">{{ gestion.codigo_oficio || '—' }}</span>
+                                </div>
+                                <div>
+                                  <span class="ih-kv-label">Destino</span>
+                                  <span class="ih-kv-value">{{ gestion.tramite_destino || '—' }}</span>
+                                </div>
+                                <div>
+                                  <span class="ih-kv-label">Resolución CERREM</span>
+                                  <span class="ih-kv-value">{{ gestion.resolucion_cerrem || '—' }}</span>
+                                </div>
+                                <div>
+                                  <span class="ih-kv-label">Riesgo / esquema</span>
+                                  <span class="ih-kv-value">{{ incidentRiesgoEsquemaDisplay(gestion) }}</span>
+                                </div>
+                              </div>
+                            }
+
+                            @if (incidentHistoryAssignedMedidas().length) {
+                              <div class="ih-medidas-grid ih-medidas-grid-wide">
+                                @for (medida of incidentHistoryAssignedMedidas(); track medida.ID_tipo_medida) {
+                                  <span class="ih-medida-badge ih-medida-badge-wide">
+                                    <span class="ih-medida-leading">
+                                      @if (isProtectionMedida(medida)) {
+                                        <svg class="ih-medida-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                      }
+                                      <span class="ih-medida-name">{{ medida.nombre }}</span>
+                                    </span>
+                                    <span class="ih-medida-qty">x{{ medidaQuantity(medida) }}</span>
+                                  </span>
+                                }
+                              </div>
+                            } @else if (!incidentHistoryGestion()) {
+                              <p class="ih-empty ih-empty-inline">Sin gestión OSEG/CERREM ni medidas registradas.</p>
+                            } @else if (isMedidasAsignadasStatus(incident)) {
+                              <p class="ih-empty ih-empty-inline">El incidente está en «Medidas asignadas» pero no hay medidas registradas.</p>
+                            }
+                          </div>
+                        }
+                      </section>
+                    }
+
+                    <footer class="ih-created-by">
+                      Creado por {{ incidentOperatorName(incident) }}
+                    </footer>
                   </div>
                 } @else {
-                  <!-- History Sub-tab -->
-                  <div class="space-y-4 animate-fadeIn">
-                    <div class="overflow-x-auto">
-                      <table class="w-full text-sm text-left text-gray-300">
-                        <thead class="text-xs text-gray-400 uppercase bg-gray-900/50">
+                  <div class="ih-history-wrap">
+                    <table class="ih-history-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha/Hora</th>
+                          <th>Usuario</th>
+                          <th>Acción</th>
+                          <th>Cambios realizados</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (log of sortedAuditLogsForHistory(); track log.id) {
                           <tr>
-                            <th scope="col" class="px-6 py-3">Fecha/Hora</th>
-                            <th scope="col" class="px-6 py-3">Usuario</th>
-                            <th scope="col" class="px-6 py-3">Acción</th>
-                            <th scope="col" class="px-6 py-3">Cambios Realizados</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @for (log of filteredAuditLogs(); track log.id) {
-                            <tr
-                              class="border-b border-gray-700 hover:bg-gray-700/30 transition-colors"
-                            >
-                              <td class="px-6 py-4 whitespace-nowrap text-gray-500">
-                                {{ log.timestamp }}
-                              </td>
-                              <td class="px-6 py-4">
-                                <div class="flex items-center gap-2">
-                                  <div
-                                    class="w-8 h-8 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-300 text-xs font-bold"
-                                  >
-                                    {{ log.user.substring(0, 2).toUpperCase() }}
+                            <td class="whitespace-nowrap text-slate-500">
+                              {{ formatHistoryTimestamp(log.timestamp) }}
+                            </td>
+                            <td>
+                              <div class="flex items-center gap-2">
+                                <span class="ih-operator-avatar">{{
+                                  historyUserInitials(log.user)
+                                }}</span>
+                                <span class="font-medium text-slate-200">{{
+                                  historyAuthorName(log.user, incident)
+                                }}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span class="ih-action-badge">{{ auditActionLabel(log) }}</span>
+                            </td>
+                            <td>
+                              @if (auditChangeSummary(log, incident); as summary) {
+                                <span class="text-slate-300">{{ summary }}</span>
+                              } @else if (log.details?.length) {
+                                @for (detail of log.details; track $index) {
+                                  <div class="ih-change-row">
+                                    <span class="ih-change-field">{{ detail.field }}:</span>
+                                    <span class="ih-change-old">{{ detail.old || '(vacío)' }}</span>
+                                    <svg class="ih-change-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    </svg>
+                                    <span class="ih-change-new">{{ detail.new }}</span>
                                   </div>
-                                  <span class="font-medium">{{ log.user }}</span>
-                                </div>
-                              </td>
-                              <td class="px-6 py-4">
-                                <span
-                                  class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-900/50 text-indigo-300 border border-indigo-700/50"
-                                >
-                                  {{ log.action }}
-                                </span>
-                              </td>
-                              <td class="px-6 py-4">
-                                @if (log.details && log.details.length > 0) {
-                                  <div
-                                    class="bg-black/20 rounded-lg p-3 space-y-2 border border-gray-700/50"
-                                  >
-                                    @for (detail of log.details; track detail.field) {
-                                      <div
-                                        class="text-[11px] grid grid-cols-[100px_1fr] gap-2 items-center"
-                                      >
-                                        <span class="font-bold text-gray-500 uppercase">{{
-                                          detail.field
-                                        }}</span>
-                                        <div class="flex items-center gap-2 flex-wrap">
-                                          <span
-                                            class="px-1.5 py-0.5 rounded bg-red-900/20 text-red-400/70 line-through"
-                                            >{{ detail.old || '(vacío)' }}</span
-                                          >
-                                          <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-3 w-3 text-gray-600"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M14 5l7 7m0 0l-7 7m7-7H3"
-                                            />
-                                          </svg>
-                                          <span
-                                            class="px-1.5 py-0.5 rounded bg-green-900/20 text-green-400 font-medium"
-                                            >{{ detail.new }}</span
-                                          >
-                                        </div>
-                                      </div>
-                                    }
-                                  </div>
-                                } @else {
-                                  <div class="text-gray-200">{{ log.changes }}</div>
                                 }
-                              </td>
-                            </tr>
-                          } @empty {
-                            <tr>
-                              <td colspan="4" class="text-center py-12 text-gray-500 italic">
-                                No hay registros de cambios para este incidente.
-                              </td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    </div>
+                              } @else {
+                                <span class="text-slate-300">{{ log.changes || '—' }}</span>
+                              }
+                            </td>
+                          </tr>
+                        } @empty {
+                          <tr>
+                            <td colspan="4" class="text-center py-12 ih-empty">
+                              No hay registros de cambios para este incidente.
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
                   </div>
                 }
               </div>

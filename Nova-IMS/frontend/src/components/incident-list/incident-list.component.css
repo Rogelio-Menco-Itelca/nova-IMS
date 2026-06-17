@@ -30,3 +30,235 @@
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-in-out;
 }
+
+.activity-timeline {
+  border: 1px solid rgb(55 65 81 / 0.85);
+  border-radius: 0.75rem;
+  background: rgb(15 23 42 / 0.35);
+  overflow: hidden;
+}
+
+.activity-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid rgb(55 65 81 / 0.75);
+  background: rgb(15 23 42 / 0.45);
+}
+
+.activity-timeline-header h4,
+.activity-timeline-header h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.activity-timeline-count {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.activity-timeline-scroll {
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 1rem 1rem 0.5rem;
+}
+
+.activity-timeline-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.activity-timeline-item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
+  position: relative;
+}
+
+.activity-timeline-item:last-child {
+  padding-bottom: 0.25rem;
+}
+
+.activity-timeline-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 1.05rem;
+  top: 2.1rem;
+  bottom: 0;
+  width: 2px;
+  background: rgb(71 85 105 / 0.55);
+}
+
+.activity-timeline-rail {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.15rem;
+}
+
+.activity-timeline-icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgb(15 23 42);
+  position: relative;
+  z-index: 1;
+}
+
+.activity-timeline-icon[data-kind='comment'] {
+  background: rgb(37 99 235 / 0.18);
+  color: #60a5fa;
+}
+
+.activity-timeline-icon[data-kind='status'] {
+  background: rgb(22 163 74 / 0.18);
+  color: #4ade80;
+}
+
+.activity-timeline-icon[data-kind='create'] {
+  background: rgb(100 116 139 / 0.22);
+  color: #cbd5e1;
+}
+
+.activity-timeline-icon[data-kind='update'] {
+  background: rgb(99 102 241 / 0.18);
+  color: #a5b4fc;
+}
+
+.activity-timeline-icon[data-kind='medidas'] {
+  background: rgb(234 88 12 / 0.18);
+  color: #fdba74;
+}
+
+.activity-timeline-icon[data-kind='gestion'] {
+  background: rgb(217 119 6 / 0.18);
+  color: #fcd34d;
+}
+
+.activity-timeline-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+}
+
+.activity-timeline-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.activity-timeline-detail-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.activity-timeline-content {
+  min-width: 0;
+}
+
+.activity-timeline-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.activity-timeline-actor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.activity-timeline-avatar {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 9999px;
+  background: rgb(30 58 138 / 0.55);
+  color: #bfdbfe;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activity-timeline-summary {
+  font-size: 0.875rem;
+  color: #e2e8f0;
+  line-height: 1.35;
+}
+
+.activity-timeline-time {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.activity-timeline-body {
+  margin-top: 0.35rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.65rem;
+  background: rgb(15 23 42 / 0.55);
+  border: 1px solid rgb(51 65 85 / 0.75);
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.activity-timeline-change {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.activity-timeline-old {
+  color: #94a3b8;
+  text-decoration: line-through;
+  font-size: 0.875rem;
+}
+
+.activity-timeline-arrow {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.activity-timeline-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: rgb(22 163 74 / 0.18);
+  border: 1px solid rgb(34 197 94 / 0.35);
+  color: #86efac;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.activity-timeline-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #64748b;
+  font-style: italic;
+}

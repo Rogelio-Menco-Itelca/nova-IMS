@@ -1,28 +1,34 @@
 const asyncHandler = require('../utils/asyncHandler');
 const giLogs = require('../db/gestionincidentes/logs');
 
-function parseAuditDetails(raw) {
-  if (raw == null) return [];
+function parseAuditPayload(raw) {
+  if (raw == null) return null;
   let value = raw;
   if (typeof raw === 'string') {
     try {
       value = JSON.parse(raw);
     } catch {
-      return [];
+      return null;
     }
   }
-  if (Array.isArray(value)) return value;
-  if (value && typeof value === 'object' && Array.isArray(value.changes)) {
-    return value.changes;
-  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value;
+}
+
+function parseAuditDetails(raw) {
+  const payload = parseAuditPayload(raw);
+  if (!payload) return Array.isArray(raw) ? raw : [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.changes)) return payload.changes;
   return [];
 }
 
 function mapAuditLogRow(r) {
+  const actorName = giLogs.parseAuditActorFromDetails(r.details_json);
   return {
     id: r.id,
     incidentId: r.incidentId,
-    user: r.user,
+    user: actorName || r.user,
     action: r.action,
     changes: r.changes || '',
     details: parseAuditDetails(r.details_json),

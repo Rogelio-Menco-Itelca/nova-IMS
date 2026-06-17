@@ -315,6 +315,89 @@ async function hasAssignedMedidas(visibleId) {
   return medidas.length > 0;
 }
 
+function normalizeGestionAuditValue(key, val) {
+  if (val == null || val === '') return '(vacío)';
+  if (key === 'fecha_cerrem' || key === 'fecha_resolucion') {
+    const raw = val instanceof Date ? val : new Date(val);
+    if (!Number.isNaN(raw.getTime())) {
+      return raw.toISOString().slice(0, 10);
+    }
+  }
+  return String(val);
+}
+
+function formatMedidaLine(m) {
+  const name = String(m?.nombre || `Tipo ${m?.ID_tipo_medida ?? '?'}`).trim();
+  const qty = Number(m?.cantidad ?? 1);
+  const obs = String(m?.observacion_medida || '').trim();
+  const base = `${name} x${Number.isFinite(qty) ? qty : 1}`;
+  return obs ? `${base} (${obs})` : base;
+}
+
+function medidaAuditKey(m) {
+  return Number(m?.ID_tipo_medida);
+}
+
+function buildMedidasAuditDetails(beforeList, afterList) {
+  const before = Array.isArray(beforeList) ? beforeList : [];
+  const after = Array.isArray(afterList) ? afterList : [];
+  const beforeMap = new Map(before.map((m) => [medidaAuditKey(m), m]));
+  const afterMap = new Map(after.map((m) => [medidaAuditKey(m), m]));
+  const details = [];
+
+  for (const [id, prev] of beforeMap) {
+    if (afterMap.has(id)) continue;
+    details.push({
+      field: `Medida: ${String(prev.nombre || `Tipo ${id}`).trim()}`,
+      old: formatMedidaLine(prev),
+      new: '(retirada)',
+    });
+  }
+
+  for (const [id, next] of afterMap) {
+    const prev = beforeMap.get(id);
+    const label = `Medida: ${String(next.nombre || `Tipo ${id}`).trim()}`;
+    if (!prev) {
+      details.push({
+        field: label,
+        old: '(ninguna)',
+        new: formatMedidaLine(next),
+      });
+      continue;
+    }
+    const oldLine = formatMedidaLine(prev);
+    const newLine = formatMedidaLine(next);
+    if (oldLine !== newLine) {
+      details.push({ field: label, old: oldLine, new: newLine });
+    }
+  }
+
+  return details;
+}
+
+function buildGestionAuditDetails(before, after) {
+  const fields = [
+    ['tramite_destino', 'Trámite / destino (OSEG)'],
+    ['codigo_oficio', 'Código de oficio'],
+    ['resolucion_cerrem', 'Resolución CERREM'],
+    ['nivel_riesgo', 'Nivel de riesgo'],
+    ['tipo_esquema', 'Tipo de esquema'],
+    ['fecha_cerrem', 'Fecha CERREM'],
+    ['fecha_resolucion', 'Fecha resolución'],
+    ['compartido_con', 'Compartido con'],
+    ['observaciones', 'Observaciones (CERREM)'],
+  ];
+  const details = [];
+  for (const [key, label] of fields) {
+    const oldVal = normalizeGestionAuditValue(key, before?.[key]);
+    const newVal = normalizeGestionAuditValue(key, after?.[key]);
+    if (oldVal !== newVal) {
+      details.push({ field: label, old: oldVal, new: newVal });
+    }
+  }
+  return details;
+}
+
 module.exports = {
   getTiposMedida,
   getGestionByIncidente,
@@ -325,4 +408,6 @@ module.exports = {
   hasAssignedMedidas,
   validateGestionForStatus,
   formatCodigoOficio,
+  buildMedidasAuditDetails,
+  buildGestionAuditDetails,
 };

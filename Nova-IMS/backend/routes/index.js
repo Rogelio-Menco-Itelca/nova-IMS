@@ -20,6 +20,20 @@ const catCtrl = require('../controllers/catalog.controller');
 const reportsCtrl = require('../controllers/reports.controller');
 const configCtrl = require('../controllers/config.controller');
 const medidas = require('../db/gestionincidentes/medidas');
+const giIncidents = require('../db/gestionincidentes/incidents');
+const { sessionDisplayName } = require('../utils/jwtUser');
+
+async function writeIncidentAudit(incidentId, user, { action, changes, details }) {
+  if (!details?.length) return;
+  await giIncidents.writeAudit(pool, {
+    incidentId,
+    user,
+    action,
+    changes,
+    details,
+    actorDisplayName: sessionDisplayName(user, 'Sistema'),
+  });
+}
 
 // ---------- Público ----------
 router.get('/config/public', configCtrl.publicConfig);
@@ -173,8 +187,16 @@ router.get('/incidents/:id/medidas', async (req, res, next) => {
 
 router.post('/incidents/:id/gestion', async (req, res, next) => {
   try {
-    const idGestion = await medidas.upsertGestion(req.params.id, req.body, req.user);
-    const gestion = await medidas.getGestionByIncidente(req.params.id);
+    const visibleId = req.params.id;
+    const beforeGestion = await medidas.getGestionByIncidente(visibleId);
+    const idGestion = await medidas.upsertGestion(visibleId, req.body, req.user);
+    const gestion = await medidas.getGestionByIncidente(visibleId);
+    const auditDetails = medidas.buildGestionAuditDetails(beforeGestion, gestion);
+    await writeIncidentAudit(visibleId, req.user, {
+      action: 'Actualización gestión OSEG/CERREM',
+      changes: `${auditDetails.length} campo(s) en gestión`,
+      details: auditDetails,
+    });
     res.json({
       ok: true,
       ID_gestion: idGestion,
@@ -187,10 +209,11 @@ router.post('/incidents/:id/gestion', async (req, res, next) => {
 
 router.post('/incidents/:id/medidas', async (req, res, next) => {
   try {
-    let gestion = await medidas.getGestionByIncidente(req.params.id);
+    const visibleId = req.params.id;
+    let gestion = await medidas.getGestionByIncidente(visibleId);
     if (!gestion) {
-      await medidas.upsertGestion(req.params.id, {}, req.user);
-      gestion = await medidas.getGestionByIncidente(req.params.id);
+      await medidas.upsertGestion(visibleId, {}, req.user);
+      gestion = await medidas.getGestionByIncidente(visibleId);
     }
     if (!gestion) {
       return res.status(404).json({
@@ -203,7 +226,15 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
         error: { message: 'Seleccione al menos una medida de seguridad.' },
       });
     }
+    const beforeMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
     await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user);
+    const afterMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
+    const auditDetails = medidas.buildMedidasAuditDetails(beforeMedidas, afterMedidas);
+    await writeIncidentAudit(visibleId, req.user, {
+      action: 'Medidas de seguridad',
+      changes: `${auditDetails.length} cambio(s) en medidas`,
+      details: auditDetails,
+    });
     res.json({ ok: true });
   } catch (err) {
     next(err);

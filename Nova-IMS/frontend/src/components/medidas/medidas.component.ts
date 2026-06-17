@@ -11,6 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { ConfigurationService } from '../../services/configuration.service';
 import {
   describeClosedReviewStages,
   getMedidasPermissions,
@@ -430,6 +431,11 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() agency = 'CSJ';
 
   private readonly http = inject(HttpClient);
+  private readonly configService = inject(ConfigurationService);
+
+  private refreshAuditHistory(): void {
+    this.configService.getAuditLogs().catch(() => void 0);
+  }
 
   tiposMedida = signal<TipoMedida[]>([]);
   riesgos = signal<{ id: number; nombre: string }[]>([]);
@@ -735,6 +741,7 @@ export class MedidasComponent implements OnInit, OnChanges {
           } else {
             this.loadGestion();
           }
+          this.refreshAuditHistory();
         },
         error: (err) => {
           const msg =
@@ -850,6 +857,7 @@ export class MedidasComponent implements OnInit, OnChanges {
           afterSuccess?.();
           this.showMensaje(modulo, successMsg, 'ok');
           this.loadGestion();
+          this.refreshAuditHistory();
         },
         error: (err) => {
           const msg =
@@ -881,6 +889,7 @@ export class MedidasComponent implements OnInit, OnChanges {
             'ok',
           );
           this.loadGestion();
+          this.refreshAuditHistory();
         },
         error: (err) => {
           const msg =

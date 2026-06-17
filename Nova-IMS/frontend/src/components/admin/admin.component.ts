@@ -8,6 +8,7 @@ import {
   effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray } from '@angular/forms';
 import { NotificationService } from '../../services/notification.service';
 import {
@@ -29,6 +30,16 @@ import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { Agency, RoleOption } from '../../models/user.model';
 import { AdminPaginationComponent } from './admin-pagination.component';
+import { AuditLog } from '../../models/admin.model';
+import { Incident, InvolvedPerson, InvolvedVehicle, joinPersonName } from '../../models/incident.model';
+import {
+  buildCommentHistoryView,
+  displayCommentBody,
+  formatNoteForDisplay,
+  latestIncidentCommentEntry,
+  noteAuthorInitials,
+  resolveHistoryAuthor,
+} from '../../utils/incident-notes';
 
 type AdminTab =
   | 'users'
@@ -54,11 +65,36 @@ function adminSlicePage<T>(items: T[], page: number): T[] {
   return items.slice(start, start + ADMIN_PAGE_SIZE);
 }
 
+interface IncidentHistoryGestion {
+  codigo_oficio?: string | null;
+  tramite_destino?: string | null;
+  resolucion_cerrem?: string | null;
+  nivel_riesgo?: string | null;
+  tipo_esquema?: string | null;
+  fecha_cerrem?: string | null;
+  fecha_resolucion?: string | null;
+  observaciones?: string | null;
+  compartido_con?: string | null;
+}
+
+interface IncidentHistoryMedida {
+  ID_tipo_medida: number;
+  nombre: string;
+  cantidad: number;
+  observacion_medida?: string | null;
+}
+
+interface IncidentHistoryMedidasPayload {
+  gestion: IncidentHistoryGestion | null;
+  medidas: IncidentHistoryMedida[];
+}
+
 @Component({
   selector: 'app-admin',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, AdminPaginationComponent],
   templateUrl: './admin.component.html',
+  styleUrls: ['./admin.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
@@ -69,6 +105,7 @@ export class AdminComponent implements OnInit {
   readonly incidentService = inject(IncidentService);
   readonly personService = inject(PersonService);
   private readonly authService = inject(AuthService);
+  private readonly http = inject(HttpClient);
 
   activeTab = signal<AdminTab>('users');
 
@@ -121,6 +158,40 @@ export class AdminComponent implements OnInit {
   selectedIncidentIdForHistory = signal<string>('all');
   incidentHistorySearchTerm = signal('');
   historySubTab = signal<'details' | 'history'>('details');
+  incidentHistoryMedidasPayload = signal<IncidentHistoryMedidasPayload | null>(null);
+  incidentHistoryMedidasLoading = signal(false);
+
+  incidentHistoryGestion = computed(() => this.incidentHistoryMedidasPayload()?.gestion ?? null);
+  incidentHistoryAssignedMedidas = computed(
+    () => this.incidentHistoryMedidasPayload()?.medidas ?? [],
+  );
+
+  private readonly incidentHistoryMedidasEffect = effect((onCleanup) => {
+    const id = this.selectedIncidentIdForHistory();
+    if (id === 'all') {
+      this.incidentHistoryMedidasPayload.set(null);
+      this.incidentHistoryMedidasLoading.set(false);
+      return;
+    }
+
+    this.incidentHistoryMedidasLoading.set(true);
+    const sub = this.http.get<IncidentHistoryMedidasPayload>(`/api/incidents/${id}/medidas`).subscribe({
+      next: (data) => {
+        if (this.selectedIncidentIdForHistory() !== id) return;
+        this.incidentHistoryMedidasPayload.set({
+          gestion: data?.gestion ?? null,
+          medidas: Array.isArray(data?.medidas) ? data.medidas : [],
+        });
+        this.incidentHistoryMedidasLoading.set(false);
+      },
+      error: () => {
+        if (this.selectedIncidentIdForHistory() !== id) return;
+        this.incidentHistoryMedidasPayload.set({ gestion: null, medidas: [] });
+        this.incidentHistoryMedidasLoading.set(false);
+      },
+    });
+    onCleanup(() => sub.unsubscribe());
+  });
 
   showOperatorForm = signal(false);
   isEditMode = signal(false);
@@ -475,6 +546,12 @@ export class AdminComponent implements OnInit {
     return logs.filter((log) => log.incidentId === selectedId);
   });
 
+  sortedAuditLogsForHistory = computed(() =>
+    [...this.filteredAuditLogs()].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    ),
+  );
+
   selectedIncidentForHistory = computed(() => {
     const id = this.selectedIncidentIdForHistory();
     if (id === 'all') return null;
@@ -579,6 +656,265 @@ export class AdminComponent implements OnInit {
   async refreshIncidentHistoryView(): Promise<void> {
     await this.configService.getAuditLogs();
     this.incidentService.getIncidents();
+  }
+
+  clearIncidentHistorySelection(): void {
+    this.selectedIncidentIdForHistory.set('all');
+    this.historySubTab.set('details');
+  }
+
+  historyAuthorName(raw: string | null | undefined, incident?: Incident | null): string {
+    const value = String(raw ?? '').trim();
+    if (value.includes(' ')) return value;
+
+    const current = this.authService.currentUser();
+    if (current?.name && current.id && current.id.toLowerCase() === value.toLowerCase()) {
+      return current.name;
+    }
+
+    const operator = this.operators().find(
+      (o) =>
+        o.id.toLowerCase() === value.toLowerCase() ||
+        (o.username && o.username.toLowerCase() === value.toLowerCase()),
+    );
+    if (operator?.name) return operator.name;
+
+    const fallback = incident?.operator?.trim() || current?.name?.trim() || '';
+    return resolveHistoryAuthor(raw, fallback);
+  }
+
+  historyUserInitials(name: string): string {
+    return noteAuthorInitials(this.historyAuthorName(name));
+  }
+
+  incidentDescriptionEntries(incident: Incident): string[] {
+    const entries = buildCommentHistoryView(incident.comments, incident.details);
+    return entries
+      .map((e) =>
+        displayCommentBody(e.text, this.historyAuthorName(e.author, incident)),
+      )
+      .map((line) => line.trim())
+      .filter((line) => line && !/^\[[^\]]+\]/.test(line));
+  }
+
+  incidentDescriptionText(incident: Incident): string {
+    const lines = this.incidentDescriptionEntries(incident);
+    return lines.length ? lines.join('\n\n') : '—';
+  }
+
+  formatHistoryTimestamp(raw: string): string {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return raw;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  incidentOperatorName(incident: Incident): string {
+    const direct = String(incident.operator ?? '').trim();
+    if (direct.includes(' ')) return direct;
+    return this.historyAuthorName(direct || null, incident);
+  }
+
+  incidentOperatorInitials(incident: Incident): string {
+    return noteAuthorInitials(this.incidentOperatorName(incident));
+  }
+
+  formatGeoDisplayName(name: string | null | undefined): string {
+    return String(name ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\b[\p{L}]/gu, (char) => char.toUpperCase());
+  }
+
+  incidentFullAddress(incident: Incident): string {
+    return String(incident.location ?? '').trim() || '—';
+  }
+
+  incidentMunicipalityDisplay(incident: Incident): string {
+    const municipality = this.formatGeoDisplayName(incident.municipalityName);
+    const department = this.formatGeoDisplayName(incident.departmentName);
+    if (municipality && department) return `${municipality}, ${department}`;
+    return municipality || department || '—';
+  }
+
+  incidentCoordinatesDisplay(incident: Incident): string {
+    const lat = incident.lat;
+    const lng = incident.lng;
+    if (lat == null || lng == null) return '—';
+    const latN = Number(lat);
+    const lngN = Number(lng);
+    if (!Number.isFinite(latN) || !Number.isFinite(lngN)) return '—';
+    return `${latN.toFixed(4)}, ${lngN.toFixed(4)}`;
+  }
+
+  incidentRiesgoEsquemaDisplay(gestion: IncidentHistoryGestion | null): string {
+    if (!gestion) return '—';
+    const riesgo = String(gestion.nivel_riesgo ?? '').trim();
+    const esquema = String(gestion.tipo_esquema ?? '').trim();
+    if (riesgo && esquema) return `${riesgo} · ${esquema}`;
+    return riesgo || esquema || '—';
+  }
+
+  showIncidentGestionSection(incident: Incident): boolean {
+    if (this.incidentHistoryMedidasLoading()) return true;
+    if (this.incidentHistoryAssignedMedidas().length) return true;
+    const gestion = this.incidentHistoryGestion();
+    if (gestion) {
+      const fields = [
+        gestion.codigo_oficio,
+        gestion.tramite_destino,
+        gestion.resolucion_cerrem,
+        gestion.nivel_riesgo,
+        gestion.tipo_esquema,
+      ];
+      if (fields.some((v) => String(v ?? '').trim())) return true;
+    }
+    return /medidas asignadas|en gesti[oó]n|cerrem|oseg/i.test(String(incident.status ?? ''));
+  }
+
+  medidaQuantity(medida: IncidentHistoryMedida): number {
+    const qty = Number(medida.cantidad ?? 1);
+    return Number.isFinite(qty) && qty > 0 ? qty : 1;
+  }
+
+  isMedidasAsignadasStatus(incident: Incident): boolean {
+    return /medidas asignadas/i.test(String(incident.status ?? ''));
+  }
+
+  personDisplayName(person: InvolvedPerson): string {
+    const joined = joinPersonName(person);
+    return joined || String(person.name ?? '').trim() || '—';
+  }
+
+  personPhone(person: InvolvedPerson): string {
+    return String(person.phone || person.contact || '').trim();
+  }
+
+  personComments(person: InvolvedPerson): string {
+    return String(person.comentarios || person.details || '').trim();
+  }
+
+  personDocumentLabel(person: InvolvedPerson): string {
+    const label = String(person.documentTypeName || '').trim();
+    if (label) return label;
+    const code = String(person.documentType || '').trim().toUpperCase();
+    const labels: Record<string, string> = {
+      CC: 'Cédula de ciudadanía',
+      CE: 'Cédula de extranjería',
+      TI: 'Tarjeta de identidad',
+      PA: 'Pasaporte',
+      NIT: 'NIT',
+    };
+    return labels[code] || String(person.documentType || '').trim();
+  }
+
+  incidentDescriptionDisplay(incident: Incident): string {
+    return this.incidentLatestCommentDisplay(incident);
+  }
+
+  incidentLatestCommentDisplay(incident: Incident): string {
+    const entry = latestIncidentCommentEntry(
+      incident.comments,
+      incident.details,
+      this.incidentOperatorName(incident),
+    );
+    if (!entry) return '—';
+    const body = displayCommentBody(
+      entry.text,
+      this.historyAuthorName(entry.author, incident),
+    ).trim();
+    return body || '—';
+  }
+
+  incidentLatestCommentMeta(incident: Incident): string {
+    const entry = latestIncidentCommentEntry(
+      incident.comments,
+      incident.details,
+      this.incidentOperatorName(incident),
+    );
+    if (!entry) return '';
+    const author = this.historyAuthorName(entry.author, incident);
+    const when = entry.timestamp ? formatNoteForDisplay(entry) : '';
+    if (author && when) return `${author} · ${when}`;
+    return author || when;
+  }
+
+  vehicleMetaLine(vehicle: InvolvedVehicle): string {
+    return [vehicle.role, vehicle.color].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
+  }
+
+  vehicleDetails(vehicle: InvolvedVehicle): string {
+    return String(vehicle.details ?? '').trim();
+  }
+
+  priorityLabel(priority: string): string {
+    return `Prioridad ${String(priority || '').toLowerCase()}`;
+  }
+
+  priorityShortLabel(priority: string): string {
+    return String(priority || '—').trim() || '—';
+  }
+
+  statusBadgeClass(status: string): string {
+    if (/medidas asignadas/i.test(String(status ?? ''))) return 'ih-badge-status-ok';
+    if (/cerrado|cancelado/i.test(String(status ?? ''))) return 'ih-badge-status-muted';
+    return 'ih-badge-status-default';
+  }
+
+  personMetaLine(person: InvolvedPerson): string {
+    return [person.gender, person.role].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
+  }
+
+  isProtectionMedida(medida: IncidentHistoryMedida): boolean {
+    return /protecci[oó]n|escolta|guardia/i.test(String(medida.nombre ?? ''));
+  }
+
+  auditActionKind(log: AuditLog): 'medidas' | 'status' | 'comment' | 'create' | 'gestion' | 'update' {
+    const action = String(log.action || '');
+    if (/creaci/i.test(action)) return 'create';
+    if (/cambio de estado/i.test(action)) return 'status';
+    if (/medidas de seguridad/i.test(action)) return 'medidas';
+    if (/gesti[oó]n oseg|cerrem/i.test(action)) return 'gestion';
+    if (/comentario/i.test(action) || log.details?.some((d) => /comentario/i.test(d.field))) {
+      return 'comment';
+    }
+    return 'update';
+  }
+
+  auditActionLabel(log: AuditLog): string {
+    const kind = this.auditActionKind(log);
+    switch (kind) {
+      case 'create':
+        return 'Creación';
+      case 'status':
+        return 'Cambio de estado';
+      case 'medidas':
+        return 'Medidas de seguridad';
+      case 'gestion':
+        return 'Gestión OSEG/CERREM';
+      case 'comment':
+        return 'Comentario';
+      default:
+        return log.action || 'Actualización';
+    }
+  }
+
+  auditChangeSummary(log: AuditLog, incident: Incident | null): string {
+    if (this.auditActionKind(log) === 'create') return 'Incidente creado';
+    if (this.auditActionKind(log) === 'comment') {
+      const detail = log.details?.find((d) => /comentario/i.test(d.field));
+      if (detail?.new) {
+        const text = String(detail.new).replace(/^[^:]+:\s*/i, '').trim();
+        return `Comentario agregado: '${text}'`;
+      }
+    }
+    if (!log.details?.length) return log.changes || '—';
+    return '';
+  }
+
+  vehicleLabel(vehicle: InvolvedVehicle): string {
+    const parts = [vehicle.make, vehicle.model, vehicle.color].filter(Boolean);
+    return parts.length ? parts.join(' ') : vehicle.plate;
   }
 
   openAddForm(): void {

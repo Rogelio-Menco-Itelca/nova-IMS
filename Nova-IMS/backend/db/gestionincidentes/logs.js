@@ -2,6 +2,22 @@ const { pool } = require('../../config/db');
 const { resolveUserContext } = require('./users');
 const { requireAgencyInput } = require('./agencyContext');
 
+function parseAuditActorFromDetails(raw) {
+  if (raw == null) return null;
+  let value = raw;
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const name = value.actorDisplayName || value.creatorDisplayName;
+  const trimmed = String(name || '').trim();
+  return trimmed || null;
+}
+
 async function writeAdminLog(jwtUser, action, details) {
   const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const agencyCode = requireAgencyInput(null, jwtUser);
@@ -56,7 +72,7 @@ async function listAuditLogs() {
   return rows.map((r) => ({
     id: r.id,
     incidentId: r.incidentId,
-    user: r.user_id || 'Sistema',
+    user: parseAuditActorFromDetails(r.details_json) || r.user_id || 'Sistema',
     action: r.action,
     changes: r.changes,
     details_json: r.details_json,
@@ -68,4 +84,5 @@ module.exports = {
   writeAdminLog,
   listAdminLogs,
   listAuditLogs,
+  parseAuditActorFromDetails,
 };

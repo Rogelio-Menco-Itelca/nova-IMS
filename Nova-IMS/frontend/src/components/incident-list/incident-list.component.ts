@@ -79,12 +79,15 @@ import {
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
 import {
   appendIncidentNote,
+  displayCommentBody,
   formatNoteForDisplay,
   IncidentNoteEntry,
   buildCommentHistoryView,
   noteAuthorInitials,
   enrichCommentAuthors,
+  resolveHistoryAuthor,
 } from '../../utils/incident-notes';
+import { AuditLog } from '../../models/admin.model';
 
 const priorityOrder: Record<IncidentPriority, number> = {
   Crítica: 4,
@@ -303,6 +306,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         'Ubicación recibida',
         'Complete el formulario y pulse Guardar para registrar el incidente en activos.',
       );
+    });
+
+    effect(() => {
+      this.auditLogs();
+      this.cdr.markForCheck();
     });
 
     effect(() => {
@@ -894,9 +902,174 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const incident = this.activeIncident();
     if (!incident) return [];
     return this.auditLogs()
-      .filter((log) => log.incidentId === incident.id)
+      .filter(
+        (log) => log.incidentId === incident.id && !this.isCommentOnlyAuditLog(log),
+      )
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   });
+
+  /** Los comentarios ya tienen su propia sección; no duplicarlos en cambios. */
+  private isCommentOnlyAuditLog(log: AuditLog): boolean {
+    if (/creaci/i.test(log.action)) return false;
+    if (/cambio de estado/i.test(log.action)) return false;
+    const details = log.details ?? [];
+    if (!details.length) return false;
+    return details.every((d) => /comentario/i.test(String(d.field ?? '')));
+  }
+
+  formatTimelineTime(timestamp: string | null | undefined): string {
+    const raw = String(timestamp ?? '').trim();
+    if (!raw) return '';
+
+    const parsed = this.parseTimelineDate(raw);
+    if (!parsed) return raw;
+
+    const now = new Date();
+    const timeLabel = parsed.toLocaleString('es-CO', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    if (parsed.toDateString() === now.toDateString()) {
+      return `hoy, ${timeLabel}`;
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (parsed.toDateString() === yesterday.toDateString()) {
+      return `ayer, ${timeLabel}`;
+    }
+
+    return parsed.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  timelineUserInitials(name: string): string {
+    return noteAuthorInitials(this.historyAuthorName(name));
+  }
+
+  private historyFallbackAuthor(): string {
+    return (
+      this.activeIncident()?.operator?.trim() ||
+      this.authService.currentUser()?.name?.trim() ||
+      ''
+    );
+  }
+
+  historyAuthorName(raw: string | null | undefined): string {
+    const value = String(raw ?? '').trim();
+    if (value.includes(' ')) return value;
+
+    const current = this.authService.currentUser();
+    if (
+      current?.name &&
+      current.id &&
+      current.id.toLowerCase() === value.toLowerCase()
+    ) {
+      return current.name;
+    }
+
+    const operator = this.configService
+      .operators()
+      .find(
+        (o) =>
+          o.id.toLowerCase() === value.toLowerCase() ||
+          (o.username && o.username.toLowerCase() === value.toLowerCase()),
+      );
+    if (operator?.name) return operator.name;
+
+    return resolveHistoryAuthor(raw, this.historyFallbackAuthor());
+  }
+
+  auditTimelineKind(log: AuditLog): 'create' | 'status' | 'comment' | 'medidas' | 'gestion' | 'update' {
+    if (/creaci/i.test(log.action)) return 'create';
+    if (/cambio de estado/i.test(log.action)) return 'status';
+    if (/medidas de seguridad/i.test(log.action)) return 'medidas';
+    if (/gesti[oó]n oseg|cerrem/i.test(log.action)) return 'gestion';
+    if (log.details?.some((d) => /comentario/i.test(d.field))) return 'comment';
+    return 'update';
+  }
+
+  auditTimelineSummary(log: AuditLog): string {
+    const user = this.historyAuthorName(log.user);
+    switch (this.auditTimelineKind(log)) {
+      case 'create':
+        return `${user} creó el incidente`;
+      case 'status':
+        return `${user} cambió el estado`;
+      case 'medidas':
+        return `${user} actualizó medidas de seguridad`;
+      case 'gestion':
+        return `${user} actualizó gestión OSEG/CERREM`;
+      case 'comment':
+        return `${user} agregó un comentario`;
+      default:
+        return `${user} actualizó el incidente`;
+    }
+  }
+
+  auditTimelineFieldChanges(log: AuditLog): { field: string; old: string; new: string }[] {
+    const kind = this.auditTimelineKind(log);
+    if (kind === 'status' || kind === 'comment') return [];
+    return (log.details ?? []).filter((d) => String(d.field || '').trim());
+  }
+
+  auditTimelineCommentBody(log: AuditLog): string | null {
+    const detail = log.details?.find((d) => /comentario/i.test(d.field));
+    if (!detail?.new) return null;
+    return this.displayCommentBody(detail.new, this.historyAuthorName(log.user));
+  }
+
+  auditTimelineStatusChange(log: AuditLog): { old: string; new: string } | null {
+    const detail = log.details?.find((d) => /estado/i.test(d.field));
+    if (detail?.new) {
+      return {
+        old: detail.old?.trim() || '—',
+        new: detail.new.trim(),
+      };
+    }
+    const match = /->\s*(.+)$/i.exec(log.action);
+    if (match && /estado/i.test(log.action)) {
+      return { old: 'Nuevo', new: match[1].trim() };
+    }
+    return null;
+  }
+
+  commentTimelineTime(entry: IncidentNoteEntry): string {
+    if (entry.timestamp) {
+      return this.formatTimelineTime(entry.timestamp);
+    }
+    return '';
+  }
+
+  readonly displayCommentBody = displayCommentBody;
+
+  private parseTimelineDate(raw: string): Date | null {
+    const value = String(raw ?? '').trim();
+    if (!value) return null;
+
+    const direct = Date.parse(value);
+    if (!Number.isNaN(direct)) return new Date(direct);
+
+    const match =
+      /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(a\.\s*m\.|p\.\s*m\.|am|pm))?/i.exec(
+        value,
+      );
+    if (!match) return null;
+
+    let hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = Number(match[6] ?? 0);
+    const meridiem = String(match[7] ?? '').toLowerCase();
+    if (meridiem.includes('p') && hour < 12) hour += 12;
+    if (meridiem.includes('a') && hour === 12) hour = 0;
+
+    let year = Number(match[3]);
+    if (year < 100) year += 2000;
+
+    const d = new Date(year, Number(match[2]) - 1, Number(match[1]), hour, minute, second);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
 
   formatLogTime(timestamp: string): string {
     const d = new Date(timestamp);
@@ -1580,6 +1753,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.configService.getIncidentTypes().catch(() => void 0);
     this.configService.getResponseProtocols().catch(() => void 0);
     this.configService.getAuditLogs().catch(() => void 0);
+    this.configService.getOperators().catch(() => void 0);
     this.loadDepartments().catch(() => void 0);
     this.loadPlaceRoles();
     this.loadPersonCatalogs();
@@ -2074,10 +2248,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private loadCommentsHistory(storedComments?: string, legacyDetails?: string): void {
-    const operator =
-      this.activeIncident()?.operator?.trim() ||
-      this.authService.currentUser()?.name?.trim() ||
-      '';
+    const operator = this.historyFallbackAuthor();
     this.commentsHistory.set(
       enrichCommentAuthors(buildCommentHistoryView(storedComments, legacyDetails), operator),
     );

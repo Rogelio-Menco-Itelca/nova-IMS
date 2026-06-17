@@ -134,9 +134,54 @@ export function enrichCommentAuthors(
   const fallback = String(fallbackAuthor ?? '').trim();
   if (!fallback) return entries;
   return entries.map((entry) => {
-    if (entry.author !== 'Operador' || !entry.timestamp) return entry;
+    const author = String(entry.author || '').trim() || 'Operador';
+    if (author.includes(' ')) return entry;
     return { ...entry, author: fallback };
   });
+}
+
+/** Mismo criterio que enrichCommentAuthors: id/usuario → nombre del operador. */
+export function resolveHistoryAuthor(
+  rawAuthor: string | null | undefined,
+  fallbackAuthor?: string | null,
+): string {
+  const [entry] = enrichCommentAuthors(
+    [{ timestamp: null, author: String(rawAuthor ?? '').trim() || 'Operador', text: '' }],
+    fallbackAuthor,
+  );
+  return entry.author;
+}
+
+/** Texto visible del comentario sin cabecera [fecha] autor ni prefijos legacy. */
+export function displayCommentBody(text: string, authorHint?: string): string {
+  let body = String(text ?? '').trim();
+  if (!body) return '';
+
+  body = body.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}(?::\d{2})?\s*:\s*/i, '');
+
+  const headerMatch = /^\[([^\]]+)\]\s*([\s\S]*)$/.exec(body);
+  if (headerMatch) {
+    const rest = String(headerMatch[2] ?? '').trim();
+    if (rest.includes('\n')) {
+      const lines = rest.split('\n');
+      body = lines.slice(1).join('\n').trim() || lines[0].trim();
+    } else {
+      body = rest;
+    }
+  } else {
+    body = body.replace(/^\[[^\]]+\]\s*/, '').trim();
+  }
+
+  const author = String(authorHint ?? '').trim();
+  if (author && body.toLowerCase().startsWith(author.toLowerCase())) {
+    body = body.slice(author.length).trim();
+  }
+
+  if (author && body.toLowerCase() === author.toLowerCase()) {
+    return '';
+  }
+
+  return body;
 }
 
 export function noteAuthorInitials(author: string): string {
@@ -172,4 +217,29 @@ export function buildCommentHistoryView(
   );
   if (alreadyThere) return fromComments;
   return [{ timestamp: null, author: 'Descripción inicial', text: legacy }, ...fromComments];
+}
+
+/** Último comentario añadido o actualizado en el incidente (comments; si no hay, details legado). */
+export function latestIncidentCommentEntry(
+  comments?: string | null,
+  legacyDetails?: string | null,
+  fallbackAuthor?: string | null,
+): IncidentNoteEntry | null {
+  const fromComments = parseIncidentNotes(comments);
+  let entry: IncidentNoteEntry | null = null;
+
+  if (fromComments.length) {
+    entry = fromComments[fromComments.length - 1] ?? null;
+  } else {
+    const legacy = String(legacyDetails ?? '').trim();
+    if (!legacy) return null;
+    const legacyParsed = parseIncidentNotes(legacy);
+    entry = legacyParsed.length
+      ? (legacyParsed[legacyParsed.length - 1] ?? null)
+      : { timestamp: null, author: 'Descripción inicial', text: legacy };
+  }
+
+  if (!entry) return null;
+  const [enriched] = enrichCommentAuthors([entry], fallbackAuthor);
+  return enriched;
 }
