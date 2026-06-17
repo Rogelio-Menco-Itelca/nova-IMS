@@ -899,7 +899,7 @@ export class AdminComponent implements OnInit {
     }
   }
 
-  auditChangeSummary(log: AuditLog, incident: Incident | null): string {
+  auditChangeSummary(log: AuditLog): string {
     if (this.auditActionKind(log) === 'create') return 'Incidente creado';
     if (this.auditActionKind(log) === 'comment') {
       const detail = log.details?.find((d) => /comentario/i.test(d.field));

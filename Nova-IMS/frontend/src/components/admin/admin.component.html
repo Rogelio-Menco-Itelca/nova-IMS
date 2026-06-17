@@ -869,7 +869,7 @@
                               <span class="ih-action-badge">{{ auditActionLabel(log) }}</span>
                             </td>
                             <td>
-                              @if (auditChangeSummary(log, incident); as summary) {
+                              @if (auditChangeSummary(log); as summary) {
                                 <span class="text-slate-300">{{ summary }}</span>
                               } @else if (log.details?.length) {
                                 @for (detail of log.details; track $index) {

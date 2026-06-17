@@ -61,8 +61,7 @@ describe('appendIncidentNote', () => {
   it('crea la primera entrada sin historial previo', () => {
     const result = appendIncidentNote('', 'Ana Pérez', 'Nuevo comentario');
     expect(result).toMatch(/^\[/);
-    expect(result).toContain('\nNuevo comentario');
-    expect(result).not.toContain('Ana Pérez');
+    expect(result).toContain('] Ana Pérez\nNuevo comentario');
     expect(result).not.toContain(INCIDENT_NOTE_SEPARATOR);
   });
 

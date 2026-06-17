@@ -135,7 +135,8 @@ export function enrichCommentAuthors(
   if (!fallback) return entries;
   return entries.map((entry) => {
     const author = String(entry.author || '').trim() || 'Operador';
-    if (author.includes(' ')) return entry;
+    if (author !== 'Operador') return entry;
+    if (!entry.timestamp) return entry;
     return { ...entry, author: fallback };
   });
 }
