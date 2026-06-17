@@ -262,3 +262,40 @@
   color: #64748b;
   font-style: italic;
 }
+
+/* Select: texto atenuado cuando muestra la opción guía (sin valor elegido). */
+.incident-select {
+  color: #f3f4f6;
+}
+
+.incident-select.incident-select--placeholder {
+  color: #6b7280;
+}
+
+.incident-select option {
+  color: #f3f4f6;
+  background-color: #111827;
+}
+
+.incident-select option[disabled] {
+  color: #9ca3af;
+}
+
+/* Select cerrado: texto atenuado cuando aún no hay valor elegido */
+.incident-select {
+  color: #f9fafb;
+}
+
+.incident-select.incident-select--placeholder {
+  color: #6b7280;
+}
+
+/* Lista desplegada: opciones reales con buen contraste */
+.incident-select option {
+  color: #f3f4f6;
+  background-color: #111827;
+}
+
+.incident-select option[value=''] {
+  color: #6b7280;
+}

@@ -106,6 +106,7 @@ router.get('/document-types', peopleCtrl.documentTypes);
 
 // Lookup por teléfono
 router.get('/telephony/lookup/:phone', peopleCtrl.lookupByPhone);
+router.get('/people/lookup/document/:documentId', peopleCtrl.lookupByDocument);
 
 // ---------- Operadores / Usuarios ----------
 router.get('/operators', opCtrl.list);

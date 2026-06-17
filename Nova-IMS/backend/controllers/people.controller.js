@@ -134,6 +134,16 @@ exports.lookupByPhone = asyncHandler(async (req, res) => {
   res.json(person);
 });
 
+exports.lookupByDocument = asyncHandler(async (req, res) => {
+  const raw = decodeURIComponent(req.params.documentId || '');
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) throw new HttpError(400, 'Documento inválido');
+  const agencyCode = requireSessionAgency(req);
+  const row = await giPeople.lookupByDocument(digits, agencyCode);
+  if (!row) throw new HttpError(404, 'Documento no registrado');
+  res.json(mapPerson(row));
+});
+
 exports.personRoles = asyncHandler(async (req, res) => {
   const agency = requireAgencyCode(req, 'Query agency es requerido');
   res.json(await giPeople.listPersonRoles(agency));

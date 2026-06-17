@@ -238,7 +238,8 @@
                 <select
                   id="event_id"
                   formControlName="event_id"
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  [class.incident-select--placeholder]="selectShowsPlaceholder('event_id')"
                   required
                 >
                   <option value="" disabled>Seleccione Tipo de Evento</option>
@@ -256,7 +257,8 @@
                 <select
                   id="priority_id"
                   formControlName="priority_id"
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  [class.incident-select--placeholder]="selectShowsPlaceholder('priority_id')"
                   required
                 >
                   <option value="" disabled>Seleccione Prioridad</option>
@@ -274,7 +276,8 @@
                 <select
                   id="status"
                   formControlName="status"
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  [class.incident-select--placeholder]="selectShowsPlaceholder('status')"
                   required
                 >
                   <option value="" disabled>Seleccione estado</option>
@@ -307,7 +310,8 @@
                 <select
                   id="origin"
                   formControlName="origin"
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  [class.incident-select--placeholder]="selectShowsPlaceholder('origin')"
                   required
                 >
                   <option value="" disabled>Seleccione origen</option>
@@ -449,7 +453,8 @@
                       <select
                         id="departmentId"
                         formControlName="departmentId"
-                        class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                        class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                        [class.incident-select--placeholder]="selectShowsPlaceholder('departmentId')"
                       >
                         <option [ngValue]="null">Seleccione departamento…</option>
                         @for (dept of departments(); track dept.id) {
@@ -467,7 +472,8 @@
                         id="municipalityId"
                         formControlName="municipalityId"
                         [disabled]="!incidentForm.get('departmentId')?.value"
-                        class="w-full bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                        class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                        [class.incident-select--placeholder]="selectShowsPlaceholder('municipalityId')"
                       >
                         <option [ngValue]="null">
                           @if (!incidentForm.get('departmentId')?.value) {
@@ -739,7 +745,8 @@
                         <select
                           [id]="'person-' + $index + '-roleId'"
                           formControlName="roleId"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'roleId')"
                         >
                           <option [ngValue]="null" disabled>Seleccione rol</option>
                           @for (role of personRoles(); track role.id) {
@@ -756,7 +763,8 @@
                         <select
                           [id]="'person-' + $index + '-documentType'"
                           formControlName="documentType"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'documentType')"
                         >
                           <option value="">Seleccione tipo</option>
                           @for (doc of documentTypes(); track doc.code) {
@@ -775,6 +783,8 @@
                           formControlName="documentId"
                           type="text"
                           placeholder="Número"
+                          (input)="onPersonDocumentInput($index)"
+                          (blur)="lookupInvolvedPerson($index, 'document')"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
                         />
                       </div>
@@ -787,7 +797,8 @@
                         <select
                           [id]="'person-' + $index + '-genderId'"
                           formControlName="genderId"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'genderId')"
                         >
                           <option [ngValue]="null">Seleccione género</option>
                           @for (g of genders(); track g.id) {
@@ -806,6 +817,8 @@
                           formControlName="contact"
                           type="text"
                           placeholder="Teléfono"
+                          (input)="onPersonContactInput($index)"
+                          (blur)="lookupInvolvedPerson($index, 'contact')"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
                         />
                       </div>
@@ -910,7 +923,8 @@
                         <select
                           [id]="'place-' + $index + '-departmentId'"
                           formControlName="departmentId"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'departmentId')"
                         >
                           <option [ngValue]="null">Seleccione departamento…</option>
                           @for (dept of departments(); track dept.id) {
@@ -928,7 +942,8 @@
                           [id]="'place-' + $index + '-municipalityId'"
                           formControlName="municipalityId"
                           [disabled]="!placeGroup.get('departmentId')?.value"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'municipalityId')"
                         >
                           <option [ngValue]="null">
                             @if (!placeGroup.get('departmentId')?.value) {
@@ -959,7 +974,8 @@
                         <select
                           [id]="'place-' + $index + '-roleId'"
                           formControlName="roleId"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'roleId')"
                         >
                           <option [ngValue]="null" disabled>Seleccione rol…</option>
                           @for (role of placeRoles(); track role.id) {
@@ -1076,7 +1092,8 @@
                         <select
                           [id]="'vehicle-' + $index + '-role'"
                           formControlName="role"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedVehicleSelectEmpty($index, 'role')"
                         >
                           <option value="" disabled>Seleccione rol</option>
                           @for (role of vehicleRoles; track role) {

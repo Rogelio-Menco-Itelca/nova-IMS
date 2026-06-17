@@ -345,6 +345,34 @@ async function setPersonStatus(id, status) {
   return getPersonByInternalId(internalId);
 }
 
+async function lookupByDocument(documentId, agencyCode = null) {
+  await ensureAdminPersonasCatalog();
+  const digits = String(documentId || '').replace(/\D/g, '');
+  if (!digits || digits.length < 5) return null;
+
+  const params = [digits, digits];
+  let agencyClause = '';
+  if (agencyCode) {
+    agencyClause = ' AND UPPER(p.ID_Agencia) IN (UPPER(?), LOWER(?))';
+    params.push(agencyCode, agencyCode);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT ${PERSON_SELECT}
+     WHERE ${adminCatalogWhere('p')}
+       AND COALESCE(NULLIF(p.estado, ''), 'Activo') = 'Activo'
+       AND (
+         p.Numero_documento = ?
+         OR REPLACE(REPLACE(REPLACE(p.Numero_documento, '.', ''), '-', ''), ' ', '') = ?
+       )
+       ${agencyClause}
+     ORDER BY p.FechaRegistro DESC
+     LIMIT 1`,
+    params,
+  );
+  return rows[0] || null;
+}
+
 async function lookupByPhone(candidates) {
   await ensureAdminPersonasCatalog();
   const ph = candidates.map(() => '?').join(',');
@@ -403,6 +431,7 @@ module.exports = {
   updatePerson,
   setPersonStatus,
   lookupByPhone,
+  lookupByDocument,
   listPersonRoles,
   listGenders,
   listDocumentTypes,

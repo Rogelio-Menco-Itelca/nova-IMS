@@ -162,6 +162,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
   private readonly vehicleLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly vehicleLastLookupPlate = new Map<number, string>();
+  private readonly personLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  private readonly personLastLookupKey = new Map<number, string>();
   private placeDeptSubs: Subscription[] = [];
   private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
@@ -1191,7 +1193,143 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   removePerson(index: number): void {
+    const timer = this.personLookupTimers.get(index);
+    if (timer) clearTimeout(timer);
+    this.personLookupTimers.delete(index);
+    this.personLastLookupKey.delete(index);
     this.involvedPeople.removeAt(index);
+    this.cdr.markForCheck();
+  }
+
+  onPersonDocumentInput(index: number): void {
+    this.scheduleInvolvedPersonLookup(index, 'document');
+  }
+
+  onPersonContactInput(index: number): void {
+    this.scheduleInvolvedPersonLookup(index, 'contact');
+  }
+
+  lookupInvolvedPerson(index: number, field: 'document' | 'contact'): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+
+    if (field === 'document') {
+      const digits = String(group.get('documentId')?.value ?? '').replace(/\D/g, '');
+      if (digits.length < 5) return;
+      this.personService.lookupByDocument(digits).subscribe((person) => {
+        if (!person) return;
+        this.applyInvolvedPersonLookup(index, person, `doc:${digits}`);
+      });
+      return;
+    }
+
+    const contact = String(group.get('contact')?.value ?? '').trim();
+    if (this.normalizePhone(contact).length < 7) return;
+    const phoneKey = this.normalizePhone(contact);
+    this.personService.lookupRegisteredByPhone(contact).subscribe((person) => {
+      if (!person) return;
+      this.applyInvolvedPersonLookup(index, person, `phone:${phoneKey}`);
+    });
+  }
+
+  private scheduleInvolvedPersonLookup(index: number, field: 'document' | 'contact'): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+
+    const lookupKey =
+      field === 'document'
+        ? `doc:${String(group.get('documentId')?.value ?? '').replace(/\D/g, '')}`
+        : `phone:${this.normalizePhone(String(group.get('contact')?.value ?? ''))}`;
+
+    const previous = this.personLastLookupKey.get(index);
+    if (previous && previous !== lookupKey) {
+      if (field === 'document' && previous.startsWith('doc:')) {
+        this.clearInvolvedPersonRegistryFields(index, 'document');
+        this.personLastLookupKey.delete(index);
+      }
+      if (field === 'contact' && previous.startsWith('phone:')) {
+        this.clearInvolvedPersonRegistryFields(index, 'contact');
+        this.personLastLookupKey.delete(index);
+      }
+    }
+
+    const prev = this.personLookupTimers.get(index);
+    if (prev) clearTimeout(prev);
+    const timer = setTimeout(() => {
+      this.lookupInvolvedPerson(index, field);
+      this.personLookupTimers.delete(index);
+    }, 450);
+    this.personLookupTimers.set(index, timer);
+  }
+
+  private clearInvolvedPersonRegistryFields(
+    index: number,
+    changedField: 'document' | 'contact',
+  ): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+    const patch: Record<string, unknown> = {
+      primerNombre: '',
+      segundoNombre: '',
+      primerApellido: '',
+      segundoApellido: '',
+      roleId: null,
+      documentType: '',
+      genderId: null,
+    };
+    if (changedField === 'document') {
+      patch['contact'] = '';
+    } else {
+      patch['documentId'] = '';
+    }
+    group.patchValue(patch, { emitEvent: false });
+  }
+
+  private applyInvolvedPersonLookup(index: number, person: Person, lookupKey: string): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+
+    const patch: Partial<InvolvedPerson> = {
+      primerNombre: person.primerNombre,
+      segundoNombre: person.segundoNombre,
+      primerApellido: person.primerApellido,
+      segundoApellido: person.segundoApellido,
+      name: person.name,
+      contact: person.phone || person.contacto,
+      phone: person.phone,
+      documentType: this.resolveDocumentType(person),
+      documentId: person.documentId,
+      genderId: person.genderId ?? null,
+      roleId: person.roleId ?? null,
+    };
+    if (!patch.primerNombre && person.name) {
+      Object.assign(patch, splitPersonName(person.name));
+    }
+
+    group.patchValue(
+      {
+        primerNombre: patch.primerNombre ?? '',
+        segundoNombre: patch.segundoNombre ?? '',
+        primerApellido: patch.primerApellido ?? '',
+        segundoApellido: patch.segundoApellido ?? '',
+        roleId: patch.roleId ?? null,
+        documentType: patch.documentType ?? '',
+        documentId: patch.documentId ?? '',
+        genderId: patch.genderId ?? null,
+        contact: patch.contact ?? '',
+      },
+      { emitEvent: false },
+    );
+
+    this.personLastLookupKey.set(index, lookupKey);
+    const notifyKey = `solicitante:${lookupKey}:${person.id}`;
+    if (!this.personLookupNotified.has(notifyKey)) {
+      this.personLookupNotified.add(notifyKey);
+      this.notificationService.addNotification(
+        'Persona encontrada',
+        `${person.name} cargada desde el registro.`,
+      );
+    }
     this.cdr.markForCheck();
   }
 
@@ -1937,6 +2075,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (this.involvedPeople.length < 4) {
       this.involvedPeople.push(this.buildPersonGroup(patch));
     }
+  }
+
+  isFormSelectEmpty(controlName: string): boolean {
+    const value = this.incidentForm.get(controlName)?.value;
+    return value == null || value === '';
   }
 
   private pruneEmptyInvolvedEntries(): void {
@@ -2694,6 +2837,33 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.filterText.set((event.target as HTMLInputElement).value);
     this.listCurrentPage.set(1);
   }
+
+  /** Select sin valor real: muestra la opción guía en gris (estilo placeholder). */
+  selectShowsPlaceholder(controlName: string): boolean {
+    const value = this.incidentForm.get(controlName)?.value;
+    return value == null || value === '';
+  }
+
+  involvedSelectEmpty(index: number, field: string): boolean {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return true;
+    const value = group.get(field)?.value;
+    return value == null || value === '';
+  }
+
+  involvedPlaceSelectEmpty(index: number, field: string): boolean {
+    const group = this.involvedPlaces.at(index);
+    if (!(group instanceof FormGroup)) return true;
+    const value = group.get(field)?.value;
+    return value == null || value === '';
+  }
+
+  involvedVehicleSelectEmpty(index: number, field: string): boolean {
+    const group = this.involvedVehicles.at(index);
+    if (!(group instanceof FormGroup)) return true;
+    const value = group.get(field)?.value;
+    return value == null || value === '';
+  }
   onFilterStatus(event: Event) {
     this.filterStatus.set((event.target as HTMLSelectElement).value);
     this.listCurrentPage.set(1);
@@ -2773,6 +2943,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();
     this.vehicleLastLookupPlate.clear();
+    this.personLookupTimers.forEach((t) => clearTimeout(t));
+    this.personLookupTimers.clear();
+    this.personLastLookupKey.clear();
     this.destroyMap();
     this.typeSub?.unsubscribe();
     this.phoneSub?.unsubscribe();
