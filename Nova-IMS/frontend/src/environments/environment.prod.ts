@@ -1,12 +1,6 @@
-/** Configuración producción — ajustar antes del build o en CI/CD. */
 export const environment = {
   production: true,
-  /**
-   * Vacío si nginx sirve frontend y API en el mismo dominio (/api, /socket.io, /location).
-   * Si el API está en otro host: 'https://api.tudominio.gov.co'
-   */
-  apiUrl: '',
-  /** Vacío: se obtiene en runtime desde GET /api/config/public (backend/.env). */
+  apiUrl: 'https://nova-ims-production.up.railway.app',
   googleMapsApiKey: '',
   publicShareBaseUrl: '',
   powerBiEmbedUrl:
