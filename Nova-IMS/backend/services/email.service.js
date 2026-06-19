@@ -5,22 +5,23 @@ const { latestIncidentNote } = require('../utils/incidentNotes');
 let transporter;
 
 function init() {
-  logger.debug('RESEND_API_KEY present:', !!process.env.RESEND_API_KEY);
+  logger.debug('SMTP_HOST:', process.env.SMTP_HOST);
+  logger.debug('SMTP_USER:', process.env.SMTP_USER);
 
   if (transporter) return;
 
-  if (!process.env.RESEND_API_KEY) {
-    logger.warn('[MAIL] modo consola (sin RESEND_API_KEY)');
+  if (!process.env.SMTP_HOST) {
+    logger.warn('[MAIL] modo consola (sin SMTP)');
     return;
   }
 
   transporter = nodemailer.createTransport({
-    host: 'smtp.resend.com',
-    port: 465,
-    secure: true,
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: false,
     auth: {
-      user: 'resend',
-      pass: process.env.RESEND_API_KEY,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD,
     },
   });
 }
@@ -457,6 +458,7 @@ function incidentSummaryRows(incident) {
     }
   }
 
+  // Fecha de cierre inferida del historial (futuro: columna closed_at en incidents)
   if (['Cerrado', 'Cancelado', 'Resuelto'].includes(incident.status)) {
     rows.push([
       'Fecha/Hora de cierre (estimada)',
