@@ -1,29 +1,21 @@
-const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
 const { latestIncidentNote } = require('../utils/incidentNotes');
 
-let transporter;
-
-function init() {
-  logger.debug('SMTP_HOST:', process.env.SMTP_HOST);
-  logger.debug('SMTP_USER:', process.env.SMTP_USER);
-
-  if (transporter) return;
-
-  if (!process.env.SMTP_HOST) {
-    logger.warn('[MAIL] modo consola (sin SMTP)');
-    return;
-  }
-
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
+async function sendMail({ from, to, subject, text, html }) {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({ from, to, subject, text, html }),
   });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Resend API error: ${error}`);
+  }
+  return response.json();
 }
 
 function escapeHtml(value) {
@@ -54,9 +46,12 @@ async function sendWelcomeEmail({
   role,
   telefono,
 }) {
-  init();
-
   logger.info('📧 Intentando enviar correo de bienvenida');
+
+  if (!process.env.RESEND_API_KEY) {
+    logger.warn('[MAIL] modo consola (sin RESEND_API_KEY)');
+    return;
+  }
 
   const displayName = formatPersonName(name);
   const agencyLabel =
@@ -130,21 +125,14 @@ Equipo IMS NOVA
   </div>
 </div>`.trim();
 
-  if (!transporter) {
-    logger.info('📧 EMAIL (modo consola)');
-    logger.info(text);
-    return;
-  }
-
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
+    await sendMail({
+      from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
       to,
       subject: 'Credenciales IMS NOVA — Cuenta creada',
       text,
       html,
     });
-
     logger.info('✅ Correo de bienvenida enviado');
   } catch (err) {
     logger.error('❌ Error enviando email:', err.message);
@@ -458,7 +446,6 @@ function incidentSummaryRows(incident) {
     }
   }
 
-  // Fecha de cierre inferida del historial (futuro: columna closed_at en incidents)
   if (['Cerrado', 'Cancelado', 'Resuelto'].includes(incident.status)) {
     rows.push([
       'Fecha/Hora de cierre (estimada)',
@@ -534,7 +521,6 @@ function formatIncidentBodyHtml(incident) {
   const vehicles =
     (incident.involvedVehicles || []).map(formatVehicleHtml).join('') || '<li>(ninguno)</li>';
   const auditHtml = formatAuditHtml(incident.auditLogs || []);
-
   const rows = incidentSummaryRows(incident);
 
   const tableRows = rows
@@ -563,7 +549,6 @@ function formatIncidentBodyHtml(incident) {
     <p style="margin:0 0 8px;font-size:15px;">Estimado especialista,</p>
     <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;">Notificación de incidente ${escapeHtml(incident.id || '')}</h2>
     <p style="margin:0 0 14px;font-size:13px;color:#4b5563;">Vitácora completa · Registrado ${escapeHtml(ts)}</p>
-
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:16px;border:1px solid #e5e7eb;">
       ${tableRows}
       ${gestionTableRows}
@@ -584,10 +569,8 @@ function formatIncidentBodyHtml(incident) {
         </td>
       </tr>
     </table>
-
     <h3 style="margin:0 0 10px;font-size:16px;font-weight:700;color:#111827;">Último cambio registrado</h3>
     ${auditHtml}
-
     <p style="margin:16px 0 4px;color:#4b5563;font-size:12px;">Mensaje generado automáticamente por IMS NOVA.</p>
     <p style="margin:0;color:#6b7280;font-size:11px;">AVISO DE CONFIDENCIALIDAD Y LEGALIDAD: Este correo contiene información confidencial de uso exclusivo para los destinatarios autorizados.</p>
   </div>
@@ -595,36 +578,32 @@ function formatIncidentBodyHtml(incident) {
 }
 
 async function sendIncidentNotification({ to, incident }) {
-  init();
+  if (!process.env.RESEND_API_KEY) {
+    logger.info('📧 EMAIL incidente (modo consola)');
+    return { mode: 'console', recipients: Array.isArray(to) ? to : [to] };
+  }
 
   const recipients = Array.isArray(to) ? to : [to];
   const subject = `[IMS NOVA] Incidente ${incident.id} — ${incident.type || 'Sin tipo'}`;
   const text = formatIncidentBodyText(incident);
   const html = formatIncidentBodyHtml(incident);
 
-  if (!transporter) {
-    logger.info('📧 EMAIL incidente (modo consola)');
-    logger.info('Destinatarios: [REDACTED]');
-    logger.info('Asunto:', subject);
-    logger.info(text);
-    return { mode: 'console', recipients };
-  }
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: recipients.join(', '),
+  await sendMail({
+    from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
+    to: recipients,
     subject,
     text,
     html,
   });
 
-  return { mode: 'smtp', recipients };
+  return { mode: 'api', recipients };
 }
 
-// ---------- 2FA: correo OTP ----------
-
 async function sendOtpEmail({ to, name, code }) {
-  init();
+  if (!process.env.RESEND_API_KEY) {
+    logger.info('📧 OTP (modo consola) [REDACTED]');
+    return;
+  }
 
   const text = `Hola ${name},\n\nSu código de verificación es:\n\n  ${code}\n\nExpira en 10 minutos.\n\n— IMS NOVA`;
 
@@ -641,13 +620,8 @@ async function sendOtpEmail({ to, name, code }) {
   </div>
 </div>`.trim();
 
-  if (!transporter) {
-    logger.info('📧 OTP (modo consola) [REDACTED]');
-    return;
-  }
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+  await sendMail({
+    from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
     to,
     subject: '[IMS NOVA] Código de verificación',
     text,
