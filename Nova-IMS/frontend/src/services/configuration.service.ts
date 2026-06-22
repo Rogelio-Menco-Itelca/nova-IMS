@@ -170,9 +170,6 @@ export class ConfigurationService {
   }
 
   async updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<void> {
-    const roles = await firstValueFrom(
-      this.http.put<RolePermission[]>(`/api/roles/${id}`, updates),
-    );
-    this.rolePermissions.set(roles);
+    await firstValueFrom(this.http.put<void>(`/api/roles/${id}`, updates));
   }
 }

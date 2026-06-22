@@ -6,6 +6,7 @@ import {
   computed,
   OnInit,
   effect,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -52,6 +53,13 @@ type AdminTab =
   | 'incident_history';
 
 const ADMIN_PAGE_SIZE = 15;
+
+const PERMISSION_MODULE_HINTS: Record<string, string> = {
+  Dashboard: 'Vista general y métricas del sistema',
+  Incidentes: 'Registro y seguimiento de incidentes',
+  Reportes: 'Informes y exportaciones',
+  Administración: 'Usuarios, catálogos y configuración',
+};
 
 function adminTotalPages(count: number): number {
   return count > 0 ? Math.max(1, Math.ceil(count / ADMIN_PAGE_SIZE)) : 1;
@@ -106,6 +114,7 @@ export class AdminComponent implements OnInit {
   readonly personService = inject(PersonService);
   private readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   activeTab = signal<AdminTab>('users');
 
@@ -154,6 +163,13 @@ export class AdminComponent implements OnInit {
   notificationEmails = this.configService.notificationEmails;
   auditLogs = this.configService.auditLogs;
   rolePermissions = this.configService.rolePermissions;
+  selectedPermissionsRoleId = signal('');
+  activeRolePermission = computed(() => {
+    const roles = this.rolePermissions();
+    if (!roles.length) return null;
+    const selected = this.selectedPermissionsRoleId();
+    return roles.find((role) => role.id === selected) ?? roles[0];
+  });
   allIncidents = this.incidentService.incidents;
   selectedIncidentIdForHistory = signal<string>('all');
   incidentHistorySearchTerm = signal('');
@@ -210,7 +226,6 @@ export class AdminComponent implements OnInit {
   responseProtocolsPage = signal(1);
   adminLogsPage = signal(1);
   incidentHistoryPage = signal(1);
-  permissionsPage = signal(1);
   readonly adminPageSize = ADMIN_PAGE_SIZE;
 
   operatorForm = this.fb.group({
@@ -323,18 +338,24 @@ export class AdminComponent implements OnInit {
     adminSlicePage(this.filteredIncidentsForHistory(), this.incidentHistoryPage()),
   );
 
-  permissionsTotalPages = computed(() => adminTotalPages(this.rolePermissions().length));
-
-  paginatedRolePermissions = computed(() =>
-    adminSlicePage(this.rolePermissions(), this.permissionsPage()),
-  );
-
   constructor() {
     effect(() => {
       this.displayedNotificationEmails();
       const pages = this.notificationEmailTotalPages();
       if (pages > 0 && this.notificationEmailPage() > pages) {
         this.notificationEmailPage.set(pages);
+      }
+    });
+
+    effect(() => {
+      const roles = this.rolePermissions();
+      if (!roles.length) {
+        this.selectedPermissionsRoleId.set('');
+        return;
+      }
+      const selected = this.selectedPermissionsRoleId();
+      if (!roles.some((role) => role.id === selected)) {
+        this.selectedPermissionsRoleId.set(roles[0].id);
       }
     });
   }
@@ -597,6 +618,18 @@ export class AdminComponent implements OnInit {
     this.refreshIncidentHistoryView().catch(() => void 0);
   }
 
+  onPermissionsRoleSelect(event: Event): void {
+    this.selectedPermissionsRoleId.set((event.target as HTMLSelectElement).value);
+  }
+
+  permissionModuleHint(module: string): string {
+    return PERMISSION_MODULE_HINTS[module] ?? '';
+  }
+
+  enabledModulesCount(role: { permissions: { enabled: boolean }[] }): number {
+    return role.permissions.filter((perm) => perm.enabled).length;
+  }
+
   previousOperatorsPage(): void {
     this.operatorsPage.update((p) => Math.max(1, p - 1));
   }
@@ -643,14 +676,6 @@ export class AdminComponent implements OnInit {
 
   nextIncidentHistoryPage(): void {
     this.incidentHistoryPage.update((p) => Math.min(this.incidentHistoryTotalPages(), p + 1));
-  }
-
-  previousPermissionsPage(): void {
-    this.permissionsPage.update((p) => Math.max(1, p - 1));
-  }
-
-  nextPermissionsPage(): void {
-    this.permissionsPage.update((p) => Math.min(this.permissionsTotalPages(), p + 1));
   }
 
   async refreshIncidentHistoryView(): Promise<void> {
@@ -1253,14 +1278,6 @@ export class AdminComponent implements OnInit {
     }
   }
 
-  async deleteRole(id: string): Promise<void> {
-    await this.configService.deleteRolePermission(id);
-    this.notificationService.addNotification(
-      'Rol Eliminado',
-      'Se ha eliminado el rol correctamente',
-    );
-  }
-
   async togglePermission(
     roleId: string,
     moduleIndex: number,
@@ -1269,20 +1286,35 @@ export class AdminComponent implements OnInit {
     const role = this.rolePermissions().find((r) => r.id === roleId);
     if (!role) return;
 
-    const updatedPermissions = [...role.permissions];
-    const modulePerm = { ...updatedPermissions[moduleIndex] };
+    const perm = role.permissions[moduleIndex];
+    if (!perm) return;
+
+    const snapshot = {
+      enabled: perm.enabled,
+      actions: { ...perm.actions },
+    };
 
     if (action === 'enabled') {
-      modulePerm.enabled = !modulePerm.enabled;
+      perm.enabled = !perm.enabled;
     } else {
-      modulePerm.actions = { ...modulePerm.actions, [action]: !modulePerm.actions[action] };
+      perm.actions = { ...perm.actions, [action]: !perm.actions[action] };
     }
+    this.cdr.markForCheck();
 
-    updatedPermissions[moduleIndex] = modulePerm;
-    await this.configService.updateRolePermission(roleId, { permissions: updatedPermissions });
-    this.notificationService.addNotification(
-      'Permisos Actualizados',
-      `Se han actualizado los permisos para el rol ${role.role}`,
+    const payload = role.permissions.map((p, i) =>
+      i === moduleIndex ? { ...perm, actions: { ...perm.actions } } : { ...p, actions: { ...p.actions } },
     );
+
+    try {
+      await this.configService.updateRolePermission(roleId, { permissions: payload });
+    } catch (err: unknown) {
+      perm.enabled = snapshot.enabled;
+      perm.actions = snapshot.actions;
+      this.cdr.markForCheck();
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg =
+        e?.error?.error?.message || e?.error?.message || 'No se pudieron guardar los permisos.';
+      this.notificationService.addNotification('Error', msg);
+    }
   }
 }

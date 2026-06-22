@@ -1,6 +1,27 @@
 const { pool } = require('../../config/db');
 const { normalizeAgencyCode } = require('./maps');
 
+const EMPTY_PERMISSION_ROW = {
+  habilitado: 0,
+  puede_ver: 0,
+  puede_crear: 0,
+  puede_editar: 0,
+  puede_archivar: 0,
+};
+
+function mapPermissionRowToApi(p) {
+  return {
+    module: p.module,
+    enabled: !!p.habilitado,
+    actions: {
+      view: !!p.puede_ver,
+      create: !!p.puede_crear,
+      edit: !!p.puede_editar,
+      delete: !!p.puede_archivar,
+    },
+  };
+}
+
 async function listRolesSimple(agencyCode) {
   const agency = normalizeAgencyCode(agencyCode);
   if (!agency) return [];
@@ -14,40 +35,33 @@ async function listRolesSimple(agencyCode) {
   return rows;
 }
 
-async function buildRolePermissions() {
-  const [roles] = await pool.query(`SELECT ID_Rol AS id, Rol AS name FROM roles ORDER BY ID_Rol`);
+async function buildRolePermissions(agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
+  const [roles] = agency
+    ? await pool.query(
+        `SELECT ID_Rol AS id, Rol AS name FROM roles WHERE UPPER(ID_Agencia) = ? ORDER BY ID_Rol`,
+        [agency],
+      )
+    : await pool.query(`SELECT ID_Rol AS id, Rol AS name FROM roles ORDER BY ID_Rol`);
   const [modules] = await pool.query(`SELECT id, name FROM modules ORDER BY id`);
-  const [perms] = await pool.query(`SELECT * FROM permisos_de_rol`);
+  const [perms] = agency
+    ? await pool.query(`SELECT * FROM permisos_de_rol WHERE UPPER(id_agencia) = ?`, [agency])
+    : await pool.query(`SELECT * FROM permisos_de_rol`);
 
   const permByRole = {};
   perms.forEach((p) => {
     if (!permByRole[p.id_rol]) {
       permByRole[p.id_rol] = {};
     }
-    permByRole[p.id_rol][p.module_id] = p;
+    permByRole[p.id_rol][p.id_modulo] = p;
   });
 
   return roles.map((r) => ({
     id: r.id,
     role: r.name,
     permissions: modules.map((m) => {
-      const p = permByRole[r.id]?.[m.id] || {
-        enabled: 0,
-        can_view: 0,
-        can_create: 0,
-        can_edit: 0,
-        can_delete: 0,
-      };
-      return {
-        module: m.name,
-        enabled: !!p.enabled,
-        actions: {
-          view: !!p.can_view,
-          create: !!p.can_create,
-          edit: !!p.can_edit,
-          delete: !!p.can_delete,
-        },
-      };
+      const row = permByRole[r.id]?.[m.id] || EMPTY_PERMISSION_ROW;
+      return mapPermissionRowToApi({ ...row, module: m.name });
     }),
   }));
 }
@@ -68,7 +82,7 @@ async function createRole(id, name, agencyCode) {
       const isDashOrInc = m.name === 'Dashboard' || m.name === 'Incidentes';
       await conn.query(
         `INSERT INTO permisos_de_rol
-          (id_rol, ID_Agencia, module_id, enabled, can_view, can_create, can_edit, can_delete)
+          (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_crear, puede_editar, puede_archivar)
          VALUES (?,?,?,?,?,?,?,?)`,
         [
           id,
@@ -114,13 +128,14 @@ async function loadRolePermissionContext(roleId) {
 
 async function upsertRolePermission(conn, roleId, agency, modId, permission) {
   const [existing] = await conn.query(
-    `SELECT id_permiso FROM permisos_de_rol WHERE id_rol = ? AND module_id = ? LIMIT 1`,
+    `SELECT id_permiso FROM permisos_de_rol WHERE id_rol = ? AND id_modulo = ? LIMIT 1`,
     [roleId, modId],
   );
   const vals = permissionValues(permission);
   if (existing.length) {
     await conn.query(
-      `UPDATE permisos_de_rol SET enabled=?, can_view=?, can_create=?, can_edit=?, can_delete=?
+      `UPDATE permisos_de_rol
+       SET habilitado=?, puede_ver=?, puede_crear=?, puede_editar=?, puede_archivar=?
        WHERE id_permiso = ?`,
       [...vals, existing[0].id_permiso],
     );
@@ -128,7 +143,7 @@ async function upsertRolePermission(conn, roleId, agency, modId, permission) {
   }
   await conn.query(
     `INSERT INTO permisos_de_rol
-      (id_rol, ID_Agencia, module_id, enabled, can_view, can_create, can_edit, can_delete)
+      (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_crear, puede_editar, puede_archivar)
      VALUES (?,?,?,?,?,?,?,?)`,
     [roleId, agency, modId, ...vals],
   );
@@ -159,7 +174,15 @@ async function deleteRole(id) {
   return r.affectedRows;
 }
 
-async function roleExists(id) {
+async function roleExists(id, agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
+  if (agency) {
+    const [rows] = await pool.query(
+      `SELECT ID_Rol FROM roles WHERE ID_Rol = ? AND UPPER(ID_Agencia) = ?`,
+      [id, agency],
+    );
+    return rows.length > 0;
+  }
   const [rows] = await pool.query(`SELECT ID_Rol FROM roles WHERE ID_Rol = ?`, [id]);
   return rows.length > 0;
 }

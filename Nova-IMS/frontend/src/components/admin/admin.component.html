@@ -968,25 +968,25 @@
         </div>
       }
       @case ('permissions') {
-        <div class="flex min-h-0 flex-1 flex-col gap-6 animate-fadeIn">
-          <div
-            class="bg-gray-800/50 p-6 rounded-xl border border-gray-700 mb-6 flex justify-between items-center"
-          >
-            <div>
+        <div class="perm-panel flex min-h-0 flex-1 flex-col gap-4">
+          <div class="perm-header shrink-0">
+            <div class="perm-header-text">
               <h3 class="text-xl font-bold text-white">Gestión de Permisos por Rol</h3>
               <p class="text-sm text-gray-400 mt-1">
-                Configure el acceso y las acciones permitidas para cada módulo del sistema.
+                Elija un rol y configure el acceso y las acciones permitidas para cada módulo.
               </p>
             </div>
             <button
+              type="button"
               (click)="showRoleForm.set(true)"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center gap-2 shrink-0"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-5 w-5"
                 viewBox="0 0 20 20"
                 fill="currentColor"
+                aria-hidden="true"
               >
                 <path
                   fill-rule="evenodd"
@@ -998,126 +998,135 @@
             </button>
           </div>
 
-          <div class="min-h-0 flex-1 space-y-6 overflow-y-auto">
-          @for (role of paginatedRolePermissions(); track role.id) {
-            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg">
-              <div
-                class="bg-gray-900/50 px-6 py-4 border-b border-gray-700 flex justify-between items-center"
-              >
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5 text-indigo-400"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
+          @if (activeRolePermission(); as role) {
+            <div class="perm-card min-h-0 flex-1 flex flex-col">
+              <div class="perm-role-bar">
+                <div class="perm-role-picker">
+                  <label for="permissions-role-select" class="perm-role-label">Rol a configurar</label>
+                  <select
+                    id="permissions-role-select"
+                    class="perm-role-select"
+                    [value]="role.id"
+                    (change)="onPermissionsRoleSelect($event)"
                   >
-                    <path
-                      fill-rule="evenodd"
-                      d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  Rol: {{ role.role }}
-                </h3>
-                <div class="flex items-center gap-4">
-                  <span class="text-xs text-gray-500 uppercase font-bold tracking-wider"
-                    >ID: {{ role.id }}</span
-                  >
-                  <button (click)="deleteRole(role.id)" class="text-red-400 hover:text-red-300">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                        clip-rule="evenodd"
-                      ></path>
-                    </svg>
-                  </button>
+                    @for (item of rolePermissions(); track item.id) {
+                      <option [value]="item.id">{{ item.role }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="perm-role-meta">
+                  <span class="perm-role-badge">{{ role.role }}</span>
+                  <span class="perm-role-id">{{ role.id }}</span>
+                  <span class="perm-role-summary">
+                    {{ enabledModulesCount(role) }} de {{ role.permissions.length }} módulos activos
+                  </span>
                 </div>
               </div>
 
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left text-gray-300">
-                  <thead class="text-xs text-gray-400 uppercase bg-gray-900/30">
+              <div class="perm-table-wrap min-h-0 flex-1 overflow-auto">
+                <table class="perm-table">
+                  <thead>
                     <tr>
-                      <th scope="col" class="px-6 py-3">Módulo</th>
-                      <th scope="col" class="px-6 py-3 text-center">Acceso</th>
-                      <th scope="col" class="px-6 py-3 text-center">Ver</th>
-                      <th scope="col" class="px-6 py-3 text-center">Crear</th>
-                      <th scope="col" class="px-6 py-3 text-center">Editar</th>
-                      <th scope="col" class="px-6 py-3 text-center">Eliminar</th>
+                      <th scope="col" class="perm-col-module">Módulo</th>
+                      <th scope="col" class="perm-col-action">Estado</th>
+                      <th scope="col" class="perm-col-action">Ver</th>
+                      <th scope="col" class="perm-col-action">Crear</th>
+                      <th scope="col" class="perm-col-action">Editar</th>
+                      <th scope="col" class="perm-col-action">Archivar</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-gray-700">
+                  <tbody>
                     @for (perm of role.permissions; track perm.module; let modIdx = $index) {
-                      <tr class="hover:bg-gray-700/30 transition-colors">
-                        <td class="px-6 py-4 font-medium text-white">{{ perm.module }}</td>
-                        <td class="px-6 py-4 text-center">
-                          <button
-                            (click)="togglePermission(role.id, modIdx, 'enabled')"
-                            [class]="perm.enabled ? 'bg-green-600' : 'bg-gray-600'"
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
-                          >
-                            <span
-                              [class]="perm.enabled ? 'translate-x-6' : 'translate-x-1'"
-                              class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                            ></span>
-                          </button>
+                      <tr [class.perm-row-disabled]="!perm.enabled">
+                        <td class="perm-col-module">
+                          <span class="perm-module-name">{{ perm.module }}</span>
+                          @if (permissionModuleHint(perm.module); as hint) {
+                            <span class="perm-module-hint">{{ hint }}</span>
+                          }
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="perm-col-action">
+                          <div class="perm-toggle-wrap">
+                            <button
+                              type="button"
+                              (mousedown)="$event.preventDefault()"
+                              (click)="togglePermission(role.id, modIdx, 'enabled')"
+                              [class.perm-toggle-on]="perm.enabled"
+                              [class.perm-toggle-off]="!perm.enabled"
+                              class="perm-toggle"
+                              [attr.aria-pressed]="perm.enabled"
+                              [attr.aria-label]="
+                                perm.enabled
+                                  ? 'Desactivar módulo ' + perm.module
+                                  : 'Activar módulo ' + perm.module
+                              "
+                            >
+                              <span class="perm-toggle-knob"></span>
+                            </button>
+                            <span
+                              class="perm-toggle-label"
+                              [class.perm-toggle-label-on]="perm.enabled"
+                              >{{ perm.enabled ? 'Activo' : 'Inactivo' }}</span
+                            >
+                          </div>
+                        </td>
+                        <td class="perm-col-action">
                           <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-view'" class="sr-only">
                             Ver permiso de {{ perm.module }}
                           </label>
                           <input
                             [id]="'perm-' + role.id + '-' + modIdx + '-view'"
                             type="checkbox"
+                            tabindex="-1"
                             [checked]="perm.actions.view"
                             [disabled]="!perm.enabled"
-                            (change)="togglePermission(role.id, modIdx, 'view')"
-                            class="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 disabled:opacity-30"
+                            (mousedown)="$event.preventDefault()"
+                            (click)="$event.preventDefault(); togglePermission(role.id, modIdx, 'view')"
+                            class="perm-checkbox"
                           />
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="perm-col-action">
                           <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-create'" class="sr-only">
                             Crear permiso de {{ perm.module }}
                           </label>
                           <input
                             [id]="'perm-' + role.id + '-' + modIdx + '-create'"
                             type="checkbox"
+                            tabindex="-1"
                             [checked]="perm.actions.create"
                             [disabled]="!perm.enabled"
-                            (change)="togglePermission(role.id, modIdx, 'create')"
-                            class="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 disabled:opacity-30"
+                            (mousedown)="$event.preventDefault()"
+                            (click)="$event.preventDefault(); togglePermission(role.id, modIdx, 'create')"
+                            class="perm-checkbox"
                           />
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="perm-col-action">
                           <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-edit'" class="sr-only">
                             Editar permiso de {{ perm.module }}
                           </label>
                           <input
                             [id]="'perm-' + role.id + '-' + modIdx + '-edit'"
                             type="checkbox"
+                            tabindex="-1"
                             [checked]="perm.actions.edit"
                             [disabled]="!perm.enabled"
-                            (change)="togglePermission(role.id, modIdx, 'edit')"
-                            class="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 disabled:opacity-30"
+                            (mousedown)="$event.preventDefault()"
+                            (click)="$event.preventDefault(); togglePermission(role.id, modIdx, 'edit')"
+                            class="perm-checkbox"
                           />
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="perm-col-action">
                           <label [attr.for]="'perm-' + role.id + '-' + modIdx + '-delete'" class="sr-only">
-                            Eliminar permiso de {{ perm.module }}
+                            Archivar permiso de {{ perm.module }}
                           </label>
                           <input
                             [id]="'perm-' + role.id + '-' + modIdx + '-delete'"
                             type="checkbox"
+                            tabindex="-1"
                             [checked]="perm.actions.delete"
                             [disabled]="!perm.enabled"
-                            (change)="togglePermission(role.id, modIdx, 'delete')"
-                            class="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 disabled:opacity-30"
+                            (mousedown)="$event.preventDefault()"
+                            (click)="$event.preventDefault(); togglePermission(role.id, modIdx, 'delete')"
+                            class="perm-checkbox"
                           />
                         </td>
                       </tr>
@@ -1126,16 +1135,18 @@
                 </table>
               </div>
             </div>
+          } @else {
+            <div class="perm-empty">
+              <p>No hay roles configurados para su agencia.</p>
+              <button
+                type="button"
+                (click)="showRoleForm.set(true)"
+                class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+              >
+                Crear el primer rol
+              </button>
+            </div>
           }
-          </div>
-          <app-admin-pagination
-            ariaLabel="Paginación de roles y permisos"
-            [currentPage]="permissionsPage()"
-            [totalPages]="permissionsTotalPages()"
-            [hasItems]="rolePermissions().length > 0"
-            (previous)="previousPermissionsPage()"
-            (next)="nextPermissionsPage()"
-          />
         </div>
       }
       @case ('people') {

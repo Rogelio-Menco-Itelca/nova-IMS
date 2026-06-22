@@ -159,7 +159,7 @@ SET @perm_role_rp_12 = 'RP-12';
 SET @perm_role_rp_13 = 'RP-13';
 SET @perm_agency_csj = @seed_agency_csj;
 SET @perm_agency_pol = @seed_agency_pol;
-INSERT INTO `permisos_de_rol` (`id_permiso`, `id_rol`, `ID_Agencia`, `module_id`, `enabled`, `can_view`, `can_create`, `can_edit`, `can_delete`) VALUES
+INSERT INTO `permisos_de_rol` (`id_permiso`, `id_rol`, `id_agencia`, `id_modulo`, `habilitado`, `puede_ver`, `puede_crear`, `puede_editar`, `puede_archivar`) VALUES
 (1, @perm_role_rp_1, @perm_agency_csj, 1, 1, 1, 1, 1, 1),
 (2, @perm_role_rp_1, @perm_agency_csj, 2, 1, 1, 1, 1, 1),
 (3, @perm_role_rp_1, @perm_agency_csj, 3, 1, 1, 1, 1, 1),
