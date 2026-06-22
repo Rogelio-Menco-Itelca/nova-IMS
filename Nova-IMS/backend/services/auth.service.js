@@ -288,6 +288,11 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
     throw new HttpError(401, 'La contraseña actual es incorrecta');
   }
 
+  const isSamePassword = await giUsers.verifyPassword(user.password_hash, newPassword);
+  if (isSamePassword) {
+    throw new HttpError(400, 'La nueva contraseña no puede ser igual a la contraseña actual.');
+  }
+
   const { validatePassword } = require('../utils/passwordPolicy');
   const check = validatePassword(newPassword);
   if (!check.ok) {

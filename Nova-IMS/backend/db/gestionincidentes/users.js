@@ -105,9 +105,9 @@ async function userExists(id) {
 }
 
 async function verifyPassword(stored, plain) {
+  if (!plain) return false;
   if (stored == null || stored === undefined) return false;
   const value = String(stored);
-  if (!value && plain === '') return true;
   if (!value) return false;
   if (value.startsWith('$2a$') || value.startsWith('$2b$')) {
     return bcrypt.compare(plain, value);
