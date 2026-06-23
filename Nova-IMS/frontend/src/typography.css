@@ -1,0 +1,164 @@
+/* ============================================================
+   IMS Nova — Tipografía global (Inter)
+   Una sola escala; Tailwind en index.html ya usa los mismos valores.
+============================================================ */
+
+:root {
+  --ims-font-sans: Inter, 'Segoe UI', system-ui, sans-serif;
+
+  --ims-fs-caption: 0.8125rem; /* 13px — meta, encabezados de tabla */
+  --ims-fs-body: 0.9375rem; /* 15px — texto general */
+  --ims-fs-section: 1.25rem; /* 20px — h3, bloques internos */
+  --ims-fs-page: 1.5rem; /* 24px — título de página */
+  --ims-fs-kpi: 1.875rem; /* 30px — números KPI */
+
+  --ims-lh-tight: 1.3;
+  --ims-lh-body: 1.45;
+  --ims-lh-relaxed: 1.5;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body,
+.theme-light body {
+  font-family: var(--ims-font-sans);
+  font-size: var(--ims-fs-body);
+  line-height: var(--ims-lh-relaxed);
+}
+
+/* —— App autenticada —— */
+.ims-layout {
+  font-family: var(--ims-font-sans);
+  font-size: var(--ims-fs-body);
+  line-height: var(--ims-lh-relaxed);
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+.ims-layout h1 {
+  font-size: var(--ims-fs-page);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.ims-layout h2,
+.ims-layout .text-2xl {
+  font-size: var(--ims-fs-page);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.ims-layout h3,
+.ims-layout .text-xl {
+  font-size: var(--ims-fs-section);
+  font-weight: 600;
+  line-height: var(--ims-lh-tight);
+}
+
+.ims-layout h4,
+.ims-layout .text-lg {
+  font-size: var(--ims-fs-body);
+  font-weight: 600;
+  line-height: var(--ims-lh-body);
+}
+
+.ims-dashboard .text-3xl,
+.ims-main .text-3xl.font-bold {
+  font-size: var(--ims-fs-kpi);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.ims-sidebar .text-3xl {
+  font-size: var(--ims-fs-section);
+  letter-spacing: 0.04em;
+}
+
+/* Formularios y tablas */
+.ims-layout p,
+.ims-layout li,
+.ims-layout label,
+.ims-layout input,
+.ims-layout select,
+.ims-layout textarea,
+.ims-layout button,
+.ims-layout table,
+.ims-layout td {
+  font-size: var(--ims-fs-body);
+  line-height: var(--ims-lh-body);
+}
+
+.ims-layout select option {
+  font-size: var(--ims-fs-body);
+  font-weight: 400;
+}
+
+.ims-layout thead th {
+  font-size: var(--ims-fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+}
+
+.ims-layout .text-sm {
+  font-size: var(--ims-fs-body);
+  line-height: var(--ims-lh-body);
+}
+
+.ims-layout .text-xs {
+  font-size: var(--ims-fs-caption);
+  line-height: 1.35;
+}
+
+.ims-layout input::placeholder,
+.ims-layout textarea::placeholder {
+  font-size: var(--ims-fs-body);
+  opacity: 1;
+}
+
+.ims-sidebar nav button,
+.ims-sidebar nav a {
+  font-weight: 500;
+}
+
+.ims-main nav[aria-label='Tabs'] button {
+  font-weight: 500;
+}
+
+/* —— Login / cambio de contraseña (fuera de .ims-layout) —— */
+.ims-auth {
+  font-family: var(--ims-font-sans);
+  font-size: var(--ims-fs-body);
+  line-height: var(--ims-lh-relaxed);
+}
+
+.ims-auth h1,
+.ims-auth h2,
+.ims-auth .text-3xl,
+.ims-auth .text-2xl {
+  font-size: var(--ims-fs-page);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.ims-auth p,
+.ims-auth label,
+.ims-auth input,
+.ims-auth select,
+.ims-auth button,
+.ims-auth .text-sm {
+  font-size: var(--ims-fs-body);
+}
+
+.ims-auth .text-xs {
+  font-size: var(--ims-fs-caption);
+}
+
+.ims-auth select option {
+  font-size: var(--ims-fs-body);
+}

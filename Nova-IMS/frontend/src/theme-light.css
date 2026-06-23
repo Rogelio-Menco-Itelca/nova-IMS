@@ -415,6 +415,8 @@ html.theme-light .ims-main thead th,
 .theme-light .ims-main thead th {
   color: var(--lt-text-secondary) !important;
   font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
 }
 
 html.theme-light .ims-main tbody tr,
@@ -730,6 +732,7 @@ html.theme-light .ims-dashboard thead th,
 .theme-light .ims-dashboard thead th {
   color: var(--lt-text-secondary) !important;
   font-weight: 700;
+  font-size: 0.8125rem;
   letter-spacing: 0.05em;
 }
 

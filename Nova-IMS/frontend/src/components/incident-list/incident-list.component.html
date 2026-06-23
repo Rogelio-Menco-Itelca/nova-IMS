@@ -282,11 +282,7 @@
                 >
                   <option value="" disabled>Seleccione estado</option>
                   @for (st of incidentStatuses(); track st.id) {
-                    <option
-                      [value]="st.name"
-                      [disabled]="!isStatusAllowed(st.name)"
-                      [class.opacity-40]="!isStatusAllowed(st.name)"
-                    >
+                    <option [value]="st.name">
                       {{ statusLabel(st.name) }}
                     </option>
                   }

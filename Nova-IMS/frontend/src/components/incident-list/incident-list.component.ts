@@ -1940,11 +1940,36 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.formDirtySub = this.incidentForm.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
 
+  private lastValidStatus = '';
+
+  private syncLastValidStatus(): void {
+    this.lastValidStatus = String(this.incidentForm.get('status')?.value ?? '').trim();
+  }
+
   private setupStatusChangeHandler(): void {
     this.statusSub?.unsubscribe();
-    this.statusSub = this.incidentForm.get('status')?.valueChanges.subscribe((statusValue) => {
+    const ctrl = this.incidentForm.get('status');
+    if (!ctrl) return;
+
+    this.lastValidStatus = String(ctrl.value ?? '').trim();
+
+    this.statusSub = ctrl.valueChanges.subscribe((statusValue) => {
+      const name = String(statusValue ?? '').trim();
+
+      if (!this.isStatusAllowed(name)) {
+        ctrl.setValue(this.lastValidStatus, { emitEvent: false });
+        this.notificationService.addNotification(
+          'Estado no permitido',
+          'Ese cambio de estado no está permitido en el flujo actual del incidente.',
+        );
+        this.cdr.markForCheck();
+        return;
+      }
+
+      this.lastValidStatus = name;
+
       if (this.skipStatusNav || this.activeTabId() === 'new') return;
-      const uiStatus = catalogStatusToUiStatus(String(statusValue ?? ''));
+      const uiStatus = catalogStatusToUiStatus(name);
       if (!shouldNavigateToMedidasTab(uiStatus)) return;
       this.detailTab.set('medidas');
       const hint = medidasTabHint(uiStatus);
@@ -2761,6 +2786,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.placeMunicipalities.set(new Map());
     this.detachPlaceDepartmentWatchers();
     this.incidentForm.enable();
+    this.syncLastValidStatus();
   }
 
   private populateFormWithState(state: Partial<Incident>) {
@@ -2783,6 +2809,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       },
       { emitEvent: false },
     );
+    this.syncLastValidStatus();
     this.loadCommentsHistory(comments, details);
     if (state.type) {
       this.incidentForm.get('event_id')?.setValue(state.type, { emitEvent: false });

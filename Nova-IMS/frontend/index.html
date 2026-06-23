@@ -1,14 +1,38 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Incident Management Software</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
   <!-- NOSONAR: Tailwind Play CDN sin SRI hash estable -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class' };
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+          },
+          fontSize: {
+            xs: ['0.8125rem', { lineHeight: '1.25rem', letterSpacing: '0.01em' }],
+            sm: ['0.9375rem', { lineHeight: '1.375rem' }],
+            base: ['1rem', { lineHeight: '1.5rem' }],
+            lg: ['1.125rem', { lineHeight: '1.75rem' }],
+            xl: ['1.25rem', { lineHeight: '1.75rem' }],
+            '2xl': ['1.5rem', { lineHeight: '2rem' }],
+            '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
+          },
+        },
+      },
+    };
   </script>
   <style>
     /* Custom scrollbar for a more modern look */
@@ -101,7 +125,7 @@
     </script>
 </head>
 
-<body class="bg-gray-900 text-gray-100">
+<body class="bg-gray-900 text-gray-100 font-sans antialiased">
   <app-root></app-root>
 </body>
 
