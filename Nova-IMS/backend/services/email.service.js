@@ -1,21 +1,56 @@
+const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
 const { latestIncidentNote } = require('../utils/incidentNotes');
 
-async function sendMail({ from, to, subject, text, html }) {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from, to, subject, text, html }),
-  });
+const DEFAULT_MAIL_FROM = 'Itelca S.A.S <NOVA.IMS.CSJ@itelca.com.co>';
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
+let transporter = null;
+
+function isSmtpConfigured() {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function getMailFrom() {
+  const from = String(process.env.SMTP_FROM || '').trim();
+  if (from) return from;
+  const user = String(process.env.SMTP_USER || '').trim();
+  if (user) return `Itelca S.A.S <${user}>`;
+  return DEFAULT_MAIL_FROM;
+}
+
+function getTransporter() {
+  if (!isSmtpConfigured()) return null;
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+      requireTLS: true,
+      tls: {
+        ciphers: 'SSLv3',
+      },
+    });
   }
-  return response.json();
+  return transporter;
+}
+
+async function sendMail({ from, to, subject, text, html }) {
+  const transport = getTransporter();
+  if (!transport) {
+    throw new Error('SMTP no configurado (SMTP_HOST, SMTP_USER, SMTP_PASS)');
+  }
+
+  return transport.sendMail({
+    from: from || getMailFrom(),
+    to: Array.isArray(to) ? to.join(', ') : to,
+    subject,
+    text,
+    html,
+  });
 }
 
 function escapeHtml(value) {
@@ -48,8 +83,8 @@ async function sendWelcomeEmail({
 }) {
   logger.info('📧 Intentando enviar correo de bienvenida');
 
-  if (!process.env.RESEND_API_KEY) {
-    logger.warn('[MAIL] modo consola (sin RESEND_API_KEY)');
+  if (!isSmtpConfigured()) {
+    logger.warn('[MAIL] modo consola (SMTP no configurado)');
     return;
   }
 
@@ -127,7 +162,7 @@ Equipo IMS NOVA
 
   try {
     await sendMail({
-      from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
+      from: getMailFrom(),
       to,
       subject: 'Credenciales IMS NOVA — Cuenta creada',
       text,
@@ -578,7 +613,7 @@ function formatIncidentBodyHtml(incident) {
 }
 
 async function sendIncidentNotification({ to, incident }) {
-  if (!process.env.RESEND_API_KEY) {
+  if (!isSmtpConfigured()) {
     logger.info('📧 EMAIL incidente (modo consola)');
     return { mode: 'console', recipients: Array.isArray(to) ? to : [to] };
   }
@@ -589,7 +624,7 @@ async function sendIncidentNotification({ to, incident }) {
   const html = formatIncidentBodyHtml(incident);
 
   await sendMail({
-    from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
+    from: getMailFrom(),
     to: recipients,
     subject,
     text,
@@ -600,7 +635,7 @@ async function sendIncidentNotification({ to, incident }) {
 }
 
 async function sendOtpEmail({ to, name, code }) {
-  if (!process.env.RESEND_API_KEY) {
+  if (!isSmtpConfigured()) {
     logger.info('📧 OTP (modo consola) [REDACTED]');
     return;
   }
@@ -621,7 +656,7 @@ async function sendOtpEmail({ to, name, code }) {
 </div>`.trim();
 
   await sendMail({
-    from: process.env.SMTP_FROM || 'IMS NOVA <support@mrstacktools.com>',
+    from: getMailFrom(),
     to,
     subject: '[IMS NOVA] Código de verificación',
     text,
