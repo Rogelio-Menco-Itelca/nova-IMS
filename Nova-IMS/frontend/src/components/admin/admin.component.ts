@@ -25,6 +25,8 @@ import {
   IncidentType,
   ResponseProtocol,
   RolePermission,
+  UserAuditSummary,
+  UserAuditAction,
 } from '../../models/admin.model';
 import { ConfigurationService, NotificationEmailEntry } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
@@ -154,6 +156,42 @@ export class AdminComponent implements OnInit {
         log.user.toLowerCase().includes(term) ||
         log.action.toLowerCase().includes(term) ||
         log.details.toLowerCase().includes(term),
+    );
+  });
+
+  usersAuditSummary = this.configService.usersAuditSummary;
+  selectedUserActions = this.configService.selectedUserActions;
+  selectedUserId = this.configService.selectedUserId;
+  loadingUserActions = this.configService.loadingUserActions;
+  userAuditSearch = signal('');
+  userActionSearch = signal('');
+
+  filteredUsersAuditSummary = computed(() => {
+    const term = this.userAuditSearch().toLowerCase();
+    const list = this.usersAuditSummary();
+    if (!term) return list;
+    return list.filter(
+      (u) =>
+        u.userName.toLowerCase().includes(term) ||
+        u.userId.toLowerCase().includes(term) ||
+        u.roleName.toLowerCase().includes(term),
+    );
+  });
+
+  selectedUserSummary = computed(() => {
+    const id = this.selectedUserId();
+    if (!id) return null;
+    return this.usersAuditSummary().find((u) => u.userId === id) ?? null;
+  });
+
+  filteredSelectedUserActions = computed(() => {
+    const term = this.userActionSearch().toLowerCase();
+    const list = this.selectedUserActions();
+    if (!term) return list;
+    return list.filter(
+      (a) =>
+        a.action.toLowerCase().includes(term) ||
+        (a.details || '').toLowerCase().includes(term),
     );
   });
 
@@ -623,6 +661,9 @@ export class AdminComponent implements OnInit {
     if (tab === 'incident_history') {
       this.refreshIncidentHistoryView().catch(() => void 0);
     }
+    if (tab === 'admin_logs') {
+      this.configService.getUsersAuditSummary().catch(() => void 0);
+    }
   }
 
   onSearch(event: Event): void {
@@ -633,6 +674,52 @@ export class AdminComponent implements OnInit {
   onAdminLogSearch(event: Event): void {
     this.adminLogSearch.set((event.target as HTMLInputElement).value);
     this.adminLogsPage.set(1);
+  }
+
+  onUserAuditSearch(event: Event): void {
+    this.userAuditSearch.set((event.target as HTMLInputElement).value);
+  }
+
+  onUserActionSearch(event: Event): void {
+    this.userActionSearch.set((event.target as HTMLInputElement).value);
+  }
+
+  selectUserForAudit(userId: string): void {
+    this.userActionSearch.set('');
+    this.configService.selectUserForAudit(userId).catch(() => void 0);
+  }
+
+  clearSelectedUserAudit(): void {
+    this.configService.selectedUserId.set(null);
+    this.configService.selectedUserActions.set([]);
+  }
+
+  userActionSourceLabel(source: string): string {
+    switch (source) {
+      case 'admin':
+        return 'Administración';
+      case 'incident':
+        return 'Incidente';
+      case 'login':
+        return 'Sesión';
+      case '2fa':
+        return 'Verificación 2FA';
+      default:
+        return source;
+    }
+  }
+
+  userActionSourceClasses(source: string): string {
+    switch (source) {
+      case 'login':
+        return 'border border-amber-500/30 bg-amber-500/10 text-amber-400';
+      case 'incident':
+        return 'border border-sky-500/30 bg-sky-500/10 text-sky-400';
+      case '2fa':
+        return 'border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-400';
+      default:
+        return 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-400';
+    }
   }
 
   onIncidentHistorySearch(event: Event): void {

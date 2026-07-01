@@ -9,6 +9,8 @@ import {
   AuditLog,
   RolePermission,
   AdminActionLog,
+  UserAuditSummary,
+  UserAuditAction,
 } from '../models/admin.model';
 import { SocketService } from './socket.service';
 
@@ -30,6 +32,10 @@ export class ConfigurationService {
   notificationEmails = signal<NotificationEmailEntry[]>([]);
   auditLogs = signal<AuditLog[]>([]);
   rolePermissions = signal<RolePermission[]>([]);
+  usersAuditSummary = signal<UserAuditSummary[]>([]);
+  selectedUserActions = signal<UserAuditAction[]>([]);
+  selectedUserId = signal<string | null>(null);
+  loadingUserActions = signal(false);
 
   constructor() {
     // Eventos de tiempo real
@@ -171,5 +177,27 @@ export class ConfigurationService {
   async updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/roles/${id}`, updates));
     await this.getRolePermissions();
+  }
+
+  async getUsersAuditSummary(): Promise<void> {
+    const summary = await firstValueFrom(
+      this.http.get<UserAuditSummary[]>('/api/users-audit-summary'),
+    );
+    this.usersAuditSummary.set(summary);
+  }
+
+  async selectUserForAudit(userId: string): Promise<void> {
+    this.selectedUserId.set(userId);
+    this.loadingUserActions.set(true);
+    try {
+      const actions = await firstValueFrom(
+        this.http.get<UserAuditAction[]>(
+          `/api/users-audit-summary/${encodeURIComponent(userId)}/actions`,
+        ),
+      );
+      this.selectedUserActions.set(actions);
+    } finally {
+      this.loadingUserActions.set(false);
+    }
   }
 }

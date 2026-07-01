@@ -48,3 +48,12 @@ exports.auditLogs = asyncHandler(async (req, res) => {
   }
   res.json(rows.map(mapAuditLogRow));
 });
+
+exports.usersAuditSummary = asyncHandler(async (req, res) => {
+  res.json(await giLogs.listUsersWithActivitySummary());
+});
+
+exports.userActions = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  res.json(await giLogs.listActionsByUser(userId));
+});

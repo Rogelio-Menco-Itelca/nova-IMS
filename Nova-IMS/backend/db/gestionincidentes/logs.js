@@ -80,9 +80,88 @@ async function listAuditLogs() {
   }));
 }
 
+async function listUsersWithActivitySummary() {
+  const [rows] = await pool.query(
+    `SELECT
+        u.ID_Usuario AS userId,
+        TRIM(CONCAT(
+          u.Primer_Nombre, ' ',
+          IFNULL(CONCAT(u.Segundo_Nombre, ' '), ''),
+          u.Primer_Apellido, ' ',
+          IFNULL(u.Segundo_Apellido, '')
+        )) AS userName,
+        r.Rol AS roleName,
+        u.ID_Agencia AS agencyCode,
+        u.estado AS status,
+        (SELECT COUNT(*) FROM auditoria_general g WHERE g.ID_Usuario = u.ID_Usuario) +
+        (SELECT COUNT(*) FROM auditoria_incidente ai WHERE ai.usuarios_id = u.ID_Usuario) +
+        (SELECT COUNT(*) FROM registro_logueos rl WHERE rl.ID_Usuario = u.ID_Usuario) +
+        (SELECT COUNT(*) FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = u.ID_Usuario) AS actionCount,
+        (SELECT MAX(t) FROM (
+          SELECT MAX(g.FechaCambio) AS t FROM auditoria_general g WHERE g.ID_Usuario = u.ID_Usuario
+          UNION ALL
+          SELECT MAX(ai.fecha) AS t FROM auditoria_incidente ai WHERE ai.usuarios_id = u.ID_Usuario
+          UNION ALL
+          SELECT MAX(rl.Fecha) AS t FROM registro_logueos rl WHERE rl.ID_Usuario = u.ID_Usuario
+          UNION ALL
+          SELECT MAX(tfa.Fecha) AS t FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = u.ID_Usuario
+        ) combined) AS lastActivity
+     FROM usuarios u
+     LEFT JOIN roles r ON r.ID_Rol = u.ID_Rol
+     ORDER BY userName ASC`,
+  );
+  return rows.map((r) => ({
+    userId: r.userId,
+    userName: r.userName?.trim() || r.userId,
+    roleName: r.roleName || '—',
+    agencyCode: r.agencyCode,
+    status: r.status,
+    actionCount: Number(r.actionCount) || 0,
+    lastActivity: r.lastActivity,
+  }));
+}
+
+async function listActionsByUser(userId) {
+  const [rows] = await pool.query(
+    `SELECT id, source, action, details, timestamp FROM (
+        SELECT g.ID_Auditoria AS id, 'admin' AS source, g.Accion AS action,
+          g.Detalle AS details, g.FechaCambio AS timestamp
+        FROM auditoria_general g WHERE g.ID_Usuario = ?
+        UNION ALL
+        SELECT ai.id_transaccion_incidentes AS id, 'incident' AS source,
+          CONCAT(ai.accion, IFNULL(CONCAT(' (Incidente ', i.ID_visible, ')'), '')) AS action,
+          COALESCE(ai.Numero_de_Cambios, ai.detalles) AS details, ai.fecha AS timestamp
+        FROM auditoria_incidente ai
+        LEFT JOIN incidentes i ON i.ID_incidente = ai.incidentes_id
+        WHERE ai.usuarios_id = ?
+        UNION ALL
+        SELECT CONCAT('LOGIN-', rl.ID_registro) AS id, 'login' AS source,
+          CONCAT(rl.Accion, ' (', rl.Login_exitoso, ')') AS action,
+          rl.Descripcion_accion AS details, rl.Fecha AS timestamp
+        FROM registro_logueos rl WHERE rl.ID_Usuario = ?
+        UNION ALL
+        SELECT CONCAT('2FA-', tfa.ID_accion) AS id, '2fa' AS source,
+          tfa.accion AS action, CONCAT('Correo: ', tfa.Correo) AS details,
+          tfa.Fecha AS timestamp
+        FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = ?
+     ) combined
+     ORDER BY timestamp DESC, id DESC`,
+    [userId, userId, userId, userId],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    source: r.source,
+    action: r.action,
+    details: r.details,
+    timestamp: r.timestamp,
+  }));
+}
+
 module.exports = {
   writeAdminLog,
   listAdminLogs,
   listAuditLogs,
   parseAuditActorFromDetails,
+  listUsersWithActivitySummary,
+  listActionsByUser,
 };

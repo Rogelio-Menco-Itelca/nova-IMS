@@ -137,6 +137,8 @@ router.put('/roles/:id', roleCtrl.update);
 // ---------- Logs ----------
 router.get('/admin-logs', logCtrl.adminLogs);
 router.get('/audit-logs', logCtrl.auditLogs);
+router.get('/users-audit-summary', perm.view('Administración'), logCtrl.usersAuditSummary);
+router.get('/users-audit-summary/:userId/actions', perm.view('Administración'), logCtrl.userActions);
 router.get('/reports/summary', perm.view('Reportes'), reportsCtrl.summary);
 
 // ---------- Location Requests ----------

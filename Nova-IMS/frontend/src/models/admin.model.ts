@@ -62,6 +62,24 @@ export interface AdminActionLog {
   timestamp: string;
 }
 
+export interface UserAuditSummary {
+  userId: string;
+  userName: string;
+  roleName: string;
+  agencyCode: string;
+  status: 'Activo' | 'Inactivo';
+  actionCount: number;
+  lastActivity: string | null;
+}
+
+export interface UserAuditAction {
+  id: string;
+  source: 'admin' | 'incident' | 'login' | '2fa';
+  action: string;
+  details: string | null;
+  timestamp: string;
+}
+
 export interface RolePermission {
   id: string;
   role: string;

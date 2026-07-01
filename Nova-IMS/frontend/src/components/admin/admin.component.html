@@ -90,7 +90,7 @@
         "
         class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
-        Logs de Sistema
+        Auditoría por Usuario
       </button>
     </nav>
   </div>
@@ -1438,75 +1438,178 @@
         <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
-              <h3 class="text-xl font-bold text-white">Log de Auditoría Administrativa</h3>
+              <h3 class="text-xl font-bold text-white">Auditoría General por Usuario</h3>
               <p class="text-sm text-gray-400">
-                Registro histórico de todas las acciones de gestión en el sistema.
+                Selecciona un usuario para ver el historial completo de todas sus acciones en el
+                sistema: inicios de sesión, incidentes, configuración y más.
               </p>
-            </div>
-            <div class="relative w-full sm:max-w-xs">
-              <label for="admin-log-search" class="sr-only">
-                Filtrar log por acción o usuario
-              </label>
-              <input
-                id="admin-log-search"
-                (input)="onAdminLogSearch($event)"
-                type="text"
-                placeholder="Filtrar por acción o usuario..."
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full focus:ring-indigo-500"
-              />
             </div>
           </div>
 
-          <div
-            class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-900/30 shadow-inner"
-          >
-            <div class="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
-              <table class="w-full text-xs text-left text-gray-300">
-                <thead class="text-gray-500 uppercase bg-gray-900/80 sticky top-0 z-10">
-                  <tr>
-                    <th scope="col" class="px-6 py-3">Fecha</th>
-                    <th scope="col" class="px-6 py-3">Usuario</th>
-                    <th scope="col" class="px-6 py-3">Acción</th>
-                    <th scope="col" class="px-6 py-3">Detalles</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-800">
-                  @for (log of paginatedAdminLogs(); track log.id) {
-                    <tr class="hover:bg-gray-700/20 transition-all">
-                      <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono">
-                        {{ log.timestamp }}
-                      </td>
-                      <td class="px-6 py-4 font-bold text-gray-200 uppercase tracking-tighter">
-                        {{ log.user }}
-                      </td>
-                      <td class="px-6 py-4">
-                        <span
-                          class="px-2 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 font-bold uppercase tracking-widest text-[9px]"
-                        >
-                          {{ log.action }}
-                        </span>
-                      </td>
-                      <td class="px-6 py-4 text-gray-400 italic">{{ log.details }}</td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="4" class="text-center py-12 text-gray-600">
-                        No se encontraron logs administrativos.
-                      </td>
-                    </tr>
+          <div class="flex min-h-0 flex-1 gap-4 overflow-hidden">
+            <!-- Columna izquierda: lista de usuarios -->
+            <div
+              class="flex w-full max-w-xs shrink-0 min-h-0 flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-900/30 shadow-inner"
+            >
+              <div class="shrink-0 border-b border-gray-700 p-3">
+                <label for="user-audit-search" class="sr-only">Filtrar usuarios</label>
+                <input
+                  id="user-audit-search"
+                  (input)="onUserAuditSearch($event)"
+                  type="text"
+                  placeholder="Buscar usuario o rol..."
+                  class="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:ring-indigo-500"
+                />
+              </div>
+              <div class="min-h-0 flex-1 overflow-y-auto">
+                @for (u of filteredUsersAuditSummary(); track u.userId) {
+                  <button
+                    type="button"
+                    (click)="selectUserForAudit(u.userId)"
+                    class="flex w-full flex-col gap-1 border-b border-gray-800 px-4 py-3 text-left transition-colors hover:bg-gray-700/40"
+                    [class]="
+                      selectedUserId() === u.userId
+                        ? 'bg-indigo-500/15 border-l-2 border-l-indigo-500'
+                        : 'border-l-2 border-l-transparent'
+                    "
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="truncate text-sm font-bold text-gray-100">{{ u.userName }}</span>
+                      <span
+                        class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        [class]="
+                          u.actionCount > 0
+                            ? 'bg-indigo-500/20 text-indigo-300'
+                            : 'bg-gray-700 text-gray-500'
+                        "
+                      >
+                        {{ u.actionCount }}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                      <span class="truncate">{{ u.roleName }}</span>
+                      <span>·</span>
+                      <span class="uppercase">{{ u.agencyCode }}</span>
+                      <span
+                        class="ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
+                        [class]="
+                          u.status === 'Activo'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-red-500/15 text-red-400'
+                        "
+                      >
+                        {{ u.status }}
+                      </span>
+                    </div>
+                  </button>
+                } @empty {
+                  <div class="px-4 py-8 text-center text-sm text-gray-600">
+                    No se encontraron usuarios.
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Columna derecha: historial del usuario seleccionado -->
+            <div
+              class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-900/30 shadow-inner"
+            >
+              @if (!selectedUserId()) {
+                <div class="flex h-full items-center justify-center text-center text-gray-500">
+                  <div>
+                    <svg
+                      class="mx-auto h-10 w-10 text-gray-600"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                    <p class="mt-3 text-sm">
+                      Selecciona un usuario de la lista para ver su historial.
+                    </p>
+                  </div>
+                </div>
+              } @else {
+                <div class="flex shrink-0 flex-col gap-3 border-b border-gray-700 p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 class="text-lg font-bold text-white">
+                        {{ selectedUserSummary()?.userName }}
+                      </h4>
+                      <p class="text-xs text-gray-500">
+                        {{ selectedUserSummary()?.roleName }} ·
+                        {{ selectedUserSummary()?.agencyCode }} · ID {{ selectedUserId() }}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="clearSelectedUserAudit()"
+                      class="shrink-0 rounded-md border border-gray-600 px-2 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-white"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                  <input
+                    (input)="onUserActionSearch($event)"
+                    type="text"
+                    placeholder="Filtrar acciones de este usuario..."
+                    class="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div class="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+                  @if (loadingUserActions()) {
+                    <div class="flex h-full items-center justify-center text-sm text-gray-500">
+                      Cargando acciones...
+                    </div>
+                  } @else {
+                    <table class="w-full text-xs text-left text-gray-300">
+                      <thead class="text-gray-500 uppercase bg-gray-900/80 sticky top-0 z-10">
+                        <tr>
+                          <th scope="col" class="px-6 py-3">Fecha</th>
+                          <th scope="col" class="px-6 py-3">Origen</th>
+                          <th scope="col" class="px-6 py-3">Acción</th>
+                          <th scope="col" class="px-6 py-3">Detalles</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-800">
+                        @for (action of filteredSelectedUserActions(); track action.id) {
+                          <tr class="hover:bg-gray-700/20 transition-all">
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono">
+                              {{ action.timestamp }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                              <span
+                                class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest"
+                                [class]="userActionSourceClasses(action.source)"
+                              >
+                                {{ userActionSourceLabel(action.source) }}
+                              </span>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-gray-200">{{ action.action }}</td>
+                            <td class="px-6 py-4 text-gray-400 italic">{{ action.details }}</td>
+                          </tr>
+                        } @empty {
+                          <tr>
+                            <td colspan="4" class="text-center py-12 text-gray-600">
+                              Este usuario no tiene acciones registradas.
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
                   }
-                </tbody>
-              </table>
+                </div>
+              }
             </div>
           </div>
-          <app-admin-pagination
-            ariaLabel="Paginación de logs administrativos"
-            [currentPage]="adminLogsPage()"
-            [totalPages]="adminLogsTotalPages()"
-            [hasItems]="filteredAdminLogs().length > 0"
-            (previous)="previousAdminLogsPage()"
-            (next)="nextAdminLogsPage()"
-          />
         </div>
       }
       @default {
