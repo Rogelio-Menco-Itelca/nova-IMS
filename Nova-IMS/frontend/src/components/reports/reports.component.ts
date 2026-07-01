@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ReportsService, ReportSummary } from '../../services/reports.service';
+import { PermissionService } from '../../services/permission.service';
 import { environment } from '../../environments/environment';
 import { trustedPowerBiEmbedUrl } from '../../utils/trusted-embed-urls';
 
@@ -26,6 +27,7 @@ export class ReportsComponent implements OnInit {
   private readonly svc = inject(ReportsService);
   private readonly fb = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly permissionService = inject(PermissionService);
 
   // ---------- pestañas ----------
   activeTab = signal<Tab>('analytics');
@@ -69,6 +71,10 @@ export class ReportsComponent implements OnInit {
 
   setTab(tab: Tab): void {
     this.activeTab.set(tab);
+  }
+
+  canExport(): boolean {
+    return this.permissionService.canExport();
   }
 
   // ---------- analítica ----------

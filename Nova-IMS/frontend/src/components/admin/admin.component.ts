@@ -24,6 +24,7 @@ import {
   OperatorFormPayload,
   IncidentType,
   ResponseProtocol,
+  RolePermission,
 } from '../../models/admin.model';
 import { ConfigurationService, NotificationEmailEntry } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
@@ -164,6 +165,16 @@ export class AdminComponent implements OnInit {
   auditLogs = this.configService.auditLogs;
   rolePermissions = this.configService.rolePermissions;
   selectedPermissionsRoleId = signal('');
+  permissionsDraft = signal<RolePermission['permissions']>([]);
+  permissionsSnapshot = signal('');
+  isSavingPermissions = signal(false);
+  private _skipDraftSync = false;
+
+  hasUnsavedPermissions = computed(() => {
+    const snap = this.permissionsSnapshot();
+    return snap !== '' && snap !== JSON.stringify(this.permissionsDraft());
+  });
+
   activeRolePermission = computed(() => {
     const roles = this.rolePermissions();
     if (!roles.length) return null;
@@ -357,6 +368,23 @@ export class AdminComponent implements OnInit {
       if (!roles.some((role) => role.id === selected)) {
         this.selectedPermissionsRoleId.set(roles[0].id);
       }
+    });
+
+    effect(() => {
+      const role = this.activeRolePermission();
+      if (this._skipDraftSync) return;
+      if (!role) {
+        this.permissionsDraft.set([]);
+        this.permissionsSnapshot.set('');
+        return;
+      }
+      const copy = role.permissions.map((p) => ({
+        ...p,
+        actions: { ...p.actions },
+        locks: p.locks ? { ...p.locks } : undefined,
+      }));
+      this.permissionsDraft.set(copy);
+      this.permissionsSnapshot.set(JSON.stringify(copy));
     });
   }
 
@@ -624,6 +652,10 @@ export class AdminComponent implements OnInit {
 
   permissionModuleHint(module: string): string {
     return PERMISSION_MODULE_HINTS[module] ?? '';
+  }
+
+  isLockedAction(perm: RolePermission['permissions'][number], action: string): boolean {
+    return !!(perm.locks as Record<string, boolean> | undefined)?.[action];
   }
 
   enabledModulesCount(role: { permissions: { enabled: boolean }[] }): number {
@@ -1278,43 +1310,83 @@ export class AdminComponent implements OnInit {
     }
   }
 
-  async togglePermission(
+  togglePermission(
     roleId: string,
     moduleIndex: number,
-    action: 'view' | 'create' | 'edit' | 'delete' | 'enabled',
-  ): Promise<void> {
-    const role = this.rolePermissions().find((r) => r.id === roleId);
-    if (!role) return;
-
-    const perm = role.permissions[moduleIndex];
+    action: 'view' | 'create' | 'edit' | 'notify' | 'export' | 'enabled',
+  ): void {
+    const draft = this.permissionsDraft();
+    const perm = draft[moduleIndex];
     if (!perm) return;
 
-    const snapshot = {
-      enabled: perm.enabled,
-      actions: { ...perm.actions },
-    };
+    if (action === 'enabled' && perm.locks?.enabled) return;
+    if (action !== 'enabled' && this.isLockedAction(perm, action)) return;
 
-    if (action === 'enabled') {
-      perm.enabled = !perm.enabled;
-    } else {
-      perm.actions = { ...perm.actions, [action]: !perm.actions[action] };
-    }
+    this.permissionsDraft.update((current) => {
+      const updated = current.map((p, i) => {
+        if (i !== moduleIndex) return p;
+        if (action === 'enabled') {
+          return { ...p, enabled: !p.enabled, actions: { ...p.actions }, locks: p.locks };
+        }
+        return {
+          ...p,
+          locks: p.locks,
+          actions: {
+            ...p.actions,
+            [action]: !p.actions[action as keyof typeof p.actions],
+          },
+        };
+      });
+      return updated;
+    });
     this.cdr.markForCheck();
+  }
 
-    const payload = role.permissions.map((p, i) =>
-      i === moduleIndex ? { ...perm, actions: { ...perm.actions } } : { ...p, actions: { ...p.actions } },
-    );
-
+  async savePermissions(): Promise<void> {
+    const role = this.activeRolePermission();
+    if (!role || this.isSavingPermissions()) return;
+    this.isSavingPermissions.set(true);
+    this._skipDraftSync = true;
     try {
-      await this.configService.updateRolePermission(roleId, { permissions: payload });
+      await this.configService.updateRolePermission(role.id, {
+        permissions: this.permissionsDraft(),
+      });
+      const updated = this.configService.rolePermissions().find((r) => r.id === role.id);
+      if (updated) {
+        const copy = updated.permissions.map((p) => ({
+          ...p,
+          actions: { ...p.actions },
+          locks: p.locks ? { ...p.locks } : undefined,
+        }));
+        this.permissionsDraft.set(copy);
+        this.permissionsSnapshot.set(JSON.stringify(copy));
+      }
+      await this.authService.bootstrapSessionPermissions();
+      this.notificationService.addNotification('Permisos guardados', `Rol «${role.role}» actualizado.`);
     } catch (err: unknown) {
-      perm.enabled = snapshot.enabled;
-      perm.actions = snapshot.actions;
-      this.cdr.markForCheck();
       const e = err as { error?: { error?: { message?: string }; message?: string } };
-      const msg =
-        e?.error?.error?.message || e?.error?.message || 'No se pudieron guardar los permisos.';
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudieron guardar los permisos.';
       this.notificationService.addNotification('Error', msg);
+    } finally {
+      this._skipDraftSync = false;
+      this.isSavingPermissions.set(false);
+      this.cdr.markForCheck();
     }
+  }
+
+  async discardPermissions(): Promise<void> {
+    const role = this.activeRolePermission();
+    if (!role) return;
+    await this.configService.getRolePermissions();
+    const fresh = this.configService.rolePermissions().find((r) => r.id === role.id);
+    const source = fresh ?? role;
+    const copy = source.permissions.map((p) => ({
+      ...p,
+      actions: { ...p.actions },
+      locks: p.locks ? { ...p.locks } : undefined,
+    }));
+    this.permissionsDraft.set(copy);
+    this.permissionsSnapshot.set(JSON.stringify(copy));
+    this.cdr.markForCheck();
   }
 }

@@ -38,6 +38,7 @@ import { ConfigurationService } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
+import { PermissionService } from '../../services/permission.service';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import {
   createMapPin,
@@ -137,6 +138,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly configService = inject(ConfigurationService);
   readonly incidentService = inject(IncidentService);
   private readonly authService = inject(AuthService);
+  readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -150,6 +152,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly MAX_TABS = 5;
 
   emailModalIncident = signal<Incident | null>(null);
+
+  canNotify(): boolean {
+    return this.permissionService.canNotify();
+  }
+
+  canCreate(): boolean {
+    return this.permissionService.canModuleAction('Incidentes', 'create');
+  }
 
   // Google Maps
   private map: google.maps.Map | null = null;

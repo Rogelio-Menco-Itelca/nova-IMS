@@ -69,8 +69,11 @@
           </p>
         </div>
         <button
+          type="button"
           (click)="exportCSV()"
-          class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+          [disabled]="!canExport()"
+          [title]="canExport() ? '' : 'Sin permiso para exportar reportes'"
+          class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
         >
           <svg
             class="w-4 h-4"

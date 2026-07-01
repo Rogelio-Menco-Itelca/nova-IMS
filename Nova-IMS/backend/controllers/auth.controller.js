@@ -243,3 +243,13 @@ exports.ldapHealth = asyncHandler(async (req, res) => {
   const result = await ldapService.isAvailable();
   res.json({ enabled: true, ...result });
 });
+
+exports.permissions = asyncHandler(async (req, res) => {
+  const roleId = req.user?.role_id;
+  const agencyCode = req.user?.agency_code;
+  if (!roleId || !agencyCode) {
+    throw new HttpError(400, 'Sesión sin rol o agencia');
+  }
+  const giRoles = require('../db/gestionincidentes/roles');
+  res.json(await giRoles.getPermissionsForRole(roleId, agencyCode));
+});

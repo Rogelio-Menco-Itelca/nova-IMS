@@ -64,6 +64,7 @@ import { ConfigurationService } from '../../services/configuration.service';
 import { LocationRequestService, LocationData } from '../../services/location-request.service';
 import { IncidentService } from '../../services/incident.service';
 import { AuthService } from '../../services/auth.service';
+import { PermissionService } from '../../services/permission.service';
 import { PersonService } from '../../services/person.service';
 import { ColombiaGeoService } from '../../services/colombia-geo.service';
 import { HttpClient } from '@angular/common/http';
@@ -182,6 +183,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private readonly incidentService = inject(IncidentService);
   private readonly authService = inject(AuthService);
+  readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly colombiaGeo = inject(ColombiaGeoService);
@@ -200,6 +202,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   readonly MAX_TABS = 5;
 
   emailModalIncident = signal<Incident | null>(null);
+
+  canNotify(): boolean {
+    return this.permissionService.canNotify();
+  }
+
+  canCreate(): boolean {
+    return this.permissionService.canModuleAction('Incidentes', 'create');
+  }
+
   leaveConfirmOpen = signal(false);
   /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);
@@ -2208,6 +2219,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   toggleRegistrationForm() {
+    if (!this.showNewIncidentTab() && !this.canCreate()) return;
     if (this.showNewIncidentTab()) {
       this.closeNewIncidentTab();
     } else {

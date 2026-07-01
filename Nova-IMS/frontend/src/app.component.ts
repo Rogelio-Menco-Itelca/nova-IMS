@@ -19,6 +19,7 @@ import { NotificationService } from './services/notification.service';
 import { LoginComponent } from './components/login/login.component';
 import { LocationRequestService } from './services/location-request.service';
 import { AuthService } from './services/auth.service';
+import { PermissionService } from './services/permission.service';
 import { ChangePasswordComponent } from './components/change-password/change-password.component';
 import { InactivityService } from './services/inactivity.service';
 import { SessionWarningComponent } from './components/session-warning/session-warning.component';
@@ -50,6 +51,7 @@ export class AppComponent implements OnInit {
   readonly notificationService = inject(NotificationService);
   readonly locationRequestService = inject(LocationRequestService);
   readonly authService = inject(AuthService);
+  readonly permissionService = inject(PermissionService);
   readonly inactivityService = inject(InactivityService);
   readonly profilePhotoService = inject(ProfilePhotoService);
   private readonly incidentLeaveGuard = inject(IncidentLeaveGuardService);
@@ -112,14 +114,18 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.authService.checkAuth();
-    if (this.authService.isAuthenticated()) {
-      this.notificationService.restoreSession();
-    }
+    void this.initAuthenticatedSession();
     this.profilePhotoService.loadForUser(this.authService.currentUser()?.id);
     if (localStorage.getItem(THEME_KEY) === 'light') {
       this.isDarkTheme.set(false);
     }
     this.applyTheme(this.isDarkTheme());
+  }
+
+  private async initAuthenticatedSession(): Promise<void> {
+    if (!this.authService.isAuthenticated()) return;
+    this.notificationService.restoreSession();
+    await this.permissionService.loadSessionPermissions();
   }
 
   private applyTheme(isDark: boolean): void {

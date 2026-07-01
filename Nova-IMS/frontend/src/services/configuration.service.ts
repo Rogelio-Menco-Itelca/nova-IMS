@@ -153,7 +153,11 @@ export class ConfigurationService {
 
   // ---------- Roles y permisos ----------
   async getRolePermissions(): Promise<void> {
-    const roles = await firstValueFrom(this.http.get<RolePermission[]>('/api/roles'));
+    const roles = await firstValueFrom(
+      this.http.get<RolePermission[]>('/api/roles', {
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+      })
+    );
     this.rolePermissions.set(roles);
   }
 
@@ -164,12 +168,8 @@ export class ConfigurationService {
     this.rolePermissions.set(roles);
   }
 
-  async deleteRolePermission(id: string): Promise<void> {
-    await firstValueFrom(this.http.delete(`/api/roles/${id}`));
-    this.rolePermissions.update((list) => list.filter((r) => r.id !== id));
-  }
-
   async updateRolePermission(id: string, updates: Partial<RolePermission>): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/roles/${id}`, updates));
+    await this.getRolePermissions();
   }
 }

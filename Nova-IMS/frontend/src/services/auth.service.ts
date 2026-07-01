@@ -2,6 +2,7 @@ import { Injectable, signal, inject, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, throwError, map } from 'rxjs';
 import { AuthSource, User, Agency, RoleOption } from '../models/user.model';
+import { PermissionService } from './permission.service';
 
 interface LoginPayload {
   agencia: string;
@@ -101,6 +102,7 @@ function persistCurrentUser(user: User): void {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly permissionService = inject(PermissionService);
   private readonly apiUrl = '/api/auth';
 
   isAuthenticated = signal(false);
@@ -211,6 +213,7 @@ export class AuthService {
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(MUST_CHANGE_KEY);
+    this.permissionService.clearSession();
     this.token.set(null);
     this.currentUser.set(null);
     this.isAuthenticated.set(false);
@@ -248,5 +251,10 @@ export class AuthService {
       }),
       catchError((err) => throwError(() => err)),
     );
+  }
+
+  async bootstrapSessionPermissions(): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.permissionService.loadSessionPermissions();
   }
 }

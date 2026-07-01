@@ -3,8 +3,11 @@
   <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
     <h2 class="text-2xl font-bold text-white">Gestión de Incidentes</h2>
     <button
+      type="button"
       (click)="toggleRegistrationForm()"
-      class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
+      [disabled]="!canCreate()"
+      [title]="canCreate() ? '' : 'Sin permiso para crear incidentes'"
+      class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -1379,8 +1382,9 @@
               <button
                 type="button"
                 (click)="sendSingleIncidentByEmail(incident)"
-                class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-                title="El incidente debe estar guardado en el servidor"
+                [disabled]="!canNotify()"
+                [title]="canNotify() ? 'El incidente debe estar guardado en el servidor' : 'Sin permiso para enviar correos'"
+                class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-700/50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-700/50"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1490,9 +1494,11 @@
                     Ver
                   </button>
                   <button
+                    type="button"
                     (click)="sendSingleIncidentByEmail(incident); $event.stopPropagation()"
-                    class="text-gray-400 hover:text-indigo-400"
-                    title="Enviar por Email"
+                    [disabled]="!canNotify()"
+                    [title]="canNotify() ? 'Enviar por Email' : 'Sin permiso para enviar correos'"
+                    class="text-gray-400 hover:text-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

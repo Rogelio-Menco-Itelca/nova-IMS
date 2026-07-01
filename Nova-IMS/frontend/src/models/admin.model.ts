@@ -65,14 +65,24 @@ export interface AdminActionLog {
 export interface RolePermission {
   id: string;
   role: string;
+  protected?: boolean;
   permissions: {
     module: string;
     enabled: boolean;
+    locks?: {
+      enabled: boolean;
+      view: boolean;
+      create: boolean;
+      edit: boolean;
+      notify: boolean;
+      export: boolean;
+    };
     actions: {
       view: boolean;
       create: boolean;
       edit: boolean;
-      delete: boolean;
+      notify: boolean;
+      export: boolean;
     };
   }[];
 }

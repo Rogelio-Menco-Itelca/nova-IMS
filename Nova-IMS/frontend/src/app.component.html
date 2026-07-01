@@ -49,6 +49,7 @@
         </div>
 
         <nav class="mt-4 flex-grow">
+          @if (permissionService.canModuleAction('Dashboard', 'view')) {
           <button
             type="button"
             (click)="setView('dashboard')"
@@ -75,6 +76,8 @@
             </svg>
             Dashboard
           </button>
+          }
+          @if (permissionService.canModuleAction('Incidentes', 'view')) {
           <button
             type="button"
             (click)="setView('incidents')"
@@ -101,6 +104,8 @@
             </svg>
             Incidentes
           </button>
+          }
+          @if (permissionService.canModuleAction('Reportes', 'view')) {
           <button
             type="button"
             (click)="setView('reports')"
@@ -127,6 +132,8 @@
             </svg>
             Reportes
           </button>
+          }
+          @if (permissionService.canModuleAction('Administración', 'view')) {
           <button
             type="button"
             (click)="setView('admin')"
@@ -159,84 +166,99 @@
             </svg>
             Administración
           </button>
+          }
         </nav>
-
-        <!-- System Status Indicator (NEW) -->
-        <div class="px-6 py-4 border-t border-gray-700 bg-gray-900/20">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest"
-              >Estado del Sistema</span
-            >
-            <div class="flex items-center gap-1.5">
-              <span class="pulse-red"></span>
-              <span class="text-[10px] font-bold text-red-500 uppercase">En Vivo</span>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400 font-medium">Sincronización En Tiempo Real</span>
-            <span
-              class="text-[10px] font-bold text-green-500 px-1.5 py-0.5 bg-green-500/10 rounded border border-green-500/20"
-              >ACTIVO</span
-            >
-          </div>
-        </div>
 
         <!-- Quick Location Card -->
         <div class="mt-4 p-4 border-t border-b border-gray-700">
-          <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Ubicación Rápida
-          </h4>
+          @if (permissionService.canModuleAction('Incidentes', 'view')) {
+          <div class="mb-3 pb-3 border-b border-gray-700">
+            <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Ubicación Rápida
+            </h4>
+            <div
+              class="space-y-3"
+              [class.opacity-60]="!permissionService.canModuleAction('Incidentes', 'create')"
+            >
+              <p class="text-xs text-gray-400">
+                Envía un enlace a un número de teléfono para solicitar su ubicación.
+              </p>
+              <div>
+                <label for="phone-number" class="sr-only">Número de Teléfono</label>
+                <input
+                  id="phone-number"
+                  type="tel"
+                  [value]="phoneNumber()"
+                  (input)="onQuickLocationPhoneInput($event)"
+                  [disabled]="!permissionService.canModuleAction('Incidentes', 'create')"
+                  placeholder="Ej: 573001234567"
+                  class="bg-gray-700 border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  (click)="sendLocationRequest()"
+                  [disabled]="!phoneNumber() || !permissionService.canModuleAction('Incidentes', 'create')"
+                  [title]="permissionService.canModuleAction('Incidentes', 'create') ? '' : 'Sin permiso para crear incidentes'"
+                  class="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.269.655 4.505 1.905 6.331l-.213.362-1.245 4.525 4.66-1.225.353-.215z"
+                    />
+                  </svg>
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="sendLocationRequestViaSms()"
+                  [disabled]="!phoneNumber() || !permissionService.canModuleAction('Incidentes', 'create')"
+                  [title]="permissionService.canModuleAction('Incidentes', 'create') ? '' : 'Sin permiso para crear incidentes'"
+                  class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h13a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0016.5 2h-13zM1 3.5C1 2.67 1.67 2 2.5 2h15C18.33 2 19 2.67 19 3.5v9c0 .83-.67 1.5-1.5 1.5h-4.012l-2.7 2.7a.75.75 0 01-1.06 0l-2.7-2.7H2.5A1.5 1.5 0 011 12.5v-9z"
+                    />
+                  </svg>
+                  <span>SMS</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          }
+
           <div class="space-y-3">
-            <p class="text-xs text-gray-400">
-              Envía un enlace a un número de teléfono para solicitar su ubicación.
-            </p>
-            <div>
-              <label for="phone-number" class="sr-only">Número de Teléfono</label>
-              <input
-                id="phone-number"
-                type="tel"
-                [value]="phoneNumber()"
-                (input)="onQuickLocationPhoneInput($event)"
-                placeholder="Ej: 573001234567"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                (click)="sendLocationRequest()"
-                [disabled]="!phoneNumber()"
-                class="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
+            <div class="pt-3 border-t border-gray-700">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest"
+                  >Estado del Sistema</span
                 >
-                  <path
-                    d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.269.655 4.505 1.905 6.331l-.213.362-1.245 4.525 4.66-1.225.353-.215z"
-                  />
-                </svg>
-                <span>WhatsApp</span>
-              </button>
-              <button
-                (click)="sendLocationRequestViaSms()"
-                [disabled]="!phoneNumber()"
-                class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+                <div class="flex items-center gap-1.5">
+                  <span class="pulse-red"></span>
+                  <span class="text-[10px] font-bold text-red-500 uppercase">En Vivo</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-400 font-medium">Sincronización En Tiempo Real</span>
+                <span
+                  class="text-[10px] font-bold text-green-500 px-1.5 py-0.5 bg-green-500/10 rounded border border-green-500/20"
+                  >ACTIVO</span
                 >
-                  <path
-                    d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h13a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0016.5 2h-13zM1 3.5C1 2.67 1.67 2 2.5 2h15C18.33 2 19 2.67 19 3.5v9c0 .83-.67 1.5-1.5 1.5h-4.012l-2.7 2.7a.75.75 0 01-1.06 0l-2.7-2.7H2.5A1.5 1.5 0 011 12.5v-9z"
-                  />
-                </svg>
-                <span>SMS</span>
-              </button>
+              </div>
             </div>
+
             <div
               class="mt-2 flex items-center gap-2 rounded-md border px-2.5 py-2"
               [class.border-sky-500/40]="authService.isDirectorySession()"

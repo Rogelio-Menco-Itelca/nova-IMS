@@ -306,8 +306,9 @@
                       <button
                         type="button"
                         (click)="sendIncidentByEmail(incident); $event.stopPropagation()"
-                        class="text-gray-400 hover:text-indigo-400 transition-colors duration-200"
-                        title="Enviar por Email"
+                        [disabled]="!canNotify()"
+                        [title]="canNotify() ? 'Enviar por Email' : 'Sin permiso para enviar correos'"
+                        class="text-gray-400 hover:text-indigo-400 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"

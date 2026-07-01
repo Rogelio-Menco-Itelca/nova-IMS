@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { pool } = require('../config/db');
 const { authRequired } = require('../middleware/auth');
+const perm = require('../middleware/permissions');
 const { getAllowedNextStates } = require('../db/gestionincidentes/transitions');
 const { mapStatusToGi } = require('../db/gestionincidentes/maps');
 
@@ -83,6 +84,7 @@ router.use(authRequired);
 
 // ---------- Auth ----------
 router.get('/auth/me', authCtrl.me);
+router.get('/auth/permissions', authCtrl.permissions);
 router.post('/auth/change-password', authCtrl.changePassword);
 
 // ---------- Incidentes ----------
@@ -90,10 +92,9 @@ router.get('/incidents', incCtrl.list);
 router.get('/incidents/dashboard-metrics', incCtrl.dashboardMetrics);
 router.get('/incidents/vehicle-lookup/:plate', incCtrl.lookupVehicleByPlate);
 router.get('/incidents/:id', incCtrl.getOne);
-router.post('/incidents/:id/send-email', incCtrl.sendEmail);
+router.post('/incidents/:id/send-email', perm.notify('Incidentes'), incCtrl.sendEmail);
 router.post('/incidents', incCtrl.create);
 router.put('/incidents/:id', incCtrl.update);
-router.delete('/incidents/:id', incCtrl.remove);
 
 // ---------- Personas ----------
 router.get('/people', peopleCtrl.list);
@@ -112,19 +113,16 @@ router.get('/people/lookup/document/:documentId', peopleCtrl.lookupByDocument);
 router.get('/operators', opCtrl.list);
 router.post('/operators', opCtrl.create);
 router.put('/operators/:id', opCtrl.update);
-router.delete('/operators/:id', opCtrl.remove);
 
 // ---------- Tipos de Incidente ----------
 router.get('/incident-types', typeCtrl.list);
 router.post('/incident-types', typeCtrl.create);
 router.put('/incident-types/:id', typeCtrl.update);
-router.delete('/incident-types/:id', typeCtrl.remove);
 
 // ---------- Protocolos ----------
 router.get('/response-protocols', protoCtrl.list);
 router.post('/response-protocols', protoCtrl.create);
 router.put('/response-protocols/:id', protoCtrl.update);
-router.delete('/response-protocols/:id', protoCtrl.remove);
 
 // ---------- Emails de notificación ----------
 router.get('/notification-emails', notifCtrl.list);
@@ -135,12 +133,11 @@ router.patch('/notification-emails/:email/status', notifCtrl.setStatus);
 router.get('/roles', roleCtrl.list);
 router.post('/roles', roleCtrl.create);
 router.put('/roles/:id', roleCtrl.update);
-router.delete('/roles/:id', roleCtrl.remove);
 
 // ---------- Logs ----------
 router.get('/admin-logs', logCtrl.adminLogs);
 router.get('/audit-logs', logCtrl.auditLogs);
-router.get('/reports/summary', reportsCtrl.summary);
+router.get('/reports/summary', perm.view('Reportes'), reportsCtrl.summary);
 
 // ---------- Location Requests ----------
 router.get('/location-requests', locCtrl.list);
