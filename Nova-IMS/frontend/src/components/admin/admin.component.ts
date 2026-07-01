@@ -126,6 +126,8 @@ export class AdminComponent implements OnInit {
   showPersonForm = signal(false);
   isEditModePerson = signal(false);
   selectedPerson = signal<Person | null>(null);
+  personStatusConfirm = signal<{ person: Person; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
+  emailStatusConfirm = signal<{ entry: NotificationEmailEntry; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
   personRoles = signal<CatalogOption[]>([]);
   genders = signal<CatalogOption[]>([]);
   personRolesLoading = signal(false);
@@ -597,17 +599,18 @@ export class AdminComponent implements OnInit {
 
   async togglePersonStatus(person: Person): Promise<void> {
     const nextStatus = (person.status ?? 'Activo') === 'Activo' ? 'Inactivo' : 'Activo';
-    const message =
-      nextStatus === 'Inactivo'
-        ? `¿Desactivar a ${person.name}? No aparecerá en búsquedas por teléfono.`
-        : `¿Activar a ${person.name}?`;
-    if (!confirm(message)) return;
+    this.personStatusConfirm.set({ person, nextStatus });
+  }
 
+  async confirmPersonStatusChange(): Promise<void> {
+    const data = this.personStatusConfirm();
+    if (!data) return;
+    this.personStatusConfirm.set(null);
     try {
-      await this.personService.setPersonStatus(person.id, nextStatus);
+      await this.personService.setPersonStatus(data.person.id, data.nextStatus);
       this.notificationService.addNotification(
-        nextStatus === 'Inactivo' ? 'Persona Desactivada' : 'Persona Activada',
-        `${person.name} quedó en estado ${nextStatus}.`,
+        data.nextStatus === 'Inactivo' ? 'Persona Desactivada' : 'Persona Activada',
+        `${data.person.name} quedó en estado ${data.nextStatus}.`,
       );
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };
@@ -1365,17 +1368,18 @@ export class AdminComponent implements OnInit {
 
   async toggleNotificationEmailStatus(entry: NotificationEmailEntry): Promise<void> {
     const nextStatus = entry.status === 'Activo' ? 'Inactivo' : 'Activo';
-    const message =
-      nextStatus === 'Inactivo'
-        ? `¿Desactivar ${entry.email}? No recibirá nuevos envíos, pero el historial se conserva.`
-        : `¿Activar ${entry.email}?`;
-    if (!confirm(message)) return;
+    this.emailStatusConfirm.set({ entry, nextStatus });
+  }
 
+  async confirmEmailStatusChange(): Promise<void> {
+    const data = this.emailStatusConfirm();
+    if (!data) return;
+    this.emailStatusConfirm.set(null);
     try {
-      await this.configService.setNotificationEmailStatus(entry.email, nextStatus);
+      await this.configService.setNotificationEmailStatus(data.entry.email, data.nextStatus);
       this.notificationService.addNotification(
-        nextStatus === 'Inactivo' ? 'Correo desactivado' : 'Correo activado',
-        `${entry.email} quedó en estado ${nextStatus}.`,
+        data.nextStatus === 'Inactivo' ? 'Correo desactivado' : 'Correo activado',
+        `${data.entry.email} quedó en estado ${data.nextStatus}.`,
       );
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };

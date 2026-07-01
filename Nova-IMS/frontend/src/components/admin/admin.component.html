@@ -1394,24 +1394,26 @@
                         {{ person.status ?? 'Activo' }}
                       </span>
                     </td>
-                    <td class="px-6 py-4 flex items-center gap-4">
-                      <button
-                        (click)="openEditPersonForm(person)"
-                        class="font-medium text-indigo-400 hover:text-indigo-300"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        (click)="togglePersonStatus(person)"
-                        [class]="
-                          (person.status ?? 'Activo') === 'Activo'
-                            ? 'font-medium text-amber-400 hover:text-amber-300'
-                            : 'font-medium text-green-400 hover:text-green-300'
-                        "
-                      >
-                        {{ (person.status ?? 'Activo') === 'Activo' ? 'Desactivar' : 'Activar' }}
-                      </button>
+                    <td class="px-6 py-4">
+                      <div class="flex items-center gap-4">
+                        <button
+                          (click)="openEditPersonForm(person)"
+                          class="font-medium text-indigo-400 hover:text-indigo-300"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          (click)="togglePersonStatus(person)"
+                          [class]="
+                            (person.status ?? 'Activo') === 'Activo'
+                              ? 'font-medium text-amber-400 hover:text-amber-300'
+                              : 'font-medium text-green-400 hover:text-green-300'
+                          "
+                        >
+                          {{ (person.status ?? 'Activo') === 'Activo' ? 'Desactivar' : 'Activar' }}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 } @empty {
@@ -2388,6 +2390,87 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+}
+
+@if (personStatusConfirm(); as data) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" (click)="personStatusConfirm.set(null)"></div>
+    <div
+      class="relative z-10 bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 border border-gray-700"
+    >
+      <h3 class="text-lg font-bold text-white mb-2">
+        {{ data.nextStatus === 'Inactivo' ? 'Desactivar persona' : 'Activar persona' }}
+      </h3>
+      <p class="text-sm text-gray-400 mb-6">
+        {{
+          data.nextStatus === 'Inactivo'
+            ? '¿Desactivar a ' + data.person.name + '? No aparecerá en búsquedas por teléfono.'
+            : '¿Activar a ' + data.person.name + '?'
+        }}
+      </p>
+      <div class="flex justify-end gap-3">
+        <button
+          type="button"
+          (click)="personStatusConfirm.set(null)"
+          class="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmPersonStatusChange()"
+          [class]="
+            data.nextStatus === 'Inactivo'
+              ? 'bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+              : 'bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+          "
+        >
+          {{ data.nextStatus === 'Inactivo' ? 'Desactivar' : 'Activar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (emailStatusConfirm(); as data) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" (click)="emailStatusConfirm.set(null)"></div>
+    <div
+      class="relative z-10 bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 border border-gray-700"
+    >
+      <h3 class="text-lg font-bold text-white mb-2">
+        {{ data.nextStatus === 'Inactivo' ? 'Desactivar correo' : 'Activar correo' }}
+      </h3>
+      <p class="text-sm text-gray-400 mb-1">{{ data.entry.email }}</p>
+      <p class="text-sm text-gray-500 mb-6">
+        {{
+          data.nextStatus === 'Inactivo'
+            ? 'No recibirá nuevos envíos, pero el historial se conserva.'
+            : '¿Confirma que desea activar este correo?'
+        }}
+      </p>
+      <div class="flex justify-end gap-3">
+        <button
+          type="button"
+          (click)="emailStatusConfirm.set(null)"
+          class="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmEmailStatusChange()"
+          [class]="
+            data.nextStatus === 'Inactivo'
+              ? 'bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+              : 'bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+          "
+        >
+          {{ data.nextStatus === 'Inactivo' ? 'Desactivar' : 'Activar' }}
+        </button>
+      </div>
     </div>
   </div>
 }
