@@ -159,17 +159,73 @@
                     <td class="px-6 py-4">{{ operator.role }}</td>
                     <td class="px-6 py-4">
                       <span
-                        [class]="operator.status === 'Activo' ? 'text-green-400' : 'text-red-500'"
+                        [class]="
+                          operator.status === 'Activo'
+                            ? 'text-xs font-medium px-2.5 py-1 rounded-full bg-green-900/50 text-green-300 border border-green-500/30'
+                            : 'text-xs font-medium px-2.5 py-1 rounded-full bg-red-900/40 text-red-300 border border-red-500/30'
+                        "
                         >{{ operator.status }}</span
                       >
                     </td>
                     <td class="px-6 py-4">
-                      <button
-                        (click)="openEditForm(operator)"
-                        class="font-medium text-indigo-400 hover:text-indigo-300"
-                      >
-                        Editar
-                      </button>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          (click)="openEditForm(operator)"
+                          aria-label="Editar usuario"
+                          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+                        >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"
+                            />
+                          </svg>
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          (click)="toggleOperatorStatus(operator)"
+                          [attr.aria-label]="
+                            operator.status === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'
+                          "
+                          [class]="
+                            operator.status === 'Activo'
+                              ? 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                              : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20'
+                          "
+                        >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            @if (operator.status === 'Activo') {
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM18 8l4 4m0-4l-4 4"
+                              />
+                            } @else {
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM17.5 8.5l1.5 1.5 3-3"
+                              />
+                            }
+                          </svg>
+                          {{ operator.status === 'Activo' ? 'Desactivar' : 'Activar' }}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 } @empty {
@@ -234,9 +290,24 @@
                     <td class="px-6 py-4">{{ type.description }}</td>
                     <td class="px-6 py-4">
                       <button
+                        type="button"
                         (click)="openEditIncidentTypeForm(type)"
-                        class="font-medium text-indigo-400 hover:text-indigo-300"
+                        aria-label="Editar tipo de incidente"
+                        class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
                       >
+                        <svg
+                          class="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"
+                          />
+                        </svg>
                         Editar
                       </button>
                     </td>
@@ -293,9 +364,24 @@
                     <p class="text-sm text-gray-400">Para: {{ protocol.incidentTypeName }}</p>
                   </div>
                   <button
+                    type="button"
                     (click)="openEditResponseProtocolForm(protocol)"
-                    class="text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                    aria-label="Editar protocolo"
+                    class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
                   >
+                    <svg
+                      class="h-3 w-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"
+                      />
+                    </svg>
                     Editar
                   </button>
                 </div>
@@ -455,17 +541,43 @@
                         </span>
                       </td>
                       <td class="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          (click)="toggleNotificationEmailStatus(entry)"
-                          [class]="
-                            entry.status === 'Activo'
-                              ? 'font-medium text-amber-400 hover:text-amber-300'
-                              : 'font-medium text-green-400 hover:text-green-300'
-                          "
-                        >
-                          {{ entry.status === 'Activo' ? 'Desactivar' : 'Activar' }}
-                        </button>
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            (click)="toggleNotificationEmailStatus(entry)"
+                            [attr.aria-label]="
+                              entry.status === 'Activo' ? 'Desactivar correo' : 'Activar correo'
+                            "
+                            [class]="
+                              entry.status === 'Activo'
+                                ? 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20'
+                            "
+                          >
+                            <svg
+                              class="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="2"
+                            >
+                              @if (entry.status === 'Activo') {
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM18 8l4 4m0-4l-4 4"
+                                />
+                              } @else {
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM17.5 8.5l1.5 1.5 3-3"
+                                />
+                              }
+                            </svg>
+                            {{ entry.status === 'Activo' ? 'Desactivar' : 'Activar' }}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   } @empty {
@@ -1387,30 +1499,71 @@
                       <span
                         [class]="
                           (person.status ?? 'Activo') === 'Activo'
-                            ? 'text-green-400'
-                            : 'text-red-500'
+                            ? 'text-xs font-medium px-2.5 py-1 rounded-full bg-green-900/50 text-green-300 border border-green-500/30'
+                            : 'text-xs font-medium px-2.5 py-1 rounded-full bg-red-900/40 text-red-300 border border-red-500/30'
                         "
                       >
                         {{ person.status ?? 'Activo' }}
                       </span>
                     </td>
                     <td class="px-6 py-4">
-                      <div class="flex items-center gap-4">
+                      <div class="flex flex-wrap items-center gap-2">
                         <button
+                          type="button"
                           (click)="openEditPersonForm(person)"
-                          class="font-medium text-indigo-400 hover:text-indigo-300"
+                          aria-label="Editar persona"
+                          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
                         >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"
+                            />
+                          </svg>
                           Editar
                         </button>
                         <button
                           type="button"
                           (click)="togglePersonStatus(person)"
+                          [attr.aria-label]="
+                            (person.status ?? 'Activo') === 'Activo'
+                              ? 'Desactivar persona'
+                              : 'Activar persona'
+                          "
                           [class]="
                             (person.status ?? 'Activo') === 'Activo'
-                              ? 'font-medium text-amber-400 hover:text-amber-300'
-                              : 'font-medium text-green-400 hover:text-green-300'
+                              ? 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                              : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20'
                           "
                         >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            @if ((person.status ?? 'Activo') === 'Activo') {
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM18 8l4 4m0-4l-4 4"
+                              />
+                            } @else {
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM17.5 8.5l1.5 1.5 3-3"
+                              />
+                            }
+                          </svg>
                           {{ (person.status ?? 'Activo') === 'Activo' ? 'Desactivar' : 'Activar' }}
                         </button>
                       </div>
@@ -2421,6 +2574,46 @@
         <button
           type="button"
           (click)="confirmPersonStatusChange()"
+          [class]="
+            data.nextStatus === 'Inactivo'
+              ? 'bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+              : 'bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'
+          "
+        >
+          {{ data.nextStatus === 'Inactivo' ? 'Desactivar' : 'Activar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (operatorStatusConfirm(); as data) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" (click)="operatorStatusConfirm.set(null)"></div>
+    <div
+      class="relative z-10 bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 border border-gray-700"
+    >
+      <h3 class="text-lg font-bold text-white mb-2">
+        {{ data.nextStatus === 'Inactivo' ? 'Desactivar usuario' : 'Activar usuario' }}
+      </h3>
+      <p class="text-sm text-gray-400 mb-6">
+        {{
+          data.nextStatus === 'Inactivo'
+            ? '¿Desactivar a ' + data.operator.name + '? No podrá iniciar sesión en el sistema.'
+            : '¿Activar a ' + data.operator.name + '?'
+        }}
+      </p>
+      <div class="flex justify-end gap-3">
+        <button
+          type="button"
+          (click)="operatorStatusConfirm.set(null)"
+          class="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmOperatorStatusChange()"
           [class]="
             data.nextStatus === 'Inactivo'
               ? 'bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors'

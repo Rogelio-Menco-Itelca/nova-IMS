@@ -69,6 +69,13 @@ export class ConfigurationService {
     this.operators.update((ops) => ops.map((o) => (o.id === operatorId ? updated : o)));
   }
 
+  async setOperatorStatus(operatorId: string, status: 'Activo' | 'Inactivo'): Promise<void> {
+    const updated = await firstValueFrom(
+      this.http.put<Operator>(`/api/operators/${operatorId}`, { status }),
+    );
+    this.operators.update((ops) => ops.map((o) => (o.id === operatorId ? updated : o)));
+  }
+
   async deleteOperator(operatorId: string): Promise<void> {
     await firstValueFrom(this.http.delete(`/api/operators/${operatorId}`));
     this.operators.update((ops) => ops.filter((o) => o.id !== operatorId));

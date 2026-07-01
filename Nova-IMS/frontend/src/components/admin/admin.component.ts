@@ -128,6 +128,7 @@ export class AdminComponent implements OnInit {
   selectedPerson = signal<Person | null>(null);
   personStatusConfirm = signal<{ person: Person; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
   emailStatusConfirm = signal<{ entry: NotificationEmailEntry; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
+  operatorStatusConfirm = signal<{ operator: Operator; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
   personRoles = signal<CatalogOption[]>([]);
   genders = signal<CatalogOption[]>([]);
   personRolesLoading = signal(false);
@@ -611,6 +612,28 @@ export class AdminComponent implements OnInit {
       this.notificationService.addNotification(
         data.nextStatus === 'Inactivo' ? 'Persona Desactivada' : 'Persona Activada',
         `${data.person.name} quedó en estado ${data.nextStatus}.`,
+      );
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg = e?.error?.error?.message || e?.error?.message || 'No se pudo cambiar el estado.';
+      this.notificationService.addNotification('Error', msg);
+    }
+  }
+
+  toggleOperatorStatus(operator: Operator): void {
+    const nextStatus = operator.status === 'Activo' ? 'Inactivo' : 'Activo';
+    this.operatorStatusConfirm.set({ operator, nextStatus });
+  }
+
+  async confirmOperatorStatusChange(): Promise<void> {
+    const data = this.operatorStatusConfirm();
+    if (!data) return;
+    this.operatorStatusConfirm.set(null);
+    try {
+      await this.configService.setOperatorStatus(data.operator.id, data.nextStatus);
+      this.notificationService.addNotification(
+        data.nextStatus === 'Inactivo' ? 'Usuario Desactivado' : 'Usuario Activado',
+        `${data.operator.name} quedó en estado ${data.nextStatus}.`,
       );
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };
