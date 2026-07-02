@@ -151,8 +151,16 @@
                   <tr class="border-b border-gray-700 hover:bg-gray-700/50">
                     <td class="px-6 py-4 font-medium text-white">{{ operator.name }}</td>
                     <td class="px-6 py-4">{{ operator.email }}</td>
-                    <td class="px-6 py-4 text-indigo-400 font-mono">
-                      {{ operator.telefono || '—' }}
+                    <td class="px-6 py-4 font-mono">
+                      @if (operator.telefono) {
+                        <a
+                          [href]="'tel:' + operator.telefono"
+                          class="text-indigo-400 hover:text-indigo-300 hover:underline"
+                          >{{ operator.telefono }}</a
+                        >
+                      } @else {
+                        <span class="text-gray-500">—</span>
+                      }
                     </td>
                     <td class="px-6 py-4">{{ operator.agencyName || operator.agency }}</td>
                     <td class="px-6 py-4">{{ operator.id }}</td>
@@ -1490,8 +1498,16 @@
                       }
                       {{ person.documentId }}
                     </td>
-                    <td class="px-6 py-4 text-indigo-400 font-mono">
-                      {{ person.contacto || person.phone || '—' }}
+                    <td class="px-6 py-4 font-mono">
+                      @if (person.contacto || person.phone) {
+                        <a
+                          [href]="'tel:' + (person.contacto || person.phone)"
+                          class="text-indigo-400 hover:text-indigo-300 hover:underline"
+                          >{{ person.contacto || person.phone }}</a
+                        >
+                      } @else {
+                        <span class="text-gray-500">—</span>
+                      }
                     </td>
                     <td class="px-6 py-4">{{ person.roleName || '—' }}</td>
                     <td class="px-6 py-4">{{ person.gender || '—' }}</td>
