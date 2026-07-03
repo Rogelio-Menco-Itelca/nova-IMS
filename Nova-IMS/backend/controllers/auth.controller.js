@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const HttpError = require('../utils/HttpError');
 const giUsers = require('../db/gestionincidentes/users');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
+const { recordAudit } = require('../utils/auditTrail');
 
 function maskEmail(email) {
   if (!email) return '****';
@@ -72,6 +73,18 @@ async function startOtpFlow(user, rememberUser, resend = false) {
     }),
   );
 
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'seguridad',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registrodobleautentificacion',
+    accion: resend ? 'Reenvío de código OTP' : 'Envío de código OTP',
+    resultado: 'pendiente',
+    detalle: `Código enviado a ${maskEmail(user.email)}`,
+  });
+
   return {
     requiresOtp: true,
     userId: user.id,
@@ -113,6 +126,18 @@ exports.login = asyncHandler(async (req, res) => {
         `El usuario no pertenece a la agencia ${String(agencia).toUpperCase()}. Seleccione ${elsewhere.agency_code}.`,
       );
     }
+    await recordAudit({
+      req,
+      actorId: null,
+      actorName: String(usuario || 'desconocido'),
+      agencyCode: String(agencia || '').toUpperCase() || null,
+      categoria: 'sesion',
+      modulo: 'Autenticación',
+      tablaAfectada: 'registro_logueos',
+      accion: 'Intento de inicio de sesión',
+      resultado: 'fallido',
+      detalle: `Usuario inexistente: "${usuario}"`,
+    });
     throw new HttpError(401, 'Credenciales incorrectas.');
   }
 
@@ -163,6 +188,19 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
       );
     }
 
+    await recordAudit({
+      req,
+      actorId: user.id,
+      actorName: user.name,
+      agencyCode: user.agency_code,
+      categoria: 'seguridad',
+      modulo: 'Autenticación',
+      tablaAfectada: 'registrodobleautentificacion',
+      accion: 'Verificación 2FA fallida',
+      resultado: 'fallido',
+      detalle: OTP_FAIL_REASONS[result.reason] || 'Código inválido',
+    });
+
     throw new HttpError(401, messages[result.reason] || 'Código inválido.');
   }
 
@@ -191,6 +229,32 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
       roleId: user.role_id,
       status: 'Exitoso',
     });
+  });
+
+  await recordAudit({
+    req,
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'seguridad',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registrodobleautentificacion',
+    accion: 'Verificación 2FA exitosa',
+    resultado: 'exitoso',
+    detalle: 'Código OTP verificado correctamente',
+  });
+
+  await recordAudit({
+    req,
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'sesion',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registro_logueos',
+    accion: 'Inicio de sesión',
+    resultado: 'exitoso',
+    detalle: 'Inicio de sesión completado con 2FA',
   });
 
   const payload = {
@@ -232,8 +296,31 @@ exports.me = asyncHandler(async (req, res) => {
 
 exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
+  req.skipAutoAudit = true;
   const result = await authService.changePassword(req.user, currentPassword, newPassword);
   res.json(result);
+});
+
+const LOGOUT_REASONS = {
+  manual: 'Cierre de sesión manual',
+  inactividad: 'Cierre de sesión por inactividad',
+  sesion_expirada: 'Sesión expirada',
+};
+
+exports.logout = asyncHandler(async (req, res) => {
+  const reason = String(req.body?.reason || 'manual');
+  req.skipAutoAudit = true;
+  await recordAudit({
+    req,
+    user: req.user,
+    categoria: 'sesion',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registro_logueos',
+    accion: 'Cierre de sesión',
+    resultado: 'exitoso',
+    detalle: LOGOUT_REASONS[reason] || LOGOUT_REASONS.manual,
+  });
+  res.json({ ok: true });
 });
 
 exports.ldapHealth = asyncHandler(async (req, res) => {

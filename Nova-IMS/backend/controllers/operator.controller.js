@@ -119,6 +119,8 @@ exports.create = asyncHandler(async (req, res) => {
     req.user,
     'Creación de Operador',
     `Se creó el operador ${displayName} (${loginId})`,
+    req,
+    { tablaAfectada: 'usuarios' },
   );
   res.status(201).json(mapOperator(user));
 });
@@ -153,7 +155,7 @@ exports.update = asyncHandler(async (req, res) => {
   });
 
   const user = await giUsers.findUserById(id, existing.agency_code);
-  await writeAdminLog(req.user, 'Actualización de Operador', `Se actualizó el operador ${id}`);
+  await writeAdminLog(req.user, 'Actualización de Operador', `Se actualizó el operador ${id}`, req, { tablaAfectada: 'usuarios' });
   res.json(mapOperator(user));
 });
 
@@ -161,6 +163,6 @@ exports.remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const affected = await giUsers.deleteOperator(id);
   if (!affected) throw new HttpError(404, 'Operador no encontrado');
-  await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`);
+  await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`, req, { tablaAfectada: 'usuarios' });
   res.status(204).send();
 });

@@ -11,6 +11,7 @@ import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ReportsService, ReportSummary } from '../../services/reports.service';
 import { PermissionService } from '../../services/permission.service';
+import { AuditClientService } from '../../services/audit-client.service';
 import { environment } from '../../environments/environment';
 import { trustedPowerBiEmbedUrl } from '../../utils/trusted-embed-urls';
 
@@ -28,6 +29,7 @@ export class ReportsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
   readonly permissionService = inject(PermissionService);
+  private readonly auditClient = inject(AuditClientService);
 
   // ---------- pestañas ----------
   activeTab = signal<Tab>('analytics');
@@ -213,6 +215,11 @@ export class ReportsComponent implements OnInit {
     a.download = `reporte-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+
+    this.auditClient.reportDownload(
+      `reporte de incidentes (${rows.length} registro${rows.length === 1 ? '' : 's'})`,
+      'csv',
+    );
   }
 
   formatDate(d: string): string {

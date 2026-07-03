@@ -12,6 +12,7 @@ const { isDirectorySessionId, DIRECTORY_USER_PREFIX } = require('../utils/jwtUse
 const giUsers = require('../db/gestionincidentes/users');
 const giAgencies = require('../db/gestionincidentes/agencies');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
+const { recordAudit } = require('../utils/auditTrail');
 
 const INVALID_MSG = 'Credenciales incorrectas. Por favor, intente de nuevo.';
 
@@ -74,6 +75,17 @@ async function recordFailedLogin(user, agencyCode, description, rememberUser = f
       status: 'Fallido',
     }),
   );
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code || agencyCode,
+    categoria: 'sesion',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registro_logueos',
+    accion: 'Intento de inicio de sesión',
+    resultado: 'fallido',
+    detalle: description,
+  });
 }
 
 async function recordSuccessfulLogin(user, meta = {}) {
@@ -89,6 +101,17 @@ async function recordSuccessfulLogin(user, meta = {}) {
       status: 'Exitoso',
     }),
   );
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code || meta.agencyCode,
+    categoria: 'sesion',
+    modulo: 'Autenticación',
+    tablaAfectada: 'registro_logueos',
+    accion: 'Inicio de sesión',
+    resultado: 'exitoso',
+    detalle: meta.description || 'Inicio de sesión exitoso',
+  });
 }
 
 function buildTokenResponse(user) {
@@ -300,6 +323,18 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
   }
 
   await giUsers.updatePasswordHash(user.id, user.agency_code, newPassword);
+
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'seguridad',
+    modulo: 'Autenticación',
+    tablaAfectada: 'usuarios',
+    accion: 'Cambio de contraseña',
+    resultado: 'exitoso',
+    detalle: 'El usuario actualizó su contraseña',
+  });
 
   return {
     message: 'Contraseña actualizada correctamente. Inicie sesión con su nueva contraseña.',

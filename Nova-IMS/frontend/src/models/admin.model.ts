@@ -72,11 +72,25 @@ export interface UserAuditSummary {
   lastActivity: string | null;
 }
 
+export type UserAuditCategory =
+  | 'sesion'
+  | 'seguridad'
+  | 'incidente'
+  | 'administracion'
+  | 'configuracion'
+  | 'comunicacion'
+  | 'consulta';
+
+export type UserAuditOutcome = 'exitoso' | 'fallido' | 'pendiente' | null;
+
 export interface UserAuditAction {
   id: string;
-  source: 'admin' | 'incident' | 'login' | '2fa';
+  source: UserAuditCategory | string;
+  module?: string | null;
   action: string;
+  outcome?: UserAuditOutcome;
   details: string | null;
+  affectedTable?: string | null;
   timestamp: string;
 }
 

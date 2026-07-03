@@ -67,6 +67,7 @@ import { AuthService } from '../../services/auth.service';
 import { PermissionService } from '../../services/permission.service';
 import { PersonService } from '../../services/person.service';
 import { ColombiaGeoService } from '../../services/colombia-geo.service';
+import { AuditClientService } from '../../services/audit-client.service';
 import { HttpClient } from '@angular/common/http';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import { MedidasComponent } from '../medidas/medidas.component';
@@ -188,6 +189,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly colombiaGeo = inject(ColombiaGeoService);
   private readonly http = inject(HttpClient);
+  private readonly auditClient = inject(AuditClientService);
 
   // --- Tab Management State ---
   openIncidentTabs = signal<Incident[]>([]);
@@ -2247,6 +2249,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   openIncidentTab(incident: Incident) {
     const fresh =
       this.incidentService.incidents().find((i) => i.id === incident.id) ?? incident;
+    this.auditClient.incidentView(fresh.id, 'Incidentes');
     if (this.openIncidentTabs().some((tab) => tab.id === fresh.id)) {
       this.openIncidentTabs.update((tabs) =>
         tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),

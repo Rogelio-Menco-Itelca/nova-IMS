@@ -3,6 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const socket = require('../realtime/socket');
 const giLocation = require('../db/gestionincidentes/location');
 const { buildLocationShareUrlAsync, publicUrlSetupHint } = require('../utils/publicUrl');
+const { recordAudit } = require('../utils/auditTrail');
 
 exports.create = asyncHandler(async (req, res) => {
   const { phone, channel, incident_id } = req.body || {};
@@ -20,6 +21,20 @@ exports.create = asyncHandler(async (req, res) => {
     incidentId: incident_id,
     user: req.user,
     requestUrl,
+  });
+
+  const canalLabel = channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+  await recordAudit({
+    req,
+    user: req.user,
+    categoria: 'incidente',
+    modulo: 'Incidentes',
+    tablaAfectada: 'ubicacion',
+    accion: `Solicitud de ubicación rápida por ${canalLabel}`,
+    resultado: 'exitoso',
+    detalle: `Envió solicitud de ubicación por ${canalLabel} al ${clean}${
+      incident_id ? ` (Incidente ${incident_id})` : ''
+    }`,
   });
 
   res.status(201).json({

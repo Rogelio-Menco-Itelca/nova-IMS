@@ -722,6 +722,22 @@ export class AdminComponent implements OnInit {
 
   userActionSourceLabel(source: string): string {
     switch (source) {
+      // Categorías nuevas (auditoría unificada)
+      case 'sesion':
+        return 'Sesión';
+      case 'seguridad':
+        return 'Seguridad';
+      case 'incidente':
+        return 'Incidente';
+      case 'administracion':
+        return 'Administración';
+      case 'configuracion':
+        return 'Configuración';
+      case 'comunicacion':
+        return 'Comunicación';
+      case 'consulta':
+        return 'Consulta';
+      // Compatibilidad con datos antiguos
       case 'admin':
         return 'Administración';
       case 'incident':
@@ -737,14 +753,66 @@ export class AdminComponent implements OnInit {
 
   userActionSourceClasses(source: string): string {
     switch (source) {
+      case 'sesion':
       case 'login':
         return 'border border-amber-500/30 bg-amber-500/10 text-amber-400';
-      case 'incident':
-        return 'border border-sky-500/30 bg-sky-500/10 text-sky-400';
+      case 'seguridad':
       case '2fa':
         return 'border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-400';
+      case 'incidente':
+      case 'incident':
+        return 'border border-sky-500/30 bg-sky-500/10 text-sky-400';
+      case 'configuracion':
+        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+      case 'comunicacion':
+        return 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-400';
+      case 'consulta':
+        return 'border border-slate-500/30 bg-slate-500/10 text-slate-400';
       default:
         return 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-400';
+    }
+  }
+
+  userActionModuleClasses(module: string | null | undefined): string {
+    switch (module) {
+      case 'Autenticación':
+        return 'border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300';
+      case 'Incidentes':
+        return 'border border-sky-500/30 bg-sky-500/10 text-sky-300';
+      case 'Administración':
+        return 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+      case 'Reportes':
+        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+      case 'Dashboard':
+        return 'border border-amber-500/30 bg-amber-500/10 text-amber-300';
+      default:
+        return 'border border-gray-600/40 bg-gray-600/10 text-gray-400';
+    }
+  }
+
+  userActionOutcomeClasses(outcome: string | null | undefined): string {
+    switch (outcome) {
+      case 'exitoso':
+        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+      case 'fallido':
+        return 'border border-red-500/30 bg-red-500/10 text-red-400';
+      case 'pendiente':
+        return 'border border-amber-500/30 bg-amber-500/10 text-amber-400';
+      default:
+        return '';
+    }
+  }
+
+  userActionOutcomeLabel(outcome: string | null | undefined): string {
+    switch (outcome) {
+      case 'exitoso':
+        return 'Exitoso';
+      case 'fallido':
+        return 'Fallido';
+      case 'pendiente':
+        return 'Pendiente';
+      default:
+        return '';
     }
   }
 

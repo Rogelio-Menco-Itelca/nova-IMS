@@ -1786,9 +1786,11 @@
                       <thead class="text-gray-500 uppercase bg-gray-900/80 sticky top-0 z-10">
                         <tr>
                           <th scope="col" class="px-6 py-3">Fecha</th>
-                          <th scope="col" class="px-6 py-3">Origen</th>
+                          <th scope="col" class="px-6 py-3">Módulo</th>
+                          <th scope="col" class="px-6 py-3">Categoría</th>
                           <th scope="col" class="px-6 py-3">Acción</th>
-                          <th scope="col" class="px-6 py-3">Detalles</th>
+                          <th scope="col" class="px-6 py-3">Resultado</th>
+                          <th scope="col" class="px-6 py-3">Detalle</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-gray-800">
@@ -1796,6 +1798,18 @@
                           <tr class="hover:bg-gray-700/20 transition-all">
                             <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-mono">
                               {{ action.timestamp }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                              @if (action.module) {
+                                <span
+                                  class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest"
+                                  [class]="userActionModuleClasses(action.module)"
+                                >
+                                  {{ action.module }}
+                                </span>
+                              } @else {
+                                <span class="text-gray-600">—</span>
+                              }
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                               <span
@@ -1806,11 +1820,25 @@
                               </span>
                             </td>
                             <td class="px-6 py-4 font-bold text-gray-200">{{ action.action }}</td>
-                            <td class="px-6 py-4 text-gray-400 italic">{{ action.details }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                              @if (action.outcome) {
+                                <span
+                                  class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest"
+                                  [class]="userActionOutcomeClasses(action.outcome)"
+                                >
+                                  {{ userActionOutcomeLabel(action.outcome) }}
+                                </span>
+                              }
+                            </td>
+                            <td class="px-6 py-4 text-gray-300">
+                              <div class="whitespace-pre-line">
+                                {{ action.details || '—' }}
+                              </div>
+                            </td>
                           </tr>
                         } @empty {
                           <tr>
-                            <td colspan="4" class="text-center py-12 text-gray-600">
+                            <td colspan="6" class="text-center py-12 text-gray-600">
                               Este usuario no tiene acciones registradas.
                             </td>
                           </tr>

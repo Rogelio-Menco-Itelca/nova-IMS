@@ -34,16 +34,21 @@ DROP TABLE IF EXISTS `auditoria_general`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `auditoria_general` (
-  `ID_Auditoria` varchar(300) NOT NULL,
-  `Tabla_Afectada` varchar(50) NOT NULL,
-  `Accion` varchar(100) NOT NULL,
+  `ID_Auditoria` int NOT NULL AUTO_INCREMENT,
+  `Tabla_Afectada` varchar(64) DEFAULT NULL,
+  `Modulo` varchar(50) DEFAULT NULL,
+  `Categoria` varchar(30) NOT NULL DEFAULT 'administracion',
+  `Accion` varchar(150) NOT NULL,
+  `Resultado` varchar(20) DEFAULT NULL,
   `Detalle` text,
-  `ID_Usuario` varchar(20) NOT NULL,
-  `ID_Agencia` varchar(5) NOT NULL,
+  `ID_Usuario` varchar(100) DEFAULT NULL,
+  `Nombre_Usuario` varchar(150) DEFAULT NULL,
+  `ID_Agencia` varchar(10) DEFAULT NULL,
   `FechaCambio` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`ID_Auditoria`),
-  KEY `fk_auditoria_general_usuario` (`ID_Usuario`,`ID_Agencia`),
-  CONSTRAINT `fk_auditoria_general_usuario` FOREIGN KEY (`ID_Usuario`, `ID_Agencia`) REFERENCES `usuarios` (`ID_Usuario`, `ID_Agencia`)
+  KEY `idx_auditoria_usuario_fecha` (`ID_Usuario`,`FechaCambio`),
+  KEY `idx_auditoria_categoria` (`Categoria`,`FechaCambio`),
+  KEY `idx_auditoria_fecha` (`FechaCambio`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

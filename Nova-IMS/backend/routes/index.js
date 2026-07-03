@@ -3,6 +3,8 @@ const router = express.Router();
 
 const { pool } = require('../config/db');
 const { authRequired } = require('../middleware/auth');
+const auditMiddleware = require('../middleware/auditMiddleware');
+const { recordAudit } = require('../utils/auditTrail');
 const perm = require('../middleware/permissions');
 const { getAllowedNextStates } = require('../db/gestionincidentes/transitions');
 const { mapStatusToGi } = require('../db/gestionincidentes/maps');
@@ -20,6 +22,7 @@ const locCtrl = require('../controllers/locationRequest.controller');
 const catCtrl = require('../controllers/catalog.controller');
 const reportsCtrl = require('../controllers/reports.controller');
 const configCtrl = require('../controllers/config.controller');
+const auditClientCtrl = require('../controllers/auditClient.controller');
 const medidas = require('../db/gestionincidentes/medidas');
 const giIncidents = require('../db/gestionincidentes/incidents');
 const { sessionDisplayName } = require('../utils/jwtUser');
@@ -82,10 +85,17 @@ router.get('/incident-statuses/allowed', authRequired, async (req, res, next) =>
 // A partir de aquí, requiere JWT
 router.use(authRequired);
 
+// Auditoría automática de toda mutación autenticada (red de seguridad).
+router.use(auditMiddleware);
+
+// ---------- Auditoría de eventos de cliente (acciones que no pasan por un endpoint de negocio) ----------
+router.post('/audit/client-event', auditClientCtrl.clientEvent);
+
 // ---------- Auth ----------
 router.get('/auth/me', authCtrl.me);
 router.get('/auth/permissions', authCtrl.permissions);
 router.post('/auth/change-password', authCtrl.changePassword);
+router.post('/auth/logout', authCtrl.logout);
 
 // ---------- Incidentes ----------
 router.get('/incidents', incCtrl.list);
@@ -192,11 +202,26 @@ router.post('/incidents/:id/gestion', async (req, res, next) => {
     const idGestion = await medidas.upsertGestion(visibleId, req.body, req.user);
     const gestion = await medidas.getGestionByIncidente(visibleId);
     const auditDetails = medidas.buildGestionAuditDetails(beforeGestion, gestion);
-    await writeIncidentAudit(visibleId, req.user, {
-      action: 'Actualización gestión OSEG/CERREM',
-      changes: `${auditDetails.length} campo(s) en gestión`,
-      details: auditDetails,
-    });
+    // Solo se audita si hubo cambios reales (evita borradores vacíos al ver).
+    if (auditDetails.length) {
+      await writeIncidentAudit(visibleId, req.user, {
+        action: 'Actualización gestión OSEG/CERREM',
+        changes: `${auditDetails.length} campo(s) en gestión`,
+        details: auditDetails,
+      });
+      await recordAudit({
+        req,
+        user: req.user,
+        categoria: 'incidente',
+        modulo: 'Incidentes',
+        tablaAfectada: 'gestion_medidas',
+        accion: `Gestión OSEG/CERREM (Incidente ${visibleId})`,
+        resultado: 'exitoso',
+        detalle: auditDetails.join('. '),
+      });
+    } else {
+      req.skipAutoAudit = true;
+    }
     res.json({
       ok: true,
       ID_gestion: idGestion,
@@ -230,11 +255,25 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
     await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user);
     const afterMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
     const auditDetails = medidas.buildMedidasAuditDetails(beforeMedidas, afterMedidas);
-    await writeIncidentAudit(visibleId, req.user, {
-      action: 'Medidas de seguridad',
-      changes: `${auditDetails.length} cambio(s) en medidas`,
-      details: auditDetails,
-    });
+    if (auditDetails.length) {
+      await writeIncidentAudit(visibleId, req.user, {
+        action: 'Medidas de seguridad',
+        changes: `${auditDetails.length} cambio(s) en medidas`,
+        details: auditDetails,
+      });
+      await recordAudit({
+        req,
+        user: req.user,
+        categoria: 'incidente',
+        modulo: 'Incidentes',
+        tablaAfectada: 'incidente_medidas',
+        accion: `Medidas de seguridad (Incidente ${visibleId})`,
+        resultado: 'exitoso',
+        detalle: auditDetails.join('. '),
+      });
+    } else {
+      req.skipAutoAudit = true;
+    }
     res.json({ ok: true });
   } catch (err) {
     next(err);

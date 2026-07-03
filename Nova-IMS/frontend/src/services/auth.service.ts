@@ -209,7 +209,24 @@ export class AuthService {
     sessionStorage.removeItem(MUST_CHANGE_KEY);
   }
 
-  logout(): void {
+  private loggingOut = false;
+
+  /**
+   * Cierra la sesión. Registra el cierre en auditoría (best-effort) antes de
+   * limpiar el estado local. No audita cuando la sesión ya expiró (401), pues
+   * el token sería inválido y provocaría un bucle con el interceptor.
+   *
+   * @param reason 'manual' | 'inactividad' | 'sesion_expirada'
+   */
+  logout(reason: string = 'manual'): void {
+    const token = this.getToken();
+    if (token && reason !== 'sesion_expirada' && !this.loggingOut) {
+      this.loggingOut = true;
+      this.http.post(`${this.apiUrl}/logout`, { reason }).subscribe({
+        next: () => (this.loggingOut = false),
+        error: () => (this.loggingOut = false),
+      });
+    }
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(MUST_CHANGE_KEY);

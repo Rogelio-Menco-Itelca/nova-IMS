@@ -351,7 +351,7 @@ export class InactivityService implements OnDestroy {
   /** Cierra sesión en esta pestaña sin notificar a las demás. */
   private localLogout(): void {
     this.zone.run(() => {
-      this.authService.logout();
+      this.authService.logout('inactividad');
       // authService.logout() ya llama a stop() vía la integración existente,
       // pero por seguridad lo hacemos explícito (stop es idempotente).
       this.stop();

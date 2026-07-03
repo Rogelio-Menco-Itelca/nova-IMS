@@ -1,6 +1,4 @@
 const { pool } = require('../../config/db');
-const { resolveUserContext } = require('./users');
-const { requireAgencyInput } = require('./agencyContext');
 
 function parseAuditActorFromDetails(raw) {
   if (raw == null) return null;
@@ -18,37 +16,18 @@ function parseAuditActorFromDetails(raw) {
   return trimmed || null;
 }
 
-async function writeAdminLog(jwtUser, action, details) {
-  const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const agencyCode = requireAgencyInput(null, jwtUser);
-  const ctx = await resolveUserContext(jwtUser?.sub, agencyCode);
-  await pool.query(
-    `INSERT INTO auditoria_general
-      (ID_Auditoria, Tabla_Afectada, Accion, Detalle, ID_Usuario, ID_Agencia)
-     VALUES (?,?,?,?,?,?)`,
-    [id, 'admin', action, details, ctx.userId || jwtUser?.sub || 'SYSTEM', ctx.agencyCode],
-  );
-  return {
-    id,
-    user: jwtUser?.name || 'Sistema',
-    action,
-    details,
-    timestamp: new Date(),
-  };
-}
-
 async function listAdminLogs() {
   const [rows] = await pool.query(
-    `SELECT ID_Auditoria AS id, ID_Usuario AS user_id, Accion AS action,
-            Detalle AS details, FechaCambio AS created_at
+    `SELECT ID_Auditoria AS id, Nombre_Usuario AS actor_name, ID_Usuario AS user_id,
+            Accion AS action, Detalle AS details, FechaCambio AS created_at
      FROM auditoria_general
-     WHERE Tabla_Afectada = 'admin'
+     WHERE Categoria = 'administracion'
      ORDER BY FechaCambio DESC
      LIMIT 200`,
   );
   return rows.map((r) => ({
     id: r.id,
-    user: r.user_id || 'Sistema',
+    user: r.actor_name || r.user_id || 'Sistema',
     action: r.action,
     details: r.details,
     timestamp: r.created_at,
@@ -93,22 +72,11 @@ async function listUsersWithActivitySummary() {
         r.Rol AS roleName,
         u.ID_Agencia AS agencyCode,
         u.estado AS status,
-        (SELECT COUNT(*) FROM auditoria_general g WHERE g.ID_Usuario = u.ID_Usuario) +
-        (SELECT COUNT(*) FROM auditoria_incidente ai WHERE ai.usuarios_id = u.ID_Usuario) +
-        (SELECT COUNT(*) FROM registro_logueos rl WHERE rl.ID_Usuario = u.ID_Usuario) +
-        (SELECT COUNT(*) FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = u.ID_Usuario) AS actionCount,
-        (SELECT MAX(t) FROM (
-          SELECT MAX(g.FechaCambio) AS t FROM auditoria_general g WHERE g.ID_Usuario = u.ID_Usuario
-          UNION ALL
-          SELECT MAX(ai.fecha) AS t FROM auditoria_incidente ai WHERE ai.usuarios_id = u.ID_Usuario
-          UNION ALL
-          SELECT MAX(rl.Fecha) AS t FROM registro_logueos rl WHERE rl.ID_Usuario = u.ID_Usuario
-          UNION ALL
-          SELECT MAX(tfa.Fecha) AS t FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = u.ID_Usuario
-        ) combined) AS lastActivity
+        (SELECT COUNT(*) FROM auditoria_general a WHERE a.ID_Usuario = u.ID_Usuario) AS actionCount,
+        (SELECT MAX(a.FechaCambio) FROM auditoria_general a WHERE a.ID_Usuario = u.ID_Usuario) AS lastActivity
      FROM usuarios u
      LEFT JOIN roles r ON r.ID_Rol = u.ID_Rol
-     ORDER BY userName ASC`,
+     ORDER BY lastActivity IS NULL, lastActivity DESC, userName ASC`,
   );
   return rows.map((r) => ({
     userId: r.userId,
@@ -123,42 +91,34 @@ async function listUsersWithActivitySummary() {
 
 async function listActionsByUser(userId) {
   const [rows] = await pool.query(
-    `SELECT id, source, action, details, timestamp FROM (
-        SELECT g.ID_Auditoria AS id, 'admin' AS source, g.Accion AS action,
-          g.Detalle AS details, g.FechaCambio AS timestamp
-        FROM auditoria_general g WHERE g.ID_Usuario = ?
-        UNION ALL
-        SELECT ai.id_transaccion_incidentes AS id, 'incident' AS source,
-          CONCAT(ai.accion, IFNULL(CONCAT(' (Incidente ', i.ID_visible, ')'), '')) AS action,
-          COALESCE(ai.Numero_de_Cambios, ai.detalles) AS details, ai.fecha AS timestamp
-        FROM auditoria_incidente ai
-        LEFT JOIN incidentes i ON i.ID_incidente = ai.incidentes_id
-        WHERE ai.usuarios_id = ?
-        UNION ALL
-        SELECT CONCAT('LOGIN-', rl.ID_registro) AS id, 'login' AS source,
-          CONCAT(rl.Accion, ' (', rl.Login_exitoso, ')') AS action,
-          rl.Descripcion_accion AS details, rl.Fecha AS timestamp
-        FROM registro_logueos rl WHERE rl.ID_Usuario = ?
-        UNION ALL
-        SELECT CONCAT('2FA-', tfa.ID_accion) AS id, '2fa' AS source,
-          tfa.accion AS action, CONCAT('Correo: ', tfa.Correo) AS details,
-          tfa.Fecha AS timestamp
-        FROM registrodobleautentificacion tfa WHERE tfa.ID_Usuario = ?
-     ) combined
-     ORDER BY timestamp DESC, id DESC`,
-    [userId, userId, userId, userId],
+    `SELECT
+        a.ID_Auditoria AS id,
+        a.Categoria AS source,
+        a.Modulo AS module,
+        a.Accion AS action,
+        a.Resultado AS outcome,
+        a.Detalle AS details,
+        a.Tabla_Afectada AS affectedTable,
+        a.FechaCambio AS timestamp
+     FROM auditoria_general a
+     WHERE a.ID_Usuario = ?
+     ORDER BY a.FechaCambio DESC, a.ID_Auditoria DESC
+     LIMIT 1000`,
+    [userId],
   );
   return rows.map((r) => ({
     id: r.id,
-    source: r.source,
+    source: r.source || 'administracion',
+    module: r.module || null,
     action: r.action,
-    details: r.details,
+    outcome: r.outcome || null,
+    details: r.details || null,
+    affectedTable: r.affectedTable || null,
     timestamp: r.timestamp,
   }));
 }
 
 module.exports = {
-  writeAdminLog,
   listAdminLogs,
   listAuditLogs,
   parseAuditActorFromDetails,

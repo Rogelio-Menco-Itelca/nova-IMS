@@ -15,6 +15,7 @@ const { getCsjDashboardMetrics } = require('../db/gestionincidentes/dashboardMet
 const giMedidas = require('../db/gestionincidentes/medidas');
 const comunicacion = require('../db/gestionincidentes/comunicacion');
 const { requireSessionAgency } = require('../utils/requestAgency');
+const { recordAudit } = require('../utils/auditTrail');
 
 function pickCoord(primary, fallback) {
   const p = primary != null && primary !== '' ? Number(primary) : Number.NaN;
@@ -196,6 +197,7 @@ function buildAuditDetails(before, after) {
     ['location', 'Ubicación'],
     ['departmentName', 'Departamento (hecho)'],
     ['municipalityName', 'Municipio (hecho)'],
+    ['comments', 'Comentarios'],
   ];
   const details = [];
   for (const [key, label] of fields) {
@@ -286,6 +288,17 @@ const create = asyncHandler(async (req, res) => {
     actorDisplayName: actorName,
   });
 
+  await recordAudit({
+    req,
+    user: req.user,
+    categoria: 'incidente',
+    modulo: 'Incidentes',
+    tablaAfectada: 'incidentes',
+    accion: 'Creación de incidente',
+    resultado: 'exitoso',
+    detalle: `Incidente ${visibleId} creado`,
+  });
+
   const inc = mapIncidentRow(await giIncidents.getIncident(visibleId));
   inc.operator = actorName;
   socket.emit('incident:created', inc);
@@ -335,18 +348,42 @@ const update = asyncHandler(async (req, res) => {
   const actorName = sessionDisplayName(req.user, 'Sistema');
 
   if (statusChanged || details.length > 0) {
+    const updateAction = resolveUpdateAuditAction(statusChanged, newStatus, details.length);
+    const updateChanges = resolveUpdateAuditChanges(
+      statusChanged,
+      before.status,
+      newStatus,
+      details.length,
+    );
+    const auditDetailList = resolveUpdateAuditDetails(
+      details,
+      statusChanged,
+      before.status,
+      newStatus,
+    );
     await giIncidents.writeAudit(pool, {
       incidentId: id,
       user: req.user,
-      action: resolveUpdateAuditAction(statusChanged, newStatus, details.length),
-      changes: resolveUpdateAuditChanges(
-        statusChanged,
-        before.status,
-        newStatus,
-        details.length,
-      ),
-      details: resolveUpdateAuditDetails(details, statusChanged, before.status, newStatus),
+      action: updateAction,
+      changes: updateChanges,
+      details: auditDetailList,
       actorDisplayName: actorName,
+    });
+
+    const detalleTexto =
+      auditDetailList
+        .map((d) => `${d.field}: ${fmtAuditValue(d.old)} → ${fmtAuditValue(d.new)}`)
+        .join('. ') || updateChanges;
+
+    await recordAudit({
+      req,
+      user: req.user,
+      categoria: 'incidente',
+      modulo: 'Incidentes',
+      tablaAfectada: 'incidentes',
+      accion: `${updateAction} (Incidente ${id})`,
+      resultado: 'exitoso',
+      detalle: detalleTexto,
     });
   }
 
@@ -428,6 +465,18 @@ const sendEmail = asyncHandler(async (req, res) => {
   );
 
   const destinatarios = recipients.join(', ');
+
+  await recordAudit({
+    req,
+    user: req.user,
+    categoria: 'comunicacion',
+    modulo: 'Incidentes',
+    tablaAfectada: 'correosincidentes',
+    accion: `Envío de correo (Incidente ${id})`,
+    resultado: 'exitoso',
+    detalle: `Correo enviado a: ${destinatarios}`,
+  });
+
   res.json({
     ok: true,
     incidentId: id,

@@ -149,6 +149,7 @@
         <table class="w-full text-sm text-left text-gray-300">
           <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
             <tr>
+              <th scope="col" class="px-4 py-3 whitespace-nowrap">Fecha creación</th>
               <th scope="col" class="px-4 py-3">ID</th>
               <th scope="col" class="px-4 py-3">Tipo</th>
               <th scope="col" class="px-4 py-3">
@@ -258,7 +259,7 @@
           <tbody>
             @if (incidentService.isLoading()) {
               <tr class="border-b border-gray-700">
-                <td colspan="6" class="text-center py-8 text-gray-400">Cargando incidentes...</td>
+                <td colspan="7" class="text-center py-8 text-gray-400">Cargando incidentes...</td>
               </tr>
             } @else {
               @for (incident of paginatedDashboardIncidents(); track incident.id) {
@@ -275,10 +276,13 @@
                       : 'hover:bg-gray-700/50')
                   "
                 >
+                  <td class="px-4 py-3 whitespace-nowrap font-medium text-white">
+                    {{ formatCreationDate(incident.timestamp) }}
+                  </td>
                   <td class="px-4 py-3 font-medium text-white whitespace-nowrap">
                     {{ incident.id }}
                   </td>
-                  <td class="px-4 py-3">{{ incident.type }}</td>
+                  <td class="px-4 py-3 font-medium text-white">{{ incident.type }}</td>
                   <td class="px-4 py-3">
                     <span [class]="'font-semibold ' + getPriorityColor(incident.priority)">{{
                       incident.priority
@@ -293,7 +297,7 @@
                       >{{ incident.status }}</span
                     >
                   </td>
-                  <td class="px-4 py-3">{{ incident.operator || '—' }}</td>
+                  <td class="px-4 py-3 font-medium text-white">{{ incident.operator || '—' }}</td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
                       <button
@@ -348,7 +352,7 @@
                 </tr>
               } @empty {
                 <tr class="border-b border-gray-700">
-                  <td colspan="6" class="text-center py-8 text-gray-400">
+                  <td colspan="7" class="text-center py-8 text-gray-400">
                     @if (filterText()) {
                       No hay incidentes activos que coincidan con la búsqueda.
                     } @else {

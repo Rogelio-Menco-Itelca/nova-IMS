@@ -61,6 +61,8 @@ exports.create = asyncHandler(async (req, res) => {
     req.user,
     'Creación de Persona',
     `Se registró a ${person.name} (${person.id})`,
+    req,
+    { tablaAfectada: 'personas' },
   );
   res.status(201).json(person);
 });
@@ -91,6 +93,8 @@ exports.update = asyncHandler(async (req, res) => {
     req.user,
     'Actualización de Persona',
     `Se actualizó información de ID: ${id}`,
+    req,
+    { tablaAfectada: 'personas' },
   );
   res.json(mapPerson(row));
 });
@@ -109,6 +113,8 @@ exports.setStatus = asyncHandler(async (req, res) => {
     req.user,
     action,
     `Persona ${person.name} (${person.id}) → ${person.status}`,
+    req,
+    { tablaAfectada: 'personas' },
   );
   res.json(person);
 });

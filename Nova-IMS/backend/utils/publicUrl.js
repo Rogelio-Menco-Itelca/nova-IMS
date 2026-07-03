@@ -31,6 +31,34 @@ function normalizeBaseUrl(raw) {
     .replace(/\/+$/, '');
 }
 
+/**
+ * Detecta valores de ejemplo/placeholder que NO son un túnel real, para no
+ * enviar enlaces rotos (p. ej. el valor por defecto de .env.example). Si es un
+ * placeholder, se ignora y se cae a auto-detección/localhost + advertencia.
+ */
+function isPlaceholderUrl(url) {
+  const u = String(url || '')
+    .trim()
+    .toLowerCase();
+  if (!u) return true;
+  const patterns = ['tu-tunel', 'su-tunel', 'xxxx', 'ejemplo', 'example', 'cambia'];
+  if (patterns.some((p) => u.includes(p))) return true;
+  try {
+    // Un host sin subdominio real como "https://.ngrok-free.app" tampoco sirve.
+    const { hostname } = new URL(u);
+    if (!hostname || hostname.startsWith('.')) return true;
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+/** Devuelve el NGROK_URL normalizado solo si es un túnel real (no placeholder). */
+function resolveConfiguredNgrokUrl() {
+  const raw = normalizeBaseUrl(process.env.NGROK_URL);
+  return isPlaceholderUrl(raw) ? '' : raw;
+}
+
 let cachedResolvedPublicUrl = null;
 let cachedNgrokDiscovery = { url: null, at: 0 };
 const DISCOVERY_TTL_MS = 15_000;
@@ -100,7 +128,7 @@ async function discoverNgrokPublicUrl() {
 
 async function resolvePublicUrl() {
   const publicUrl = normalizeBaseUrl(process.env.PUBLIC_URL);
-  const ngrokUrl = normalizeBaseUrl(process.env.NGROK_URL);
+  const ngrokUrl = resolveConfiguredNgrokUrl();
 
   if (publicUrl && !isLoopbackUrl(publicUrl)) {
     cachedResolvedPublicUrl = publicUrl;
@@ -132,7 +160,7 @@ async function resolvePublicUrl() {
 function getPublicUrl() {
   if (cachedResolvedPublicUrl) return cachedResolvedPublicUrl;
   const publicUrl = normalizeBaseUrl(process.env.PUBLIC_URL);
-  const ngrokUrl = normalizeBaseUrl(process.env.NGROK_URL);
+  const ngrokUrl = resolveConfiguredNgrokUrl();
   if (publicUrl && !isLoopbackUrl(publicUrl)) return publicUrl;
   if (ngrokUrl) return ngrokUrl;
   if (publicUrl) return publicUrl;

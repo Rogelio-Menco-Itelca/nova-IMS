@@ -39,6 +39,7 @@ import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { PermissionService } from '../../services/permission.service';
+import { AuditClientService } from '../../services/audit-client.service';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import {
   createMapPin,
@@ -141,6 +142,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly auditClient = inject(AuditClientService);
 
   // Tab Management
   openIncidentTabs = signal<Incident[]>([]);
@@ -870,6 +872,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.selectedDashboardIncidentId.set(incident.id);
+    this.auditClient.mapGeolocation('Dashboard', incident.id);
     this.resolveAddressForIncident(incident);
     if (!this.dashboardMap) {
       setTimeout(() => this.selectDashboardIncident(incident), 400);
@@ -1108,6 +1111,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private incidentSortTime(incident: Incident): number {
     const parsed = Date.parse(incident.timestamp || '');
     return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  formatCreationDate(timestamp: string | null | undefined): string {
+    const raw = String(timestamp ?? '').trim();
+    if (!raw) return '—';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return raw;
+    return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
   private sortIncidents(incidents: Incident[]): Incident[] {

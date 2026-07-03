@@ -3,8 +3,38 @@ const router = express.Router();
 const path = require('node:path');
 const socket = require('../realtime/socket');
 const giLocation = require('../db/gestionincidentes/location');
+const giUsers = require('../db/gestionincidentes/users');
 const { reverseGeocode } = require('../services/geocode.service');
+const { recordAudit } = require('../utils/auditTrail');
 const logger = require('../utils/logger');
+
+/**
+ * Audita la RECEPCIÓN de una ubicación rápida. La ruta es pública (el ciudadano
+ * no está autenticado), así que se atribuye al operador que creó la solicitud,
+ * cuyo ID quedó guardado en `ubicacion.ID_usuario`.
+ */
+async function auditLocationReceived(row, { lat, lng, address }) {
+  try {
+    if (!row?.ID_usuario) return;
+    const operator = await giUsers.findUserById(row.ID_usuario, row.ID_Agencia).catch(() => null);
+    const coords = `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+    await recordAudit({
+      actorId: row.ID_usuario,
+      actorName: operator?.name || null,
+      agencyCode: row.ID_Agencia || operator?.agency_code || null,
+      categoria: 'incidente',
+      modulo: 'Incidentes',
+      tablaAfectada: 'ubicacion',
+      accion: 'Recepción de ubicación rápida',
+      resultado: 'exitoso',
+      detalle: `Se recibió la ubicación de ${row.Numero_ubicacion || 'el solicitante'}: ${
+        address || coords
+      }`,
+    });
+  } catch (err) {
+    logger.warn('[LOCATION] Auditoría de recepción:', err.message);
+  }
+}
 
 router.get('/share', (req, res) => {
   res.sendFile(path.join(__dirname, '../views/location-share.html'));
@@ -33,6 +63,9 @@ router.post('/submit', async (req, res) => {
     };
     logger.debug('[LOCATION] Socket location:received', payload);
     socket.get().emit('location:received', payload);
+
+    await auditLocationReceived(row, { lat, lng, address });
+
     res.json({ ok: true, address });
   } catch (err) {
     logger.error('[LOCATION] Error:', err.message);
