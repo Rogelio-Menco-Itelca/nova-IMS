@@ -211,6 +211,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return this.permissionService.canModuleAction('Incidentes', 'create');
   }
 
+  canViewIncident(): boolean {
+    return this.permissionService.canViewIncident();
+  }
+
   leaveConfirmOpen = signal(false);
   /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);

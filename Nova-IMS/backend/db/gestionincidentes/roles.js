@@ -7,12 +7,14 @@ const PERM_SELECT =
 const EMPTY_PERMISSION_ROW = {
   habilitado: 0,
   puede_ver: 0,
+  puede_verIncidente: 0,
   puede_crear: 0,
   puede_editar: 0,
   puede_notificar: 0,
   puede_exportar: 0,
   req_habilitado: 0,
   req_puede_ver: 0,
+  req_puede_verIncidente: 0,
   req_puede_crear: 0,
   req_puede_editar: 0,
   req_puede_notificar: 0,
@@ -23,13 +25,18 @@ function effectiveFlag(actual, required) {
   return !!(actual || required);
 }
 
+/** Ver Incidentes no aplica a los dos últimos módulos (Reportes, Administración). */
+const VIEW_INCIDENT_NA_MODULES = new Set(['Reportes', 'Administración']);
+
 function mapPermissionRowToApi(p) {
+  const viewIncidentNA = VIEW_INCIDENT_NA_MODULES.has(p.module);
   return {
     module: p.module,
     enabled: effectiveFlag(p.habilitado, p.req_habilitado),
     locks: {
       enabled: !!p.req_habilitado,
       view: !!p.req_puede_ver,
+      viewIncident: viewIncidentNA || !!p.req_puede_verIncidente,
       create: !!p.req_puede_crear,
       edit: !!p.req_puede_editar,
       notify: !!p.req_puede_notificar,
@@ -37,6 +44,9 @@ function mapPermissionRowToApi(p) {
     },
     actions: {
       view: effectiveFlag(p.puede_ver, p.req_puede_ver),
+      viewIncident: viewIncidentNA
+        ? false
+        : effectiveFlag(p.puede_verIncidente, p.req_puede_verIncidente),
       create: effectiveFlag(p.puede_crear, p.req_puede_crear),
       edit: effectiveFlag(p.puede_editar, p.req_puede_editar),
       notify: !!p.puede_notificar,
@@ -109,14 +119,15 @@ async function createRole(id, name, agencyCode) {
       const isDashOrInc = m.name === 'Dashboard' || m.name === 'Incidentes';
       await conn.query(
         `INSERT INTO permisos_de_rol
-          (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_crear, puede_editar, puede_notificar, puede_exportar)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+          (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_verIncidente, puede_crear, puede_editar, puede_notificar, puede_exportar)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [
           id,
           normalizeAgencyCode(agencyCode),
           m.id,
           isDashOrInc ? 1 : 0,
           isDashOrInc ? 1 : 0,
+          m.name === 'Incidentes' ? 1 : 0,
           0,
           0,
           0,
@@ -134,9 +145,11 @@ async function createRole(id, name, agencyCode) {
 }
 
 function permissionValues(p) {
+  const viewIncidentNA = VIEW_INCIDENT_NA_MODULES.has(p.module);
   return [
     p.enabled ? 1 : 0,
     p.actions?.view ? 1 : 0,
+    viewIncidentNA ? 0 : p.actions?.viewIncident ? 1 : 0,
     p.actions?.create ? 1 : 0,
     p.actions?.edit ? 1 : 0,
     p.actions?.notify ? 1 : 0,
@@ -164,7 +177,7 @@ async function upsertRolePermission(conn, roleId, agency, modId, permission) {
   if (existing.length) {
     await conn.query(
       `UPDATE permisos_de_rol
-       SET habilitado=?, puede_ver=?, puede_crear=?, puede_editar=?, puede_notificar=?, puede_exportar=?
+       SET habilitado=?, puede_ver=?, puede_verIncidente=?, puede_crear=?, puede_editar=?, puede_notificar=?, puede_exportar=?
        WHERE id_permiso = ?`,
       [...vals, existing[0].id_permiso],
     );
@@ -172,8 +185,8 @@ async function upsertRolePermission(conn, roleId, agency, modId, permission) {
   }
   await conn.query(
     `INSERT INTO permisos_de_rol
-      (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_crear, puede_editar, puede_notificar, puede_exportar)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
+      (id_rol, id_agencia, id_modulo, habilitado, puede_ver, puede_verIncidente, puede_crear, puede_editar, puede_notificar, puede_exportar)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [roleId, agency, modId, ...vals],
   );
 }
@@ -250,6 +263,10 @@ async function checkRolePermission(roleId, agencyCode, moduleName, action = 'vie
   if (!enabled) return false;
 
   if (action === 'view') return effectiveFlag(row.puede_ver, row.req_puede_ver);
+  if (action === 'viewIncident') {
+    if (VIEW_INCIDENT_NA_MODULES.has(moduleName)) return false;
+    return effectiveFlag(row.puede_verIncidente, row.req_puede_verIncidente);
+  }
   if (action === 'create') return effectiveFlag(row.puede_crear, row.req_puede_crear);
   if (action === 'edit') return effectiveFlag(row.puede_editar, row.req_puede_editar);
   if (action === 'notify') return !!(row.puede_notificar || row.req_puede_notificar);

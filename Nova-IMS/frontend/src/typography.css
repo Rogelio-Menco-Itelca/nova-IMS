@@ -23,6 +23,12 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+html:has(.ims-layout),
+html:has(.ims-layout) body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body,
 .theme-light body {
   font-family: var(--ims-font-sans);
@@ -36,6 +42,11 @@ body,
   font-size: var(--ims-fs-body);
   line-height: var(--ims-lh-relaxed);
   font-feature-settings: 'kern' 1, 'liga' 1;
+  overflow: hidden;
+}
+
+.ims-main {
+  min-height: 0;
 }
 
 .ims-layout h1 {

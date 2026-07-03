@@ -1,6 +1,8 @@
-<div class="space-y-6">
+<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <div class="h-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+    <div class="flex flex-col gap-6 pb-1">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+  <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
     <h2 class="text-2xl font-bold text-white">Gestión de Incidentes</h2>
     <button
       type="button"
@@ -42,7 +44,7 @@
 
   <!-- Registration/Details Form Container with Tabs -->
   @if (activeTabId()) {
-    <div class="bg-gray-800 rounded-lg shadow-lg animate-fadeIn">
+    <div class="bg-gray-800 rounded-lg shadow-lg animate-fadeIn shrink-0">
       <!-- Tabs Navigation -->
       <div class="flex border-b border-gray-700">
         @if (showNewIncidentTab()) {
@@ -527,7 +529,7 @@
                   >
                   <div
                     id="map"
-                    class="w-full h-[240px] sm:h-[280px] lg:h-full min-h-[240px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
+                    class="incident-form-map w-full h-[240px] sm:h-[280px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
                   >
                     @if (mapsError(); as mapErr) {
                       <div
@@ -654,7 +656,7 @@
             <!-- Personas Involucradas -->
             <div class="pt-4 mt-4 border-t border-gray-700">
               <div class="flex justify-between items-center mb-3">
-                <h4 class="text-lg font-semibold text-white">Solicitantes</h4>
+                <h4 class="text-lg font-semibold text-white">Solicitante(s)</h4>
                 <button
                   type="button"
                   (click)="addPerson()"
@@ -1444,7 +1446,7 @@
   }
 
   <!-- Filters and Incident List -->
-  <div class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col">
+  <div class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col shrink-0">
     <div class="p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
       <label for="incident-list-search" class="sr-only">Buscar incidentes</label>
       <input
@@ -1505,8 +1507,10 @@
                   <button
                     type="button"
                     (click)="openIncidentTab(incident)"
+                    [disabled]="!canViewIncident()"
+                    [title]="canViewIncident() ? '' : 'Sin permiso para ver incidentes'"
                     aria-label="Ver incidente"
-                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-500/10"
                   >
                     <svg
                       class="h-3.5 w-3.5"
@@ -1603,6 +1607,8 @@
         </div>
       </nav>
     }
+  </div>
+    </div>
   </div>
 </div>
 

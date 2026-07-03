@@ -767,8 +767,21 @@ export class AdminComponent implements OnInit {
     return PERMISSION_MODULE_HINTS[module] ?? '';
   }
 
+  isViewIncidentNA(module: string): boolean {
+    return module === 'Reportes' || module === 'Administración';
+  }
+
   isLockedAction(perm: RolePermission['permissions'][number], action: string): boolean {
+    if (action === 'viewIncident' && this.isViewIncidentNA(perm.module)) {
+      return true;
+    }
     return !!(perm.locks as Record<string, boolean> | undefined)?.[action];
+  }
+
+  viewIncidentLockTitle(perm: RolePermission['permissions'][number]): string {
+    return this.isViewIncidentNA(perm.module)
+      ? 'No aplica para este módulo'
+      : 'Permiso obligatorio del rol protegido';
   }
 
   enabledModulesCount(role: { permissions: { enabled: boolean }[] }): number {
@@ -1427,7 +1440,7 @@ export class AdminComponent implements OnInit {
   togglePermission(
     roleId: string,
     moduleIndex: number,
-    action: 'view' | 'create' | 'edit' | 'notify' | 'export' | 'enabled',
+    action: 'view' | 'viewIncident' | 'create' | 'edit' | 'notify' | 'export' | 'enabled',
   ): void {
     const draft = this.permissionsDraft();
     const perm = draft[moduleIndex];

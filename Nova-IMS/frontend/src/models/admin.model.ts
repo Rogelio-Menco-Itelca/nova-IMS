@@ -90,6 +90,7 @@ export interface RolePermission {
     locks?: {
       enabled: boolean;
       view: boolean;
+      viewIncident: boolean;
       create: boolean;
       edit: boolean;
       notify: boolean;
@@ -97,6 +98,7 @@ export interface RolePermission {
     };
     actions: {
       view: boolean;
+      viewIncident: boolean;
       create: boolean;
       edit: boolean;
       notify: boolean;

@@ -1,4 +1,22 @@
 /* For the details modal animation */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.incident-form-map {
+  contain: layout paint style;
+  isolation: isolate;
+}
+
+.incident-form-map > div {
+  max-height: 100% !important;
+}
+
 .modal-backdrop {
   animation: fadeIn 0.3s ease-out forwards;
 }

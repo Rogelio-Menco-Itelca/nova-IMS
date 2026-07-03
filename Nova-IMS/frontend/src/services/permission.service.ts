@@ -2,13 +2,14 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
-export type PermissionAction = 'view' | 'create' | 'edit' | 'notify' | 'export';
+export type PermissionAction = 'view' | 'viewIncident' | 'create' | 'edit' | 'notify' | 'export';
 
 export interface ModulePermission {
   module: string;
   enabled: boolean;
   actions: {
     view: boolean;
+    viewIncident: boolean;
     create: boolean;
     edit: boolean;
     notify: boolean;
@@ -57,5 +58,10 @@ export class PermissionService {
   canExport(): boolean {
     if (!this.loaded()) return true;
     return this.canModuleAction('Reportes', 'export');
+  }
+
+  canViewIncident(): boolean {
+    if (!this.loaded()) return true;
+    return this.canModuleAction('Incidentes', 'viewIncident');
   }
 }

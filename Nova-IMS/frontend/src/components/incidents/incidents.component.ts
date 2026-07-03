@@ -157,6 +157,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.permissionService.canNotify();
   }
 
+  canViewIncident(): boolean {
+    return this.permissionService.canViewIncident();
+  }
+
   canCreate(): boolean {
     return this.permissionService.canModuleAction('Incidentes', 'create');
   }
@@ -1453,6 +1457,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   viewIncident(incident: Incident): void {
+    if (!this.canViewIncident()) return;
     this.incidentService.requestOpenIncident(incident.id);
     this.authService.currentView.set('incidents');
   }

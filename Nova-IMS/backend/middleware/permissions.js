@@ -24,6 +24,7 @@ function requirePermission(moduleName, action = 'view') {
 
 module.exports = {
   view: (moduleName) => requirePermission(moduleName, 'view'),
+  viewIncident: (moduleName) => requirePermission(moduleName, 'viewIncident'),
   create: (moduleName) => requirePermission(moduleName, 'create'),
   edit: (moduleName) => requirePermission(moduleName, 'edit'),
   notify: (moduleName) => requirePermission(moduleName, 'notify'),
