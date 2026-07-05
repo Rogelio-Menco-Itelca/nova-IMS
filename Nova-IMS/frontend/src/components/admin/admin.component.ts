@@ -25,8 +25,6 @@ import {
   IncidentType,
   ResponseProtocol,
   RolePermission,
-  UserAuditSummary,
-  UserAuditAction,
 } from '../../models/admin.model';
 import { ConfigurationService, NotificationEmailEntry } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
@@ -919,14 +917,14 @@ export class AdminComponent implements OnInit {
     if (value.includes(' ')) return value;
 
     const current = this.authService.currentUser();
-    if (current?.name && current.id && current.id.toLowerCase() === value.toLowerCase()) {
+    if (current?.id?.toLowerCase() === value.toLowerCase() && current?.name) {
       return current.name;
     }
 
     const operator = this.operators().find(
       (o) =>
         o.id.toLowerCase() === value.toLowerCase() ||
-        (o.username && o.username.toLowerCase() === value.toLowerCase()),
+        o.username?.toLowerCase() === value.toLowerCase(),
     );
     if (operator?.name) return operator.name;
 
@@ -974,7 +972,7 @@ export class AdminComponent implements OnInit {
     return String(name ?? '')
       .trim()
       .toLowerCase()
-      .replace(/\b[\p{L}]/gu, (char) => char.toUpperCase());
+      .replace(/\b\p{L}/gu, (char) => char.toUpperCase());
   }
 
   incidentFullAddress(incident: Incident): string {
@@ -1523,12 +1521,13 @@ export class AdminComponent implements OnInit {
         if (action === 'enabled') {
           return { ...p, enabled: !p.enabled, actions: { ...p.actions }, locks: p.locks };
         }
+        const nextAction = action as 'view' | 'create' | 'edit' | 'delete' | 'notify';
         return {
           ...p,
           locks: p.locks,
           actions: {
             ...p.actions,
-            [action]: !p.actions[action as keyof typeof p.actions],
+            [nextAction]: !p.actions[nextAction],
           },
         };
       });

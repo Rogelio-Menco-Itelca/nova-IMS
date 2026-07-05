@@ -7,6 +7,8 @@ import {
   latestIncidentNoteText,
   buildCommentHistoryView,
   enrichCommentAuthors,
+  countReiteracionNotes,
+  isReiteracionNoteText,
 } from './incident-notes';
 
 describe('parseIncidentNotes', () => {
@@ -155,5 +157,24 @@ describe('buildCommentHistoryView', () => {
     expect(view[0].author).toBe('Descripción inicial');
     expect(view[0].text).toBe('Descripción antigua');
     expect(view[1].text).toBe('Comentario nuevo');
+  });
+});
+
+describe('countReiteracionNotes', () => {
+  const reiterText =
+    'Han transcurrido 4 días desde el envío a CERREM sin respuesta de UNP/Policía sobre la evaluación de medidas. Se reitera la solicitud.';
+
+  it('cuenta comentarios con la marca de reiteración', () => {
+    const raw = [
+      `[7/05/2026, 15:30:00] Rogelio\n${reiterText}`,
+      `[7/05/2026, 15:37:00] Rogelio\n${reiterText.replace('4', '8')}`,
+      `[7/05/2026, 15:40:00] Rogelio\nComentario normal sin reiterar`,
+    ].join(INCIDENT_NOTE_SEPARATOR);
+    expect(countReiteracionNotes(raw)).toBe(2);
+  });
+
+  it('isReiteracionNoteText detecta la plantilla', () => {
+    expect(isReiteracionNoteText(reiterText)).toBe(true);
+    expect(isReiteracionNoteText('Solo seguimiento')).toBe(false);
   });
 });

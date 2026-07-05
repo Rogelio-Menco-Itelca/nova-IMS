@@ -4,7 +4,8 @@ const router = express.Router();
 const { pool } = require('../config/db');
 const { authRequired } = require('../middleware/auth');
 const auditMiddleware = require('../middleware/auditMiddleware');
-const { recordAudit } = require('../utils/auditTrail');
+const { recordAudit, formatAuditDetailsText } = require('../utils/auditTrail');
+const { isRiesgoOrdinario } = require('../db/gestionincidentes/riesgoNivel');
 const perm = require('../middleware/permissions');
 const { getAllowedNextStates } = require('../db/gestionincidentes/transitions');
 const { mapStatusToGi } = require('../db/gestionincidentes/maps');
@@ -217,7 +218,7 @@ router.post('/incidents/:id/gestion', async (req, res, next) => {
         tablaAfectada: 'gestion_medidas',
         accion: `Gestión OSEG/CERREM (Incidente ${visibleId})`,
         resultado: 'exitoso',
-        detalle: auditDetails.join('. '),
+        detalle: formatAuditDetailsText(auditDetails),
       });
     } else {
       req.skipAutoAudit = true;
@@ -251,7 +252,6 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
         error: { message: 'Seleccione al menos una medida de seguridad.' },
       });
     }
-    const { isRiesgoOrdinario } = require('../db/gestionincidentes/riesgoNivel');
     if (isRiesgoOrdinario(gestion)) {
       return res.status(409).json({
         error: {
@@ -261,9 +261,18 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
       });
     }
     const beforeMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
-    await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user);
+    const beforeMeta = { ...gestion };
+    await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user, {
+      tipo_esquema: req.body.tipo_esquema,
+      compartido_con: req.body.compartido_con,
+      observaciones: req.body.observaciones,
+    });
+    const afterGestion = await medidas.getGestionByIncidente(visibleId);
     const afterMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
-    const auditDetails = medidas.buildMedidasAuditDetails(beforeMedidas, afterMedidas);
+    const auditDetails = [
+      ...medidas.buildMedidasAuditDetails(beforeMedidas, afterMedidas),
+      ...medidas.buildMedidasMetaAuditDetails(beforeMeta, afterGestion),
+    ];
     if (auditDetails.length) {
       await writeIncidentAudit(visibleId, req.user, {
         action: 'Medidas de seguridad',
@@ -278,7 +287,7 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
         tablaAfectada: 'incidente_medidas',
         accion: `Medidas de seguridad (Incidente ${visibleId})`,
         resultado: 'exitoso',
-        detalle: auditDetails.join('. '),
+        detalle: formatAuditDetailsText(auditDetails),
       });
     } else {
       req.skipAutoAudit = true;

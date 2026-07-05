@@ -112,6 +112,7 @@ async function getTiposMedida(agency) {
     `SELECT ID_tipo_medida AS id, Nombre_medida AS nombre, Descripcion AS descripcion
      FROM tipos_medida_seguridad
      WHERE ID_Agencia = ? AND Activo = 1
+       AND Nombre_medida NOT LIKE '%Esquema de protecci%'
      ORDER BY ID_tipo_medida`,
     [agency],
   );
@@ -153,6 +154,16 @@ async function getMedidasByGestion(idGestion) {
     [idGestion],
   );
   return rows;
+}
+
+async function syncIncidentTramiteFields(incidenteId, codigoOficio, tramiteDestino) {
+  await pool.query(
+    `UPDATE incidentes SET
+       codigo_oficio_tramite = COALESCE(?, codigo_oficio_tramite),
+       destino = COALESCE(?, destino)
+     WHERE ID_incidente = ?`,
+    [codigoOficio, tramiteDestino, incidenteId],
+  );
 }
 
 async function upsertGestion(visibleId, body, user) {
@@ -231,13 +242,7 @@ async function upsertGestion(visibleId, body, user) {
         prev.ID_gestion,
       ],
     );
-    await pool.query(
-      `UPDATE incidentes SET
-         codigo_oficio_tramite = COALESCE(?, codigo_oficio_tramite),
-         destino = COALESCE(?, destino)
-       WHERE ID_incidente = ?`,
-      [codigoOficio, tramiteDestino, incidenteId],
-    );
+    await syncIncidentTramiteFields(incidenteId, codigoOficio, tramiteDestino);
     return prev.ID_gestion;
   }
 
@@ -266,17 +271,11 @@ async function upsertGestion(visibleId, body, user) {
       userId,
     ],
   );
-  await pool.query(
-    `UPDATE incidentes SET
-       codigo_oficio_tramite = COALESCE(?, codigo_oficio_tramite),
-       destino = COALESCE(?, destino)
-     WHERE ID_incidente = ?`,
-    [codigoOficio, tramiteDestino, incidenteId],
-  );
+  await syncIncidentTramiteFields(incidenteId, codigoOficio, tramiteDestino);
   return result.insertId;
 }
 
-async function asignarMedidas(idGestion, medidas, user) {
+async function asignarMedidas(idGestion, medidas, user, meta = {}) {
   const agency = user?.agency_code || user?.agency;
   const userId = user?.sub;
 
@@ -304,6 +303,34 @@ async function asignarMedidas(idGestion, medidas, user) {
         userId,
         agency,
       ],
+    );
+  }
+
+  if (
+    meta.tipo_esquema !== undefined ||
+    meta.compartido_con !== undefined ||
+    meta.observaciones !== undefined
+  ) {
+    const [metaRows] = await pool.query(
+      `SELECT tipo_esquema, compartido_con, observaciones
+       FROM gestion_medidas WHERE ID_gestion = ?`,
+      [idGestion],
+    );
+    const prev = metaRows[0] || {};
+    const tipoEsquema =
+      meta.tipo_esquema !== undefined ? nullIfEmpty(meta.tipo_esquema) : prev.tipo_esquema ?? null;
+    const compartidoCon =
+      meta.compartido_con !== undefined
+        ? nullIfEmpty(meta.compartido_con)
+        : prev.compartido_con ?? null;
+    const observaciones =
+      meta.observaciones !== undefined ? nullIfEmpty(meta.observaciones) : prev.observaciones ?? null;
+
+    await pool.query(
+      `UPDATE gestion_medidas SET
+         tipo_esquema = ?, compartido_con = ?, observaciones = ?
+       WHERE ID_gestion = ?`,
+      [tipoEsquema, compartidoCon, observaciones, idGestion],
     );
   }
 }
@@ -375,17 +402,31 @@ function buildMedidasAuditDetails(beforeList, afterList) {
   return details;
 }
 
+function buildMedidasMetaAuditDetails(before, after) {
+  const fields = [
+    ['tipo_esquema', 'Tipo de esquema'],
+    ['compartido_con', 'Compartido con'],
+    ['observaciones', 'Observaciones'],
+  ];
+  const details = [];
+  for (const [key, label] of fields) {
+    const oldVal = normalizeGestionAuditValue(key, before?.[key]);
+    const newVal = normalizeGestionAuditValue(key, after?.[key]);
+    if (oldVal !== newVal) {
+      details.push({ field: label, old: oldVal, new: newVal });
+    }
+  }
+  return details;
+}
+
 function buildGestionAuditDetails(before, after) {
   const fields = [
     ['tramite_destino', 'Trámite / destino (OSEG)'],
     ['codigo_oficio', 'Código de oficio'],
     ['resolucion_cerrem', 'Resolución CERREM'],
     ['nivel_riesgo', 'Nivel de riesgo'],
-    ['tipo_esquema', 'Tipo de esquema'],
     ['fecha_cerrem', 'Fecha CERREM'],
     ['fecha_resolucion', 'Fecha resolución'],
-    ['compartido_con', 'Compartido con'],
-    ['observaciones', 'Observaciones (CERREM)'],
   ];
   const details = [];
   for (const [key, label] of fields) {
@@ -409,5 +450,6 @@ module.exports = {
   validateGestionForStatus,
   formatCodigoOficio,
   buildMedidasAuditDetails,
+  buildMedidasMetaAuditDetails,
   buildGestionAuditDetails,
 };

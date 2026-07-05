@@ -9,18 +9,24 @@ const TRANSITIONS = {
     requiresMedidas: false,
   },
   'En gestión OSEG': {
-    next: ['Enviado a CERREM', 'Cerrado', 'Cancelado'],
+    next: ['En evaluación CERREM', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
     requiredFields: ['codigo_oficio'],
   },
+  /** Legacy: casos históricos; ya no se ofrece en el selector CSJ. */
   'Enviado a CERREM': {
-    next: ['En evaluación CERREM', 'Cerrado', 'Cancelado'],
+    next: ['En evaluación CERREM', 'Medidas asignadas', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
   },
   'En evaluación CERREM': {
-    next: ['Medidas asignadas', 'Cerrado'],
+    next: ['Reiteraciones', 'Medidas asignadas', 'Cerrado'],
     requiresMedidas: false,
     requiredFields: ['resolucion_cerrem', 'ID_riesgo'],
+  },
+  Reiteraciones: {
+    next: ['Reiteraciones', 'Medidas asignadas'],
+    requiresMedidas: false,
+    requiresComment: true,
   },
   'Medidas asignadas': {
     next: ['Cerrado'],
@@ -42,8 +48,9 @@ const TRANSITIONS = {
 const WORKFLOW_RANK_CSJ = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 3,
-  'En evaluación CERREM': 4,
+  'Enviado a CERREM': 2,
+  'En evaluación CERREM': 3,
+  Reiteraciones: 4,
   'Medidas asignadas': 5,
   Cerrado: 6,
   Cancelado: 6,
@@ -121,6 +128,10 @@ function getRequiredFields(toStatus) {
   return TRANSITIONS[toStatus]?.requiredFields ?? [];
 }
 
+function requiresComment(status) {
+  return TRANSITIONS[status]?.requiresComment ?? false;
+}
+
 module.exports = {
   TRANSITIONS,
   WORKFLOW_RANK_CSJ,
@@ -133,4 +144,5 @@ module.exports = {
   requiresMedidas,
   isFinalState,
   getRequiredFields,
+  requiresComment,
 };

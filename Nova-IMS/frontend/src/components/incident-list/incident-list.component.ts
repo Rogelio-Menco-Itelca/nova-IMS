@@ -10,6 +10,8 @@ import {
   effect,
   untracked,
   NgZone,
+  ViewChild,
+  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
@@ -52,6 +54,7 @@ import {
   requiresMedidasBeforeClose,
   getCsjStatusDisabledReason,
   statusOptionLabel,
+  isCsjLegacyEnviadoCerremStatus,
   type GestionSnapshot,
 } from '../../utils/medidas-permissions';
 import { Subscription, of, firstValueFrom } from 'rxjs';
@@ -93,7 +96,10 @@ import {
   noteAuthorInitials,
   enrichCommentAuthors,
   resolveHistoryAuthor,
+  countReiteracionNotes,
+  parseDmyDateTime,
 } from '../../utils/incident-notes';
+import { daysSinceCerremEnvio } from '../../utils/cerrem-follow-up';
 import { AuditLog } from '../../models/admin.model';
 
 const priorityOrder: Record<IncidentPriority, number> = {
@@ -108,7 +114,8 @@ const statusOrder: Record<IncidentStatus, number> = {
   'En gestión OSEG': 11,
   'Enviado a CERREM': 9,
   'En evaluación CERREM': 8,
-  'Medidas asignadas': 7,
+  Reiteraciones: 7,
+  'Medidas asignadas': 6,
   Asignado: 6,
   'En camino': 5,
   'En proceso': 4,
@@ -126,6 +133,9 @@ const statusOrder: Record<IncidentStatus, number> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IncidentListComponent implements OnInit, OnDestroy {
+  @ViewChild(MedidasComponent) medidasPanel?: MedidasComponent;
+  @ViewChild('reiteracionPanel') reiteracionPanelRef?: ElementRef<HTMLElement>;
+
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
   /** Placa opcional en BD; si se escribe, debe cumplir el formato. */
@@ -207,6 +217,13 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   isProtocolVisible = signal(true);
   newIncidentFormState = signal<Partial<Incident> | null>(null);
   readonly MAX_TABS = 5;
+  /** Mensajes inline cuando un catálogo queda vacío tras cargar (sin referencias técnicas). */
+  readonly catalogEmptyHints = {
+    statuses: 'No hay estados disponibles para su agencia. Contacte al administrador del sistema.',
+    origins: 'No hay orígenes disponibles para su agencia. Contacte al administrador del sistema.',
+    municipalities:
+      'No hay municipios disponibles para este departamento. Contacte al administrador del sistema.',
+  } as const;
 
   emailModalIncident = signal<Incident | null>(null);
 
@@ -223,9 +240,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   leaveConfirmOpen = signal(false);
+  /** Borrador sin guardar en pestaña Medidas (OSEG / CERREM / medidas). */
+  medidasPendingChanges = signal(false);
   /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);
   updateConfirmOpen = signal(false);
+  reiterarModalOpen = signal(false);
   private pendingLeaveAction: (() => void) | null = null;
   private leaveAfterSave = false;
   commentsHistory = signal<IncidentNoteEntry[]>([]);
@@ -262,7 +282,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   documentTypes = signal<DocumentTypeOption[]>([]);
   placeRoles = signal<CatalogOption[]>([]);
   origins = signal<CatalogOption[]>([]);
+  originsLoaded = signal(false);
   incidentStatuses = signal<CatalogOption[]>([]);
+  incidentStatusesLoaded = signal(false);
   allowedStatuses = signal<string[]>([]);
   workflowGestion = signal<GestionSnapshot | null>(null);
   currentIncidentUiStatus = signal('');
@@ -271,6 +293,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   departments = signal<ColombiaDepartment[]>([]);
   /** Municipios del Ubicación del Incidente(según departamento del incidente). */
   incidentMunicipalities = signal<ColombiaMunicipality[]>([]);
+  incidentMunicipalitiesLoaded = signal(false);
+  /** Municipios cargados por fila de lugar involucrado (índice → listo). */
+  placeMunicipalitiesLoaded = signal<Map<number, boolean>>(new Map());
   vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
   sortColumn = signal<'priority' | 'status' | 'default'>('default');
   sortDirection = signal<'asc' | 'desc'>('desc');
@@ -348,7 +373,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.destroyMap();
         this.detailTab.set('detalle');
 
-        const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+        const agency = this.sessionAgency();
+        this.loadOrigins(agency);
 
         if (tabId === 'new') {
           this.setupStatusDropdownForNew(agency);
@@ -374,6 +400,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             this.setupStatusDropdownForEdit(agency, incident.status);
             this.populateFormWithState(incident);
             this.refreshWorkflowGestion(incident.id);
+            if (shouldNavigateToMedidasTab(String(incident.status ?? ''))) {
+              this.applyDetailTab('medidas');
+            }
             setTimeout(() => this.initMap(incident.lat, incident.lng), 0);
           }
         }
@@ -990,11 +1019,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (value.includes(' ')) return value;
 
     const current = this.authService.currentUser();
-    if (
-      current?.name &&
-      current.id &&
-      current.id.toLowerCase() === value.toLowerCase()
-    ) {
+    if (current?.id?.toLowerCase() === value.toLowerCase() && current?.name) {
       return current.name;
     }
 
@@ -1003,7 +1028,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       .find(
         (o) =>
           o.id.toLowerCase() === value.toLowerCase() ||
-          (o.username && o.username.toLowerCase() === value.toLowerCase()),
+          o.username?.toLowerCase() === value.toLowerCase(),
       );
     if (operator?.name) return operator.name;
 
@@ -1073,6 +1098,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   readonly displayCommentBody = displayCommentBody;
 
+  private static readonly MERIDIEM_RE = /(a\.\s*m\.|p\.\s*m\.|am|pm)/i;
+
+  private parseTimelineMeridiem(raw: string): 'am' | 'pm' | null {
+    const match = IncidentListComponent.MERIDIEM_RE.exec(raw);
+    if (!match) return null;
+    return match[0].toLowerCase().includes('p') ? 'pm' : 'am';
+  }
+
   private parseTimelineDate(raw: string): Date | null {
     const value = String(raw ?? '').trim();
     if (!value) return null;
@@ -1080,24 +1113,23 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const direct = Date.parse(value);
     if (!Number.isNaN(direct)) return new Date(direct);
 
-    const match =
-      /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(a\.\s*m\.|p\.\s*m\.|am|pm))?/i.exec(
-        value,
-      );
-    if (!match) return null;
+    const parsed = parseDmyDateTime(value);
+    if (!parsed) return null;
 
-    let hour = Number(match[4]);
-    const minute = Number(match[5]);
-    const second = Number(match[6] ?? 0);
-    const meridiem = String(match[7] ?? '').toLowerCase();
-    if (meridiem.includes('p') && hour < 12) hour += 12;
-    if (meridiem.includes('a') && hour === 12) hour = 0;
+    const meridiem = this.parseTimelineMeridiem(value);
+    if (!meridiem) return parsed;
 
-    let year = Number(match[3]);
-    if (year < 100) year += 2000;
-
-    const d = new Date(year, Number(match[2]) - 1, Number(match[1]), hour, minute, second);
-    return Number.isNaN(d.getTime()) ? null : d;
+    let hour = parsed.getHours();
+    if (meridiem === 'pm' && hour < 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+    return new Date(
+      parsed.getFullYear(),
+      parsed.getMonth(),
+      parsed.getDate(),
+      hour,
+      parsed.getMinutes(),
+      parsed.getSeconds(),
+    );
   }
 
   formatLogTime(timestamp: string): string {
@@ -1136,9 +1168,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.incidentForm.patchValue({ municipalityId: null }, { emitEvent: false });
     if (!deptId) {
       this.incidentMunicipalities.set([]);
+      this.incidentMunicipalitiesLoaded.set(false);
       this.cdr.markForCheck();
       return;
     }
+    this.incidentMunicipalitiesLoaded.set(false);
     try {
       const list = await firstValueFrom(this.colombiaGeo.getMunicipalities(deptId));
       this.incidentMunicipalities.set(list);
@@ -1146,9 +1180,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.incidentMunicipalities.set([]);
       this.notificationService.addNotification(
         'Municipios no disponibles',
-        'No se pudo cargar la lista de municipios. Seleccione el departamento de nuevo.',
+        'No se pudo cargar la lista de municipios. Intente seleccionar el departamento de nuevo.',
       );
     }
+    this.incidentMunicipalitiesLoaded.set(true);
     this.cdr.markForCheck();
   }
 
@@ -1159,17 +1194,21 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const deptId = Number(departmentId);
     if (!deptId) {
       this.incidentMunicipalities.set([]);
+      this.incidentMunicipalitiesLoaded.set(false);
       return;
     }
+    this.incidentMunicipalitiesLoaded.set(false);
     try {
       const list = await firstValueFrom(this.colombiaGeo.getMunicipalities(deptId));
       this.incidentMunicipalities.set(list);
       if (municipalityId != null) {
         this.incidentForm.patchValue({ municipalityId }, { emitEvent: false });
       }
+      this.incidentMunicipalitiesLoaded.set(true);
       this.cdr.markForCheck();
     } catch {
       this.incidentMunicipalities.set([]);
+      this.incidentMunicipalitiesLoaded.set(true);
     }
   }
 
@@ -1462,15 +1501,30 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadIncidentCatalogs(): void {
-    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+  private sessionAgency(): string {
+    const code = String(this.authService.currentUser()?.agency ?? '').trim();
+    return code || 'CSJ';
+  }
+
+  private loadOrigins(agency: string): void {
+    this.originsLoaded.set(false);
     this.http.get<CatalogOption[]>('/api/origins', { params: { agency } }).subscribe({
       next: (rows) => {
-        this.origins.set(rows);
+        this.origins.set(Array.isArray(rows) ? rows : []);
+        this.originsLoaded.set(true);
         this.cdr.markForCheck();
       },
-      error: () => this.origins.set([]),
+      error: () => {
+        this.origins.set([]);
+        this.originsLoaded.set(true);
+        this.cdr.markForCheck();
+      },
     });
+  }
+
+  private loadIncidentCatalogs(): void {
+    const agency = this.sessionAgency();
+    this.loadOrigins(agency);
     this.loadAllIncidentStatuses(agency);
   }
 
@@ -1482,12 +1536,21 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.statusNameForForm(String(this.activeIncident()?.status ?? '').trim());
     if (name === effectiveCurrent) return true;
 
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    if (
+      isCsjMedidasWorkflow(agency) &&
+      isCsjLegacyEnviadoCerremStatus(name) &&
+      name !== effectiveCurrent &&
+      catalogStatusToUiStatus(name) !== catalogStatusToUiStatus(effectiveCurrent)
+    ) {
+      return false;
+    }
+
     // Incidente ya creado: solo estados hacia adelante en el flujo (nunca retroceder).
     if (this.activeTabId() !== 'new') {
       const savedStatusUi = catalogStatusToUiStatus(
         String(this.activeIncident()?.status ?? '').trim(),
       );
-      const agency = this.authService.currentUser()?.agency ?? 'CSJ';
       if (!isForwardStatusTransition(savedStatusUi, name, agency)) {
         return false;
       }
@@ -1512,6 +1575,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(catalogName: string): string {
+    if (isCsjLegacyEnviadoCerremStatus(catalogName)) {
+      return 'En evaluación CERREM';
+    }
     return catalogStatusToUiStatus(catalogName);
   }
 
@@ -1531,7 +1597,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.statusNameForForm(String(this.activeIncident()?.status ?? '').trim());
     if (name === effectiveCurrent) return false;
 
-    return !this.isStatusAllowed(name);
+    if (this.isStatusAllowed(name)) return false;
+    return true;
   }
 
   statusOptionLabel(catalogName: string): string {
@@ -1560,13 +1627,19 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private loadAllIncidentStatuses(agency: string, afterLoad?: () => void): void {
+    this.incidentStatusesLoaded.set(false);
     this.http.get<CatalogOption[]>('/api/incident-statuses', { params: { agency } }).subscribe({
       next: (rows) => {
-        this.incidentStatuses.set(rows);
+        this.incidentStatuses.set(Array.isArray(rows) ? rows : []);
+        this.incidentStatusesLoaded.set(true);
         afterLoad?.();
         this.cdr.markForCheck();
       },
-      error: () => this.incidentStatuses.set([]),
+      error: () => {
+        this.incidentStatuses.set([]);
+        this.incidentStatusesLoaded.set(true);
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -1689,6 +1762,18 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return this.placeMunicipalities().get(index) ?? [];
   }
 
+  placeMunicipalitiesReady(index: number): boolean {
+    return this.placeMunicipalitiesLoaded().get(index) ?? false;
+  }
+
+  private setPlaceMunicipalitiesLoaded(index: number, loaded: boolean): void {
+    this.placeMunicipalitiesLoaded.update((map) => {
+      const next = new Map(map);
+      next.set(index, loaded);
+      return next;
+    });
+  }
+
   private detachPlaceDepartmentWatchers(): void {
     for (const sub of this.placeDeptSubs) sub.unsubscribe();
     this.placeDeptSubs = [];
@@ -1719,8 +1804,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     group.patchValue({ municipalityId: null }, { emitEvent: false });
     if (!deptId) {
       this.setPlaceMunicipalities(index, []);
+      this.setPlaceMunicipalitiesLoaded(index, false);
       return;
     }
+    this.setPlaceMunicipalitiesLoaded(index, false);
     try {
       const rows = await firstValueFrom(this.colombiaGeo.getMunicipalities(deptId));
       this.setPlaceMunicipalities(index, rows);
@@ -1728,9 +1815,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.setPlaceMunicipalities(index, []);
       this.notificationService.addNotification(
         'Municipios no disponibles',
-        'No se pudo cargar la lista de municipios. Seleccione el departamento de nuevo.',
+        'No se pudo cargar la lista de municipios. Intente seleccionar el departamento de nuevo.',
       );
     }
+    this.setPlaceMunicipalitiesLoaded(index, true);
   }
 
   private setPlaceMunicipalities(index: number, rows: ColombiaMunicipality[]): void {
@@ -1749,6 +1837,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   ): Promise<void> {
     const deptId = Number(departmentId);
     if (!deptId) return;
+    this.setPlaceMunicipalitiesLoaded(index, false);
     try {
       const rows = await firstValueFrom(this.colombiaGeo.getMunicipalities(deptId));
       this.setPlaceMunicipalities(index, rows);
@@ -1758,8 +1847,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           group.patchValue({ municipalityId }, { emitEvent: false });
         }
       }
+      this.setPlaceMunicipalitiesLoaded(index, true);
     } catch {
       this.setPlaceMunicipalities(index, []);
+      this.setPlaceMunicipalitiesLoaded(index, true);
     }
   }
 
@@ -2030,30 +2121,42 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.statusSub = ctrl.valueChanges.subscribe((statusValue) => {
       const name = String(statusValue ?? '').trim();
 
-      if (!this.isStatusAllowed(name)) {
-        ctrl.setValue(this.lastValidStatus, { emitEvent: false });
-        const reason = this.statusDisabledReason(name);
-        this.notificationService.addNotification(
-          'Estado no permitido',
-          reason ||
-            'Ese cambio de estado no está permitido en el flujo actual del incidente.',
-        );
-        this.cdr.markForCheck();
+      if (this.isStatusAllowed(name)) {
+        this.lastValidStatus = name;
+        if (!this.skipStatusNav && this.activeTabId() !== 'new') {
+          this.navigateForWorkflowStatus(name);
+        }
         return;
       }
 
-      this.lastValidStatus = name;
+      ctrl.setValue(this.lastValidStatus, { emitEvent: false });
+      const reason = this.statusDisabledReason(name);
+      this.notificationService.addNotification(
+        'Estado no permitido',
+        reason ||
+          'Ese cambio de estado no está permitido en el flujo actual del incidente.',
+      );
+      this.cdr.markForCheck();
+    });
+  }
 
-      if (this.skipStatusNav || this.activeTabId() === 'new') return;
-      const uiStatus = catalogStatusToUiStatus(name);
-      if (!shouldNavigateToMedidasTab(uiStatus)) return;
-      this.detailTab.set('medidas');
-      const hint = medidasTabHint(uiStatus);
+  /** Abre Medidas o el panel de reiteración según el estado elegido en el selector. */
+  private navigateForWorkflowStatus(catalogStatusName: string): void {
+    const uiStatus = catalogStatusToUiStatus(catalogStatusName);
+    if (uiStatus === 'Reiteraciones') {
+      this.applyDetailTab('detalle');
+      this.scrollToReiteracionPanel();
+      this.cdr.markForCheck();
+      return;
+    }
+    if (shouldNavigateToMedidasTab(catalogStatusName)) {
+      this.applyDetailTab('medidas');
+      const hint = medidasTabHint(uiStatus, this.workflowGestion());
       if (hint) {
         this.notificationService.addNotification('Pestaña Medidas', hint);
       }
       this.cdr.markForCheck();
-    });
+    }
   }
 
   currentAgency(): string {
@@ -2062,6 +2165,187 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   showMedidasTab(): boolean {
     return isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new';
+  }
+
+  /** Panel de seguimiento/reiteración en Detalle (estado seleccionado o ya guardado). */
+  showReiteracionPanel(): boolean {
+    if (isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new') {
+      const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
+      const selected = catalogStatusToUiStatus(
+        String(this.incidentForm.get('status')?.value ?? '').trim(),
+      );
+      return saved === 'Reiteraciones' || selected === 'Reiteraciones';
+    }
+    return false;
+  }
+
+  private scrollToReiteracionPanel(): void {
+    setTimeout(() => {
+      this.reiteracionPanelRef?.nativeElement?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }, 80);
+  }
+
+  commentFieldPlaceholder(): string {
+    if (this.activeTabId() === 'new') {
+      return 'Descripción del incidente, hechos reportados, notas...';
+    }
+    return 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...';
+  }
+
+  // ── Mejoras UX «Reiteraciones» ──
+
+  /** Puede abrir el modal de reiteración (estado seleccionado o guardado en «Reiteraciones»). */
+  canReiterar(): boolean {
+    if (isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new') {
+      const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
+      const selected = catalogStatusToUiStatus(
+        String(this.incidentForm.get('status')?.value ?? '').trim(),
+      );
+      if (selected !== 'Reiteraciones' && saved !== 'Reiteraciones') return false;
+      if (saved === 'Reiteraciones') {
+        return isCsjStatusChoiceAllowed('Reiteraciones', 'Reiteraciones', this.workflowGestion());
+      }
+      return isCsjStatusChoiceAllowed(saved, 'Reiteraciones', this.workflowGestion());
+    }
+    return false;
+  }
+
+  /** Borrador de reiteración listo pero aún no guardado en servidor. */
+  reiteracionPendienteDeGuardar(): boolean {
+    if (!this.showReiteracionPanel()) return false;
+    return Boolean(String(this.incidentForm.get('agregarComentario')?.value ?? '').trim());
+  }
+
+  openReiterarModal(): void {
+    if (!this.canReiterar()) return;
+    const statusName = this.statusNameForForm('Reiteraciones');
+    if (statusName) {
+      this.incidentForm.get('status')?.setValue(statusName, { emitEvent: false });
+      this.syncLastValidStatus();
+    }
+    this.reiterarModalOpen.set(true);
+    this.cdr.markForCheck();
+  }
+
+  closeReiterarModal(): void {
+    this.reiterarModalOpen.set(false);
+    this.cdr.markForCheck();
+  }
+
+  /** Prepara estado + comentario; el operador debe pulsar «Actualizar incidente». */
+  confirmReiterar(texto: string): void {
+    const comentario = String(texto ?? '').trim();
+    if (!comentario) {
+      this.notificationService.addNotification(
+        'Comentario obligatorio',
+        'Escriba la reiteración antes de confirmar.',
+      );
+      return;
+    }
+    const statusName = this.statusNameForForm('Reiteraciones');
+    this.incidentForm.get('status')?.setValue(statusName, { emitEvent: false });
+    this.incidentForm.get('agregarComentario')?.setValue(comentario);
+    this.incidentForm.markAsDirty();
+    this.syncLastValidStatus();
+    this.reiterarModalOpen.set(false);
+    this.notificationService.addNotification(
+      'Reiteración preparada',
+      'Pulse «Actualizar incidente» para registrar la reiteración en el servidor.',
+    );
+    this.scrollToReiteracionPanel();
+    this.cdr.markForCheck();
+  }
+
+  /** Texto base de reiteración parametrizado por los días sin respuesta. */
+  reiteracionTemplateText(): string {
+    const dias = this.daysSinceLastFollowUp(this.activeIncident());
+    const tramo =
+      dias != null
+        ? `Han transcurrido ${dias} ${dias === 1 ? 'día' : 'días'} desde el envío a CERREM`
+        : 'Ha transcurrido un tiempo considerable desde el envío a CERREM';
+    return (
+      `${tramo} sin respuesta de UNP/Policía sobre la evaluación de medidas. ` +
+      `Se reitera la solicitud.`
+    );
+  }
+
+  private statusChangeLogsFor(incidentId: string): AuditLog[] {
+    return this.auditLogs()
+      .filter(
+        (log) =>
+          log.incidentId === incidentId && /cambio de estado/i.test(String(log.action ?? '')),
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
+  private readonly statusArrowRe = /→\s*(.+)$/;
+
+  private logChangedStatusTo(log: AuditLog, uiStatus: string): boolean {
+    const detail = (log.details ?? []).find((d) => /estado/i.test(String(d.field ?? '')));
+    if (detail) return catalogStatusToUiStatus(String(detail.new ?? '').trim()) === uiStatus;
+    const m = this.statusArrowRe.exec(String(log.action ?? ''));
+    return m ? catalogStatusToUiStatus(m[1].trim()) === uiStatus : false;
+  }
+
+  /** Cuántas reiteraciones lleva el caso (comentarios de reiteración; respaldo auditoría). */
+  reiteracionesCount(incident: Incident | null | undefined): number {
+    if (!incident) return 0;
+    const fromComments = countReiteracionNotes(incident.comments);
+    const fromAudit = this.statusChangeLogsFor(incident.id).filter((log) =>
+      this.logChangedStatusTo(log, 'Reiteraciones'),
+    ).length;
+    return Math.max(fromComments, fromAudit);
+  }
+
+  /** Días desde el envío a CERREM mientras el caso está en flujo de reiteración. */
+  daysSinceLastFollowUp(incident: Incident | null | undefined): number | null {
+    if (!incident) return null;
+    const saved = catalogStatusToUiStatus(String(incident.status ?? '').trim());
+    let inReiteracionFlow = saved === 'Reiteraciones';
+    if (this.activeIncident()?.id === incident.id) {
+      const selected = catalogStatusToUiStatus(
+        String(this.incidentForm.get('status')?.value ?? '').trim(),
+      );
+      inReiteracionFlow = inReiteracionFlow || selected === 'Reiteraciones';
+    }
+    if (!inReiteracionFlow) return null;
+
+    let fechaCerrem: string | null | undefined;
+    if (this.activeIncident()?.id === incident.id) {
+      fechaCerrem = this.workflowGestion()?.fecha_cerrem;
+    }
+
+    const logs = this.statusChangeLogsFor(incident.id);
+    const cerremLogs = logs.filter(
+      (log) =>
+        this.logChangedStatusTo(log, 'En evaluación CERREM') ||
+        this.logChangedStatusTo(log, 'Enviado a CERREM'),
+    );
+    const oldestCerrem = cerremLogs.length ? cerremLogs[cerremLogs.length - 1] : null;
+    const cerremPhaseSince = oldestCerrem
+      ? this.parseTimelineDate(String(oldestCerrem.timestamp ?? ''))
+      : null;
+
+    return daysSinceCerremEnvio({ fechaCerrem, cerremPhaseSince });
+  }
+
+  /** Texto «N días sin respuesta» junto al badge (o null si no aplica). */
+  followUpLabel(incident: Incident | null | undefined): string | null {
+    const dias = this.daysSinceLastFollowUp(incident);
+    if (dias == null) return null;
+    if (dias === 0) return 'Hoy sin respuesta';
+    return `${dias} ${dias === 1 ? 'día' : 'días'} sin respuesta`;
+  }
+
+  /** Etiqueta del badge: «Reiteraciones (3)» cuando aplica. */
+  statusBadgeLabel(incident: Incident | null | undefined): string {
+    const status = String(incident?.status ?? '');
+    if (catalogStatusToUiStatus(status.trim()) !== 'Reiteraciones') return status;
+    const count = this.reiteracionesCount(incident);
+    return count > 1 ? `Reiteraciones (${count})` : 'Reiteraciones';
   }
 
   workflowStatusForMedidas(): string {
@@ -2339,7 +2623,19 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (this.activeTabId() === 'new') {
       this.newIncidentFormState.set(this.incidentForm.getRawValue() as Partial<Incident>);
     }
+    this.medidasPendingChanges.set(false);
     this.activeTabId.set(tabId);
+  }
+
+  private hasPendingMedidasChanges(): boolean {
+    return (
+      this.medidasPendingChanges() || (this.medidasPanel?.hasPendingChanges() ?? false)
+    );
+  }
+
+  onMedidasPendingChanges(pending: boolean): void {
+    this.medidasPendingChanges.set(pending);
+    this.cdr.markForCheck();
   }
 
   private hasPendingIncidentSave(): boolean {
@@ -2347,6 +2643,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (!tabId || tabId === 'new') return false;
     if (String(this.incidentForm.get('agregarComentario')?.value ?? '').trim()) return true;
     if (this.incidentForm.dirty) return true;
+    if (this.hasPendingMedidasChanges()) return true;
     const incident = this.activeIncident();
     if (!incident) return false;
     const formStatus = catalogStatusToUiStatus(
@@ -2429,6 +2726,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
     this.incidentForm.markAsPristine();
+    this.medidasPanel?.discardPendingChanges();
+    this.medidasPendingChanges.set(false);
     action?.();
     this.cdr.markForCheck();
   }
@@ -2437,9 +2736,29 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.leaveAfterSave = true;
     if (this.activeTabId() === 'new') {
       this.registerIncident();
-    } else {
-      this.updateIncident();
+      return;
     }
+    void this.saveMedidasThenUpdateIncident();
+  }
+
+  private async saveMedidasThenUpdateIncident(): Promise<void> {
+    const panel = this.medidasPanel;
+    if (panel?.hasPendingChanges()) {
+      const ok = await panel.savePendingChanges();
+      if (!ok) {
+        this.abortLeaveAfterSave();
+        this.cdr.markForCheck();
+        return;
+      }
+      this.medidasPendingChanges.set(false);
+    }
+
+    if (this.hasPendingIncidentSave()) {
+      this.updateIncident();
+      return;
+    }
+
+    this.completePendingLeaveAfterSave();
   }
 
   private completePendingLeaveAfterSave(): void {
@@ -2458,6 +2777,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   setDetailTab(tab: 'detalle' | 'medidas') {
+    if (this.detailTab() === tab) return;
+    this.applyDetailTab(tab);
+  }
+
+  private applyDetailTab(tab: 'detalle' | 'medidas') {
     this.detailTab.set(tab);
     if (tab === 'detalle') {
       this.destroyMap();
@@ -2495,6 +2819,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           codigo_oficio?: string;
           tramite_destino?: string;
           resolucion_cerrem?: string;
+          fecha_cerrem?: string;
           ID_riesgo?: number;
           nivel_riesgo?: string;
         } | null;
@@ -2509,6 +2834,59 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
       });
+  }
+
+  /**
+   * Guardar medidas usa POST /medidas y no marca el formulario del incidente.
+   * Tras guardar, preseleccionamos «Medidas asignadas» para habilitar «Actualizar incidente».
+   */
+  onMedidasAsignadasGuardadas(incidentId: string): void {
+    this.refreshWorkflowGestion(incidentId);
+    this.hasAssignedMedidas(incidentId).subscribe({
+      next: ({ medidas }) => {
+        if (!medidas?.length) return;
+
+        const savedStatus = catalogStatusToUiStatus(
+          String(this.activeIncident()?.status ?? '').trim(),
+        );
+
+        if (savedStatus === 'Medidas asignadas') {
+          this.notificationService.addNotification(
+            'Medidas guardadas',
+            'Las medidas quedaron registradas. El incidente ya está en «Medidas asignadas».',
+          );
+          this.cdr.markForCheck();
+          return;
+        }
+
+        const targetName = this.statusNameForForm('Medidas asignadas');
+        if (!targetName || !this.isStatusAllowed(targetName)) {
+          this.notificationService.addNotification(
+            'Medidas guardadas',
+            'Seleccione «Medidas asignadas» en Detalle y pulse «Actualizar incidente».',
+          );
+          this.cdr.markForCheck();
+          return;
+        }
+
+        this.incidentForm.get('status')?.setValue(targetName);
+        this.incidentForm.markAsDirty();
+        this.syncLastValidStatus();
+        this.detailTab.set('detalle');
+        this.notificationService.addNotification(
+          'Medidas guardadas',
+          'Se preseleccionó «Medidas asignadas». Pulse «Actualizar incidente» para registrar el estado.',
+        );
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.notificationService.addNotification(
+          'Medidas guardadas',
+          'Revise el estado en Detalle y pulse «Actualizar incidente» si aún no está en «Medidas asignadas».',
+        );
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   private hasAssignedMedidas(incidentId: string) {
@@ -2570,9 +2948,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   private loadCommentsHistory(storedComments?: string, legacyDetails?: string): void {
     const operator = this.historyFallbackAuthor();
-    this.commentsHistory.set(
-      enrichCommentAuthors(buildCommentHistoryView(storedComments, legacyDetails), operator),
+    const chronological = enrichCommentAuthors(
+      buildCommentHistoryView(storedComments, legacyDetails),
+      operator,
     );
+    this.commentsHistory.set([...chronological].reverse());
   }
 
   private clearAgregarComentario(): void {
@@ -2726,6 +3106,22 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       String(this.activeIncident()?.status ?? '').trim(),
     );
 
+    if (
+      isCsjMedidasWorkflow(agency) &&
+      targetStatus === 'Reiteraciones' &&
+      !String(updatedData.agregarComentario ?? '').trim()
+    ) {
+      this.detailTab.set('detalle');
+      this.scrollToReiteracionPanel();
+      this.notificationService.addNotification(
+        'Reiteración incompleta',
+        'Use «Reiterar solicitud» para redactar el comentario antes de actualizar el incidente.',
+      );
+      this.abortLeaveAfterSave();
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (isCsjMedidasWorkflow(agency)) {
       this.hasAssignedMedidas(incidentId).subscribe({
         next: ({ gestion, medidas }) => {
@@ -2758,7 +3154,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             }
           }
           if (
-            savedStatus === 'En evaluación CERREM' &&
+            (savedStatus === 'En evaluación CERREM' || savedStatus === 'Reiteraciones') &&
             targetStatus === 'Cerrado' &&
             !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
           ) {
@@ -2885,11 +3281,37 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.populateFormWithState(saved);
       this.refreshWorkflowGestion(incidentId);
       this.configService.getAuditLogs().catch(() => void 0);
-      this.notificationService.addNotification(
-        'Incidente Actualizado',
-        `Se guardaron los cambios para #${incidentId}.`,
-        incidentId,
-      );
+      const savedUiStatus = catalogStatusToUiStatus(String(saved.status ?? '').trim());
+      if (savedUiStatus === 'Reiteraciones') {
+        this.applyDetailTab('detalle');
+        if (draftComment) {
+          const numero = this.reiteracionesCount(base) + 1;
+          this.notificationService.addNotification(
+            'Reiteración registrada',
+            `Reiteración N.º ${numero} registrada para ${incidentId}.`,
+            incidentId,
+          );
+        } else {
+          this.notificationService.addNotification(
+            'Incidente Actualizado',
+            `Se guardaron los cambios para #${incidentId}.`,
+            incidentId,
+          );
+        }
+      } else if (shouldNavigateToMedidasTab(savedUiStatus)) {
+        this.applyDetailTab('medidas');
+        this.notificationService.addNotification(
+          'Incidente Actualizado',
+          `Se guardaron los cambios para #${incidentId}.`,
+          incidentId,
+        );
+      } else {
+        this.notificationService.addNotification(
+          'Incidente Actualizado',
+          `Se guardaron los cambios para #${incidentId}.`,
+          incidentId,
+        );
+      }
       this.loadCommentsHistory(mergedComments);
       this.clearAgregarComentario();
       this.incidentForm.markAsPristine();
@@ -2914,11 +3336,13 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       agregarComentario: '',
     });
     this.incidentMunicipalities.set([]);
+    this.incidentMunicipalitiesLoaded.set(false);
     this.commentsHistory.set([]);
     this.involvedPeople.clear();
     this.involvedPlaces.clear();
     this.involvedVehicles.clear();
     this.placeMunicipalities.set(new Map());
+    this.placeMunicipalitiesLoaded.set(new Map());
     this.detachPlaceDepartmentWatchers();
     this.incidentForm.enable();
     this.syncLastValidStatus();
@@ -3075,6 +3499,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         return 'bg-violet-600/80 text-violet-100';
       case 'En evaluación CERREM':
         return 'bg-purple-600/80 text-purple-100';
+      case 'Reiteraciones':
+        return 'bg-red-600/80 text-red-100';
       case 'Medidas asignadas':
         return 'bg-orange-600/80 text-orange-100';
       case 'Asignado':

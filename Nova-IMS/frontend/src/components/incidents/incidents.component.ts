@@ -82,6 +82,7 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
 const statusOrder: Record<string, number> = {
   Nuevo: 8,
   'En gestión OSEG': 7,
+  Reiteraciones: 6,
   'Enviado a CERREM': 5,
   'En evaluación CERREM': 4,
   'Medidas asignadas': 3,
@@ -600,6 +601,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         return '#3b82f6';
       case 'En gestión OSEG':
         return '#6366f1';
+      case 'Reiteraciones':
+        return '#dc2626';
       case 'Enviado a CERREM':
         return '#8b5cf6';
       case 'En evaluación CERREM':
@@ -1096,6 +1099,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   criticalPriorityCount = computed(
     () => this.dashboardActiveIncidents().filter((inc) => inc.priority === 'Crítica').length,
   );
+  reiteracionesActivasCount = computed(
+    () => this.incidents().filter((inc) => inc.status === 'Reiteraciones').length,
+  );
 
   avgProteccionLabel = computed(
     () => this.incidentService.dashboardMetrics()?.proteccion.formatted ?? 'N/A',
@@ -1502,6 +1508,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'bg-blue-600/80 text-blue-100';
       case 'En gestión OSEG':
         return 'bg-indigo-600/80 text-indigo-100';
+      case 'Reiteraciones':
+        return 'bg-red-600/80 text-red-100';
       case 'Enviado a CERREM':
         return 'bg-violet-600/80 text-violet-100';
       case 'En evaluación CERREM':

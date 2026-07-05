@@ -19,28 +19,33 @@ const ACTION_LABELS = {
  * cambios por módulo, p. ej.:
  *   «Dashboard: quitó "Ver". Reportes: agregó "Exportar", habilitó el módulo.»
  */
+function describeModulePermissionChanges(prev, nextPerm) {
+  const changes = [];
+
+  const prevEnabled = !!prev?.enabled;
+  const nextEnabled = !!nextPerm.enabled;
+  if (prevEnabled !== nextEnabled) {
+    changes.push(nextEnabled ? 'habilitó el módulo' : 'deshabilitó el módulo');
+  }
+
+  for (const [key, label] of Object.entries(ACTION_LABELS)) {
+    const prevVal = !!prev?.actions?.[key];
+    const nextVal = !!nextPerm.actions?.[key];
+    if (prevVal !== nextVal) {
+      changes.push(`${nextVal ? 'agregó' : 'quitó'} "${label}"`);
+    }
+  }
+
+  return changes;
+}
+
 function describePermissionChanges(before, after) {
   const beforeByModule = Object.fromEntries((before || []).map((p) => [p.module, p]));
   const lines = [];
 
   for (const nextPerm of after || []) {
     const prev = beforeByModule[nextPerm.module];
-    const changes = [];
-
-    const prevEnabled = !!prev?.enabled;
-    const nextEnabled = !!nextPerm.enabled;
-    if (prevEnabled !== nextEnabled) {
-      changes.push(nextEnabled ? 'habilitó el módulo' : 'deshabilitó el módulo');
-    }
-
-    for (const [key, label] of Object.entries(ACTION_LABELS)) {
-      const prevVal = !!prev?.actions?.[key];
-      const nextVal = !!nextPerm.actions?.[key];
-      if (prevVal !== nextVal) {
-        changes.push(`${nextVal ? 'agregó' : 'quitó'} "${label}"`);
-      }
-    }
-
+    const changes = describeModulePermissionChanges(prev, nextPerm);
     if (changes.length) {
       lines.push(`${nextPerm.module}: ${changes.join(', ')}`);
     }

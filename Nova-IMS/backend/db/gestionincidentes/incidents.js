@@ -15,7 +15,7 @@ const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident } = require('./location');
-const { isFinalState, requiresMedidas, isForwardStatusTransition } = require('./transitions');
+const { isFinalState, requiresMedidas, isForwardStatusTransition, isTransitionAllowed, requiresComment } = require('./transitions');
 const { hasAssignedMedidas, getGestionByIncidente, validateGestionForStatus } = require('./medidas');
 const {
   isRiesgoExtraordinario,
@@ -23,6 +23,12 @@ const {
   requiresMedidasForGestion,
 } = require('./riesgoNivel');
 const HttpError = require('../../utils/HttpError');
+
+const STATUS_REITERACIONES = 'Reiteraciones';
+const STATUS_MEDIDAS_ASIGNADAS = 'Medidas asignadas';
+const STATUS_CERRADO = 'Cerrado';
+const STATUS_EN_EVALUACION_CERREM = 'En evaluación CERREM';
+const STATUS_ENVIADO_CERREM = 'Enviado a CERREM';
 
 const USER_DISPLAY_NAME_SQL = `TRIM(CONCAT(
   u.Primer_Nombre, ' ',
@@ -829,6 +835,12 @@ function assertIncidentStatusChange(currentStatus, newStatus, agencyCode) {
       `El incidente está en estado final "${currentStatus}" y no puede modificarse.`,
     );
   }
+  if (String(agencyCode).toUpperCase() === 'CSJ' && !isTransitionAllowed(currentStatus, newStatus)) {
+    throw new HttpError(
+      409,
+      `Transición no permitida: «${currentStatus}» → «${newStatus}».`,
+    );
+  }
   if (!isForwardStatusTransition(currentStatus, newStatus, agencyCode)) {
     throw new HttpError(
       409,
@@ -854,7 +866,7 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
   const cerremGuardado =
     Boolean(String(gestion?.resolucion_cerrem || '').trim()) && Boolean(gestion?.ID_riesgo);
 
-  if (newStatus === 'Medidas asignadas' && cerremGuardado && isRiesgoOrdinario(gestion)) {
+  if (newStatus === STATUS_MEDIDAS_ASIGNADAS && cerremGuardado && isRiesgoOrdinario(gestion)) {
     throw new HttpError(
       409,
       'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre el incidente en «Cerrado».',
@@ -862,8 +874,45 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
   }
 
   if (
-    currentStatus === 'En evaluación CERREM' &&
-    newStatus === 'Cerrado' &&
+    newStatus === STATUS_MEDIDAS_ASIGNADAS &&
+    !cerremGuardado &&
+    (currentStatus === STATUS_EN_EVALUACION_CERREM ||
+      currentStatus === STATUS_ENVIADO_CERREM ||
+      currentStatus === STATUS_REITERACIONES)
+  ) {
+    throw new HttpError(
+      409,
+      'Guarde la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo) antes de pasar a «Medidas asignadas».',
+    );
+  }
+
+  if (newStatus === STATUS_REITERACIONES) {
+    if (cerremGuardado && isRiesgoOrdinario(gestion)) {
+      throw new HttpError(
+        409,
+        'Riesgo Ordinario guardado: no aplica el estado «Reiteraciones».',
+      );
+    }
+    if (!cerremGuardado || !isRiesgoExtraordinario(gestion)) {
+      throw new HttpError(
+        409,
+        'Solo riesgo Extraordinario con CERREM guardado puede pasar a «Reiteraciones».',
+      );
+    }
+    if (
+      currentStatus !== STATUS_EN_EVALUACION_CERREM &&
+      currentStatus !== STATUS_REITERACIONES
+    ) {
+      throw new HttpError(
+        409,
+        'Solo puede pasar a «Reiteraciones» desde «En evaluación CERREM» o repetir estando ya en «Reiteraciones».',
+      );
+    }
+  }
+
+  if (
+    (currentStatus === STATUS_EN_EVALUACION_CERREM || currentStatus === STATUS_REITERACIONES) &&
+    newStatus === STATUS_CERRADO &&
     cerremGuardado &&
     isRiesgoExtraordinario(gestion)
   ) {
@@ -871,6 +920,33 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
       409,
       'El nivel de riesgo Extraordinario requiere pasar por «Medidas asignadas» antes de cerrar.',
     );
+  }
+}
+
+async function assertCommentIfRequired(currentStatus, newStatus, internalId, body) {
+  if (!requiresComment(newStatus)) return;
+  const missingCommentError = new HttpError(
+    409,
+    'Debe agregar un comentario al registrar el estado «Reiteraciones».',
+  );
+  const prev = await loadComments(internalId);
+  const incoming = String(body.comments ?? '');
+
+  // Ya en Reiteraciones: permitir guardar otros campos sin nueva reiteración.
+  if (
+    currentStatus === STATUS_REITERACIONES &&
+    newStatus === STATUS_REITERACIONES &&
+    (!incoming.trim() || incoming === prev)
+  ) {
+    return;
+  }
+
+  if (!incoming.trim() || incoming === prev) {
+    throw missingCommentError;
+  }
+  const added = incoming.replace(prev, '').trim();
+  if (!plainCommentText(added)) {
+    throw missingCommentError;
   }
 }
 
@@ -959,6 +1035,7 @@ async function updateIncident(visibleId, body, user) {
   assertIncidentStatusChange(currentStatus, newStatus, agencyCode);
   await assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId);
   await assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId);
+  await assertCommentIfRequired(currentStatus, newStatus, internalId, body);
   await assertMedidasIfRequired(newStatus, visibleId, agencyCode);
 
   const conn = await pool.getConnection();

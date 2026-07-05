@@ -23,7 +23,6 @@ function parseSingleNoteBlock(block: string): IncidentNoteEntry {
   const withAuthor = HEADER_RE.exec(header);
   if (withAuthor) {
     const author = withAuthor[2].trim();
-    const body = lines.slice(1).join('\n').trim();
     if (!body && author) {
       return {
         timestamp: withAuthor[1].trim(),
@@ -104,12 +103,14 @@ export function formatNoteForDisplay(entry: IncidentNoteEntry): string {
 }
 
 /** Interpreta fechas guardadas como [DD/MM/YYYY, HH:mm:ss] en comments. */
-function parseNoteTimestamp(raw: string): Date | null {
+export const DMY_DATE_TIME_RE =
+  /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?/;
+
+export function parseDmyDateTime(raw: string): Date | null {
   const value = String(raw ?? '').trim();
   if (!value) return null;
 
-  const match =
-    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(value);
+  const match = DMY_DATE_TIME_RE.exec(value);
   if (match) {
     const day = Number(match[1]);
     const month = Number(match[2]) - 1;
@@ -124,6 +125,10 @@ function parseNoteTimestamp(raw: string): Date | null {
 
   const fallback = Date.parse(value.replaceAll(',', ''));
   return Number.isNaN(fallback) ? null : new Date(fallback);
+}
+
+function parseNoteTimestamp(raw: string): Date | null {
+  return parseDmyDateTime(raw);
 }
 
 /** Comentarios viejos sin nombre en cabecera: usar operador del incidente si existe. */
@@ -174,11 +179,13 @@ export function displayCommentBody(text: string, authorHint?: string): string {
   }
 
   const author = String(authorHint ?? '').trim();
-  if (author && body.toLowerCase().startsWith(author.toLowerCase())) {
+  const authorKey = author?.toLowerCase();
+  const bodyKey = body.toLowerCase();
+  if (authorKey && bodyKey.startsWith(authorKey)) {
     body = body.slice(author.length).trim();
   }
 
-  if (author && body.toLowerCase() === author.toLowerCase()) {
+  if (authorKey && bodyKey === authorKey) {
     return '';
   }
 
@@ -230,17 +237,36 @@ export function latestIncidentCommentEntry(
   let entry: IncidentNoteEntry | null = null;
 
   if (fromComments.length) {
-    entry = fromComments[fromComments.length - 1] ?? null;
+    entry = fromComments.at(-1) ?? null;
   } else {
     const legacy = String(legacyDetails ?? '').trim();
     if (!legacy) return null;
     const legacyParsed = parseIncidentNotes(legacy);
     entry = legacyParsed.length
-      ? (legacyParsed[legacyParsed.length - 1] ?? null)
+      ? (legacyParsed.at(-1) ?? null)
       : { timestamp: null, author: 'Descripción inicial', text: legacy };
   }
 
   if (!entry) return null;
   const [enriched] = enrichCommentAuthors([entry], fallbackAuthor);
   return enriched;
+}
+
+/** Marca en el texto de comentarios generados al reiterar (plantilla CSJ). */
+export const REITERACION_COMMENT_MARK = /se reitera la solicitud/i;
+
+export function isReiteracionNoteText(text: string | null | undefined): boolean {
+  return REITERACION_COMMENT_MARK.exec(String(text ?? '')) !== null;
+}
+
+/** Cuenta reiteraciones registradas en el historial de comentarios del incidente. */
+export function countReiteracionNotes(raw: string | null | undefined): number {
+  return parseIncidentNotes(raw).filter((n) => isReiteracionNoteText(n.text)).length;
+}
+
+export function lastReiteracionNote(
+  raw: string | null | undefined,
+): IncidentNoteEntry | null {
+  const matches = parseIncidentNotes(raw).filter((n) => isReiteracionNoteText(n.text));
+  return matches.at(-1) ?? null;
 }

@@ -218,7 +218,7 @@ export class AuthService {
    *
    * @param reason 'manual' | 'inactividad' | 'sesion_expirada'
    */
-  logout(reason: string = 'manual'): void {
+  logout(reason = 'manual'): void {
     const token = this.getToken();
     if (token && reason !== 'sesion_expirada' && !this.loggingOut) {
       this.loggingOut = true;

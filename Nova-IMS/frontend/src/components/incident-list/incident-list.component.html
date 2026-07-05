@@ -48,8 +48,7 @@
       <!-- Tabs Navigation -->
       <div class="flex border-b border-gray-700">
         @if (showNewIncidentTab()) {
-          <button
-            (click)="setActiveTab('new')"
+          <div
             [class]="
               activeTabId() === 'new'
                 ? 'border-indigo-500 text-indigo-400 bg-gray-700/50'
@@ -57,7 +56,13 @@
             "
             class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200"
           >
-            <span>Nuevo Incidente</span>
+            <button
+              type="button"
+              (click)="setActiveTab('new')"
+              class="border-0 bg-transparent p-0 font-semibold text-inherit hover:text-inherit"
+            >
+              Nuevo Incidente
+            </button>
             <button
               type="button"
               (click)="closeNewIncidentTab($event)"
@@ -76,11 +81,10 @@
                 />
               </svg>
             </button>
-          </button>
+          </div>
         }
         @for (tab of openIncidentTabs(); track tab.id) {
-          <button
-            (click)="setActiveTab(tab.id)"
+          <div
             [class]="
               activeTabId() === tab.id
                 ? 'border-indigo-500 text-indigo-400 bg-gray-700/50'
@@ -88,7 +92,13 @@
             "
             class="flex-shrink-0 flex items-center gap-2 py-2 px-4 font-semibold border-b-4 rounded-t-lg transition-colors duration-200"
           >
-            <span>{{ tab.id }}</span>
+            <button
+              type="button"
+              (click)="setActiveTab(tab.id)"
+              class="border-0 bg-transparent p-0 font-semibold text-inherit hover:text-inherit"
+            >
+              {{ tab.id }}
+            </button>
             <button
               type="button"
               (click)="closeIncidentTab(tab.id, $event)"
@@ -107,7 +117,7 @@
                 />
               </svg>
             </button>
-          </button>
+          </div>
         }
       </div>
 
@@ -122,8 +132,7 @@
               {{
                 activeTabId() === 'new'
                   ? 'Registrar Nuevo Incidente'
-                  : 'Detalles
-            del Incidente: ' + activeTabId()
+                  : 'Detalles del Incidente: ' + activeTabId()
               }}
             </h3>
             @if (activeTabId() !== 'new') {
@@ -168,10 +177,13 @@
                 class="overflow-hidden rounded-xl border-l-4 border-l-indigo-500 bg-gray-900/40 shadow-2xl animate-slideIn mb-8"
               >
                 <!-- Tab/Header -->
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabindex="0"
                   class="w-full bg-indigo-500/10 p-1 px-4 flex items-center justify-between border-b border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors text-left"
                   (click)="isProtocolVisible.set(!isProtocolVisible())"
+                  (keydown.enter)="isProtocolVisible.set(!isProtocolVisible())"
+                  (keydown.space)="$event.preventDefault(); isProtocolVisible.set(!isProtocolVisible())"
                 >
                   <div class="flex items-center gap-3 py-2">
                     <span class="relative flex h-3 w-3">
@@ -204,7 +216,7 @@
                       />
                     </svg>
                   </div>
-                </button>
+                </div>
 
                 <!-- Content Area -->
                 @if (isProtocolVisible()) {
@@ -311,13 +323,52 @@
                     </option>
                   }
                 </select>
-                @if (incidentStatuses().length === 0) {
-                  <p class="mt-1 text-xs text-amber-400">
-                    No hay estados configurados para su agencia en la base de datos.
-                  </p>
+                @if (incidentStatusesLoaded() && incidentStatuses().length === 0) {
+                  <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.statuses }}</p>
                 }
               </div>
             </div>
+
+            @if (showReiteracionPanel()) {
+              <div
+                #reiteracionPanel
+                id="reiteracion-panel"
+                class="flex flex-wrap items-center gap-3 rounded-lg border border-red-500/20 bg-red-900/10 px-3 py-2.5"
+              >
+                @if (canReiterar()) {
+                  <button
+                    type="button"
+                    (click)="openReiterarModal()"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Reiterar solicitud
+                  </button>
+                }
+                @if (reiteracionPendienteDeGuardar()) {
+                  <span class="text-xs font-medium text-amber-300">
+                    Reiteración lista — pulse «Actualizar incidente» para guardar.
+                  </span>
+                }
+                @if (followUpLabel(activeIncident()); as fu) {
+                  <span class="text-xs font-medium text-amber-400">⏱ {{ fu }}</span>
+                }
+                @if (reiteracionesCount(activeIncident()); as reiterCount) {
+                  <span class="text-xs text-gray-400"
+                    >{{ reiterCount }}
+                    {{ reiterCount === 1 ? 'reiteración' : 'reiteraciones' }}
+                    registradas</span
+                  >
+                }
+              </div>
+            }
 
             <!-- Sección 2: Origen y Contacto -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -339,10 +390,8 @@
                     <option [value]="o.name">{{ o.name }}</option>
                   }
                 </select>
-                @if (origins().length === 0) {
-                  <p class="mt-1 text-xs text-amber-400">
-                    No hay orígenes configurados para su agencia en la base de datos.
-                  </p>
+                @if (originsLoaded() && origins().length === 0) {
+                  <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.origins }}</p>
                 }
               </div>
               <div>
@@ -507,12 +556,11 @@
                         }
                       </select>
                       @if (
+                        incidentMunicipalitiesLoaded() &&
                         incidentForm.get('departmentId')?.value &&
                         incidentMunicipalities().length === 0
                       ) {
-                        <p class="text-[11px] text-gray-500 mt-1">
-                          No hay municipios para este departamento en su agencia.
-                        </p>
+                        <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
                       }
                     </div>
                   </div>
@@ -524,7 +572,7 @@
                       >
                       <span class="text-xs text-blue-200">{{ locPhone }}</span>
                     </div>
-                  } @else {}
+                  }
                 </div>
 
                 <div class="order-1 lg:order-2 space-y-2">
@@ -556,23 +604,22 @@
             <!-- Sección 4: Comentarios del incidente (agregar + historial) -->
             <div class="space-y-3">
               <div>
-                <label
-                  for="agregarComentario"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                  >Agregar comentario
-                  @if (activeTabId() === 'new') {
-                    <span class="text-red-400">*</span>
-                  }
-                </label>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label
+                    for="agregarComentario"
+                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider"
+                  >
+                    Agregar comentario
+                    @if (activeTabId() === 'new') {
+                      <span class="text-red-400" aria-hidden="true">*</span>
+                    }
+                  </label>
+                </div>
                 <textarea
                   id="agregarComentario"
                   formControlName="agregarComentario"
                   rows="4"
-                  [placeholder]="
-                    activeTabId() === 'new'
-                      ? 'Descripción del incidente, hechos reportados, notas...'
-                      : 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...'
-                  "
+                  [placeholder]="commentFieldPlaceholder()"
                   class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                 ></textarea>
                 @if (
@@ -977,12 +1024,11 @@
                           }
                         </select>
                         @if (
+                          placeMunicipalitiesReady($index) &&
                           placeGroup.get('departmentId')?.value &&
                           placeMunicipalitiesFor($index).length === 0
                         ) {
-                          <p class="text-[11px] text-gray-500 mt-1">
-                            No hay municipios para este departamento en su agencia.
-                          </p>
+                          <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
                         }
                       </div>
                       <div>
@@ -1388,14 +1434,18 @@
             }
             }
 
-            @if (activeTabId() !== 'new' && showMedidasTab() && detailTab() === 'medidas' && activeIncident(); as incident) {
-              <app-medidas
-                [incidentId]="incident.id"
-                [workflowStatus]="workflowStatusForMedidas()"
-                [agency]="currentAgency()"
-                (goToDetalle)="setDetailTab('detalle')"
-                (gestionUpdated)="refreshWorkflowGestion(incident.id)"
-              />
+            @if (activeTabId() !== 'new' && showMedidasTab() && activeIncident(); as incident) {
+              <div [class.hidden]="detailTab() !== 'medidas'">
+                <app-medidas
+                  [incidentId]="incident.id"
+                  [workflowStatus]="workflowStatusForMedidas()"
+                  [agency]="currentAgency()"
+                  (goToDetalle)="setDetailTab('detalle')"
+                  (gestionUpdated)="refreshWorkflowGestion(incident.id)"
+                  (medidasSaved)="onMedidasAsignadasGuardadas(incident.id)"
+                  (pendingChangesChange)="onMedidasPendingChanges($event)"
+                ></app-medidas>
+              </div>
             }
           </div>
 
@@ -1458,7 +1508,7 @@
         id="incident-list-search"
         (input)="onFilterText($event)"
         type="text"
-        placeholder="Buscar por ID, tipo, ubicación..."
+        placeholder="Buscar por ID, tipo, operador..."
         class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-1/2 lg:w-1/3"
       />
       <label for="incident-list-status-filter" class="sr-only">Filtrar por estado</label>
@@ -1500,13 +1550,18 @@
                 }}</span>
               </td>
               <td class="px-4 py-3">
-                <span
-                  [class]="
-                    'text-xs font-medium px-2.5 py-1 rounded-full ' +
-                    getStatusColor(incident.status)
-                  "
-                  >{{ incident.status }}</span
-                >
+                <div class="flex flex-col items-start gap-1">
+                  <span
+                    [class]="
+                      'text-xs font-medium px-2.5 py-1 rounded-full ' +
+                      getStatusColor(incident.status)
+                    "
+                    >{{ statusBadgeLabel(incident) }}</span
+                  >
+                  @if (followUpLabel(incident); as fu) {
+                    <span class="text-[10px] font-medium text-amber-400">⏱ {{ fu }}</span>
+                  }
+                </div>
               </td>
               <td class="px-4 py-3 font-medium text-white">{{ incident.operator || '—' }}</td>
               <td class="px-4 py-3">
@@ -1544,6 +1599,7 @@
                     (click)="sendSingleIncidentByEmail(incident); $event.stopPropagation()"
                     [disabled]="!canNotify()"
                     [title]="canNotify() ? 'Enviar por Email' : 'Sin permiso para enviar correos'"
+                    aria-label="Enviar por email"
                     class="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-gray-600/40 bg-gray-700/40 text-gray-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-600/40 disabled:hover:bg-gray-700/40 disabled:hover:text-gray-400"
                   >
                     <svg
@@ -1620,7 +1676,7 @@
 </div>
 
 @if (emailModalIncident(); as emailIncident) {
-  <app-incident-email-modal [incident]="emailIncident" (closed)="closeIncidentEmailModal()" />
+  <app-incident-email-modal [incident]="emailIncident" (closed)="closeIncidentEmailModal()"></app-incident-email-modal>
 }
 
 @if (leaveConfirmOpen()) {
@@ -1632,22 +1688,19 @@
     <div
       class="w-full max-w-md rounded-xl border border-gray-600 bg-gray-800 shadow-2xl p-6 animate-fadeInUp"
     >
+      <h2 id="leave-confirm-title" class="text-lg font-semibold text-white mb-2">
+        {{ leaveConfirmForNewTab() ? 'Incidente sin crear' : 'Cambios sin guardar' }}
+      </h2>
       @if (leaveConfirmForNewTab()) {
-        <h2 id="leave-confirm-title" class="text-lg font-semibold text-white mb-2">
-          Incidente sin crear
-        </h2>
         <p class="text-sm text-gray-300 leading-relaxed mb-6">
           Tiene un borrador en curso. Pulse
           <span class="text-indigo-300 font-medium">«Crear incidente»</span> para guardarlo o salga
           sin guardar para descartarlo.
         </p>
       } @else {
-        <h2 id="leave-confirm-title" class="text-lg font-semibold text-white mb-2">
-          Cambios sin guardar
-        </h2>
         <p class="text-sm text-gray-300 leading-relaxed mb-6">
-          Hay cambios pendientes en este incidente (estado, datos o comentarios). Pulse
-          <span class="text-indigo-300 font-medium">«Actualizar incidente»</span> para guardarlos en
+          Hay cambios pendientes en este incidente (Detalle, Medidas, estado o comentarios). Pulse
+          <span class="text-indigo-300 font-medium">«Actualizar y salir»</span> para guardarlos en
           el servidor antes de salir.
         </p>
       }
@@ -1708,6 +1761,61 @@
           class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
         >
           Actualizar incidente
+        </button>
+      </div>
+    </div>
+  </dialog>
+}
+
+@if (reiterarModalOpen()) {
+  <dialog
+    open
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
+    aria-labelledby="reiterar-title"
+  >
+    <div
+      class="w-full max-w-md rounded-xl border border-red-500/30 bg-gray-800 shadow-2xl p-6 animate-fadeInUp"
+    >
+      <h2 id="reiterar-title" class="text-lg font-semibold text-white mb-1">
+        Reiterar solicitud
+      </h2>
+      <p class="text-sm text-gray-300 leading-relaxed mb-3">
+        Se registrará una nueva reiteración para
+        <span class="text-indigo-300 font-medium">{{ activeTabId() }}</span> y el texto quedará en
+        el historial de comentarios.
+        @if (followUpLabel(activeIncident()); as fu) {
+          <span class="block text-xs text-amber-400 mt-1">⏱ {{ fu }}</span>
+        }
+      </p>
+      <textarea
+        #reiterarInput
+        rows="4"
+        placeholder="Describa la reiteración ante UNP/Policía..."
+        class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-red-500 transition-all mb-2"
+      ></textarea>
+      <div class="flex justify-between items-center mb-4">
+        <button
+          type="button"
+          (click)="reiterarInput.value = reiteracionTemplateText()"
+          class="text-[11px] font-medium text-indigo-300 hover:text-indigo-200"
+        >
+          Usar plantilla
+        </button>
+      </div>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button
+          type="button"
+          (click)="closeReiterarModal()"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-700 transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmReiterar(reiterarInput.value)"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors"
+        >
+          Confirmar reiteración
         </button>
       </div>
     </div>

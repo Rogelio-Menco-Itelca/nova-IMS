@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   signal,
+  computed,
   inject,
   OnInit,
   HostListener,
@@ -69,6 +70,24 @@ export class AppComponent implements OnInit {
   mustChangePassword = this.authService.mustChangePassword;
 
   activeView = this.authService.currentView;
+  readonly activeViewLabel = computed(() => {
+    const labels: Record<string, string> = {
+      dashboard: 'Dashboard',
+      incidents: 'Incidentes',
+      reports: 'Reportes',
+      admin: 'Administración',
+    };
+    return labels[this.activeView()] ?? '';
+  });
+  todayLabel(): string {
+    const s = new Date().toLocaleDateString('es-CO', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
   isSidebarOpen = signal(true);
   isProfileOpen = signal(false);
   isProfileModalOpen = signal(false);

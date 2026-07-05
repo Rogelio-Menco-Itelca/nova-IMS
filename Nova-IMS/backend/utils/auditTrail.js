@@ -114,8 +114,24 @@ async function recordAudit(entry = {}) {
   }
 }
 
+function formatAuditDetailsText(details) {
+  if (!Array.isArray(details) || !details.length) return '';
+  return details
+    .map((entry) => {
+      if (entry && typeof entry === 'object' && entry.field != null) {
+        const oldVal = entry.old ?? '(vacío)';
+        const newVal = entry.new ?? '(vacío)';
+        return `${entry.field}: ${oldVal} → ${newVal}`;
+      }
+      return String(entry ?? '');
+    })
+    .filter(Boolean)
+    .join('. ');
+}
+
 module.exports = {
   recordAudit,
+  formatAuditDetailsText,
   CATEGORIES,
   MODULES,
 };

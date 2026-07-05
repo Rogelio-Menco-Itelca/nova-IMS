@@ -13,6 +13,13 @@ import {
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+import {
+  hasMedidasPanelPendingChanges,
+  pendingMedidasSections,
+  snapshotMedidasDraft,
+  type MedidasDraftSnapshot,
+} from '../../utils/medidas-pending-changes';
 import { ConfigurationService } from '../../services/configuration.service';
 import {
   CSJ_MEDIADAS_WORKFLOW_STEPS,
@@ -172,7 +179,15 @@ interface ModuloMensaje {
             class="bg-gray-800 rounded-lg p-4 border border-orange-500/30"
             [class.opacity-95]="osegGuardada()"
           >
-            <h3 class="text-orange-300 font-semibold text-sm uppercase tracking-wider mb-4">
+            <h3 class="text-orange-300 font-semibold flex items-center gap-2 text-sm uppercase tracking-wider mb-4">
+              <svg class="h-5 w-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
               Gestión OSEG
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,6 +230,7 @@ interface ModuloMensaje {
                   <input
                     id="medidas-tramite-destino"
                     [(ngModel)]="form.tramite_destino"
+                    (ngModelChange)="onDraftChange()"
                     type="text"
                     [readonly]="!isTramiteEditable()"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
@@ -244,8 +260,16 @@ interface ModuloMensaje {
                   <button
                     type="button"
                     (click)="guardarGestionOseg()"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shrink-0"
+                    class="group inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-md shadow-indigo-900/30 transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 active:scale-[0.98]"
                   >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                      />
+                    </svg>
                     Guardar gestión OSEG
                   </button>
                 }
@@ -259,7 +283,15 @@ interface ModuloMensaje {
             class="bg-gray-800 rounded-lg p-4 border border-gray-700"
             [class.opacity-95]="cerremGuardada() && !cerremEditMode()"
           >
-            <h3 class="text-white font-semibold text-sm uppercase tracking-wider mb-4">
+            <h3 class="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider mb-4">
+              <svg class="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                />
+              </svg>
               Decisión CERREM
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,6 +301,7 @@ interface ModuloMensaje {
                   <input
                     id="medidas-fecha-cerrem"
                     [(ngModel)]="form.fecha_cerrem"
+                    (ngModelChange)="onDraftChange()"
                     type="date"
                     [readonly]="!isCerremFieldEditable('fechaCerrem')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
@@ -282,6 +315,7 @@ interface ModuloMensaje {
                   <input
                     id="medidas-resolucion-cerrem"
                     [(ngModel)]="form.resolucion_cerrem"
+                    (ngModelChange)="onDraftChange()"
                     type="text"
                     [readonly]="!isCerremFieldEditable('resolucionCerrem')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
@@ -296,6 +330,7 @@ interface ModuloMensaje {
                   <input
                     id="medidas-fecha-resolucion"
                     [(ngModel)]="form.fecha_resolucion"
+                    (ngModelChange)="onDraftChange()"
                     type="date"
                     [readonly]="!isCerremFieldEditable('fechaResolucion')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
@@ -309,6 +344,7 @@ interface ModuloMensaje {
                   <select
                     id="medidas-nivel-riesgo"
                     [(ngModel)]="form.ID_riesgo"
+                    (ngModelChange)="onDraftChange()"
                     [disabled]="!isCerremFieldEditable('nivelRiesgo')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                   >
@@ -317,46 +353,6 @@ interface ModuloMensaje {
                       <option [ngValue]="r.id">{{ r.nombre }}</option>
                     }
                   </select>
-                </div>
-              }
-              @if (fieldVisible('tipoEsquema')) {
-                <div>
-                  <label for="medidas-tipo-esquema" class="text-xs text-gray-400 uppercase tracking-wider">Tipo de esquema</label>
-                  <select
-                    id="medidas-tipo-esquema"
-                    [(ngModel)]="form.tipo_esquema"
-                    [disabled]="!isCerremFieldEditable('tipoEsquema')"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    <option [ngValue]="null">Seleccione...</option>
-                    <option value="Individual">Individual</option>
-                    <option value="Colectivo">Colectivo</option>
-                  </select>
-                </div>
-              }
-              @if (fieldVisible('tipoEsquema') && form.tipo_esquema === 'Colectivo') {
-                <div class="md:col-span-2">
-                  <label for="medidas-compartido-con" class="text-xs text-gray-400 uppercase tracking-wider">Compartido con</label>
-                  <input
-                    id="medidas-compartido-con"
-                    [(ngModel)]="form.compartido_con"
-                    type="text"
-                    [readonly]="!isCerremFieldEditable('tipoEsquema')"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
-                  />
-                </div>
-              }
-              @if (fieldVisible('observaciones')) {
-                <div class="md:col-span-2">
-                  <label for="medidas-observaciones" class="text-xs text-gray-400 uppercase tracking-wider">Observaciones</label>
-                  <textarea
-                    id="medidas-observaciones"
-                    [(ngModel)]="form.observaciones"
-                    rows="2"
-                    [readonly]="!isCerremFieldEditable('observaciones')"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
-                    [class.cursor-not-allowed]="!isCerremFieldEditable('observaciones')"
-                  ></textarea>
                 </div>
               }
             </div>
@@ -374,15 +370,39 @@ interface ModuloMensaje {
                 <button
                   type="button"
                   (click)="accionCerrem()"
-                  class="px-4 py-2 rounded-md text-sm font-medium transition-colors shrink-0"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 active:scale-[0.98]"
                   [class.bg-indigo-600]="cerremBotonGuardar()"
-                  [class.hover:bg-indigo-700]="cerremBotonGuardar()"
+                  [class.hover:bg-indigo-500]="cerremBotonGuardar()"
                   [class.text-white]="cerremBotonGuardar()"
+                  [class.shadow-md]="cerremBotonGuardar()"
+                  [class.shadow-indigo-900/30]="cerremBotonGuardar()"
+                  [class.focus:ring-indigo-400]="cerremBotonGuardar()"
                   [class.text-indigo-300]="!cerremBotonGuardar()"
                   [class.hover:text-indigo-200]="!cerremBotonGuardar()"
+                  [class.hover:bg-indigo-500/10]="!cerremBotonGuardar()"
                   [class.border]="!cerremBotonGuardar()"
                   [class.border-indigo-500/40]="!cerremBotonGuardar()"
+                  [class.focus:ring-indigo-500/50]="!cerremBotonGuardar()"
                 >
+                  @if (cerremBotonGuardar()) {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                      />
+                    </svg>
+                  } @else {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  }
                   {{ cerremBotonGuardar() ? 'Guardar' : 'Editar' }}
                 </button>
               </div>
@@ -457,6 +477,54 @@ interface ModuloMensaje {
               }
             </div>
 
+            @if (fieldVisible('tipoEsquema')) {
+              <div class="mt-4 pt-4 border-t border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label for="medidas-tipo-esquema" class="text-xs text-gray-400 uppercase tracking-wider">Esquema colectivo o individual</label>
+                  <select
+                    id="medidas-tipo-esquema"
+                    [(ngModel)]="form.tipo_esquema"
+                    (ngModelChange)="onDraftChange()"
+                    [disabled]="!isMedidasEditable()"
+                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    <option [ngValue]="null">Seleccione...</option>
+                    <option value="Individual">Individual</option>
+                    <option value="Colectivo">Colectivo</option>
+                  </select>
+                </div>
+                @if (form.tipo_esquema === 'Colectivo') {
+                  <div class="md:col-span-2">
+                    <label for="medidas-compartido-con" class="text-xs text-gray-400 uppercase tracking-wider">Compartido con</label>
+                    <input
+                      id="medidas-compartido-con"
+                      [(ngModel)]="form.compartido_con"
+                      (ngModelChange)="onDraftChange()"
+                      type="text"
+                      [readonly]="!isMedidasEditable()"
+                      class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+                      [class.cursor-not-allowed]="!isMedidasEditable()"
+                    />
+                  </div>
+                }
+              </div>
+            }
+
+            @if (fieldVisible('observaciones')) {
+              <div class="mt-4 pt-4 border-t border-gray-700">
+                <label for="medidas-observaciones" class="text-xs text-gray-400 uppercase tracking-wider">Observaciones</label>
+                <textarea
+                  id="medidas-observaciones"
+                  [(ngModel)]="form.observaciones"
+                  (ngModelChange)="onDraftChange()"
+                  rows="2"
+                  [readonly]="!isMedidasEditable()"
+                  class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+                  [class.cursor-not-allowed]="!isMedidasEditable()"
+                ></textarea>
+              </div>
+            }
+
             @if (showMedidasAccion()) {
               <div class="mt-4 pt-4 border-t border-gray-700 flex items-center justify-end gap-3 flex-wrap">
                 @if (mensajeMedidas(); as m) {
@@ -472,15 +540,39 @@ interface ModuloMensaje {
                   type="button"
                   (click)="accionMedidas()"
                   [disabled]="medidasBotonGuardar() && medidasSeleccionadas().length === 0"
-                  class="px-4 py-2 rounded-md text-sm font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                   [class.bg-amber-600]="medidasBotonGuardar()"
-                  [class.hover:bg-amber-700]="medidasBotonGuardar()"
+                  [class.hover:bg-amber-500]="medidasBotonGuardar()"
                   [class.text-white]="medidasBotonGuardar()"
+                  [class.shadow-md]="medidasBotonGuardar()"
+                  [class.shadow-amber-900/30]="medidasBotonGuardar()"
+                  [class.focus:ring-amber-400]="medidasBotonGuardar()"
                   [class.text-amber-300]="!medidasBotonGuardar()"
                   [class.hover:text-amber-200]="!medidasBotonGuardar()"
+                  [class.hover:bg-amber-500/10]="!medidasBotonGuardar()"
                   [class.border]="!medidasBotonGuardar()"
                   [class.border-amber-500/40]="!medidasBotonGuardar()"
+                  [class.focus:ring-amber-500/50]="!medidasBotonGuardar()"
                 >
+                  @if (medidasBotonGuardar()) {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                      />
+                    </svg>
+                  } @else {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  }
                   {{ medidasBotonGuardar() ? 'Guardar' : 'Editar' }}
                 </button>
               </div>
@@ -498,6 +590,10 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() agency = 'CSJ';
   @Output() goToDetalle = new EventEmitter<void>();
   @Output() gestionUpdated = new EventEmitter<void>();
+  /** Medidas físicas + esquema guardados en `/medidas` (distinto del formulario del incidente). */
+  @Output() medidasSaved = new EventEmitter<void>();
+  /** true cuando hay borrador sin guardar en OSEG, CERREM o medidas. */
+  @Output() pendingChangesChange = new EventEmitter<boolean>();
 
   readonly workflowSteps = CSJ_MEDIADAS_WORKFLOW_STEPS;
 
@@ -548,13 +644,12 @@ export class MedidasComponent implements OnInit, OnChanges {
   cerremEditMode = signal(false);
   medidasGuardadas = signal(false);
   medidasEditMode = signal(false);
+  private draftBaseline: MedidasDraftSnapshot | null = null;
   private readonly cerremFieldKeys: (keyof MedidasPermissions)[] = [
     'fechaCerrem',
     'resolucionCerrem',
     'fechaResolucion',
     'nivelRiesgo',
-    'tipoEsquema',
-    'observaciones',
   ];
   displayHint = computed(() => {
     const ui = catalogStatusToUiStatus(this.workflowStatus);
@@ -629,13 +724,122 @@ export class MedidasComponent implements OnInit, OnChanges {
     return !isClosedWorkflowStatus(this.workflowStatus);
   }
 
+  hasPendingChanges(): boolean {
+    return hasMedidasPanelPendingChanges(
+      snapshotMedidasDraft(this.form, this.medidasSeleccionadas()),
+      this.draftBaseline,
+      this.pendingContext(),
+    );
+  }
+
+  discardPendingChanges(): void {
+    if (!this.draftBaseline) return;
+    this.form.tramite_destino = this.draftBaseline.tramite_destino;
+    this.form.fecha_cerrem = this.draftBaseline.fecha_cerrem;
+    this.form.resolucion_cerrem = this.draftBaseline.resolucion_cerrem;
+    this.form.fecha_resolucion = this.draftBaseline.fecha_resolucion;
+    this.form.ID_riesgo = (this.draftBaseline.ID_riesgo ?? null) as unknown as number;
+    this.form.tipo_esquema = this.draftBaseline.tipo_esquema as Gestion['tipo_esquema'];
+    this.form.compartido_con = this.draftBaseline.compartido_con;
+    this.form.observaciones = this.draftBaseline.observaciones;
+    this.medidasSeleccionadas.set(
+      this.draftBaseline.medidas.map((m) => {
+        const tipo = this.tiposMedida().find((t) => t.id === m.ID_tipo_medida);
+        return {
+          ID_tipo_medida: m.ID_tipo_medida,
+          nombre: tipo?.nombre ?? '',
+          cantidad: m.cantidad,
+          observacion_medida: m.observacion_medida,
+          asignado: true,
+        };
+      }),
+    );
+    this.cerremEditMode.set(false);
+    this.medidasEditMode.set(false);
+    this.notifyPendingChanges();
+  }
+
+  async savePendingChanges(): Promise<boolean> {
+    if (!this.hasPendingChanges()) return true;
+
+    for (const section of pendingMedidasSections(
+      snapshotMedidasDraft(this.form, this.medidasSeleccionadas()),
+      this.draftBaseline,
+      this.pendingContext(),
+    )) {
+      const ok = await this.savePendingSection(section);
+      if (!ok) return false;
+    }
+
+    return true;
+  }
+
+  private async savePendingSection(section: 'oseg' | 'cerrem' | 'medidas'): Promise<boolean> {
+    if (section === 'oseg') return this.savePendingOsegSection();
+    if (section === 'cerrem') return this.savePendingCerremSection();
+    return this.guardarMedidasAsync();
+  }
+
+  private async savePendingOsegSection(): Promise<boolean> {
+    if (!String(this.form.tramite_destino || '').trim()) {
+      this.showMensaje('oseg', 'Complete «Trámite / destino» antes de guardar.', 'error');
+      return false;
+    }
+    return this.postGestionAsync('oseg', 'Gestión OSEG guardada correctamente');
+  }
+
+  private async savePendingCerremSection(): Promise<boolean> {
+    if (!String(this.form.resolucion_cerrem || '').trim()) {
+      this.showMensaje('cerrem', 'Complete «Resolución CERREM» antes de guardar.', 'error');
+      return false;
+    }
+    if (!this.form.ID_riesgo) {
+      this.showMensaje('cerrem', 'Seleccione el «Nivel de riesgo» antes de guardar.', 'error');
+      return false;
+    }
+    return this.postGestionAsync(
+      'cerrem',
+      'Decisión CERREM guardada correctamente',
+      () => this.cerremEditMode.set(false),
+      true,
+    );
+  }
+
+  onDraftChange(): void {
+    this.notifyPendingChanges();
+  }
+
+  private notifyPendingChanges(): void {
+    this.pendingChangesChange.emit(this.hasPendingChanges());
+  }
+
+  private pendingContext() {
+    const permissions = this.permissions();
+    return {
+      closed: isClosedWorkflowStatus(this.workflowStatus),
+      osegGuardada: this.osegGuardada(),
+      cerremGuardada: this.cerremGuardada(),
+      cerremEditMode: this.cerremEditMode(),
+      medidasGuardadas: this.medidasGuardadas(),
+      medidasEditMode: this.medidasEditMode(),
+      showOsegBlock: permissions.showOsegBlock,
+      showCerremBlock: permissions.showCerremBlock,
+      showMedidasBlock: permissions.showMedidasBlock,
+    };
+  }
+
+  private captureDraftBaseline(): void {
+    this.draftBaseline = snapshotMedidasDraft(this.form, this.medidasSeleccionadas());
+    this.notifyPendingChanges();
+  }
+
   /** El flujo ya pasó por CERREM (incluye «Medidas asignadas» aunque canSaveGestion sea false). */
   private flujoCerremAlcanzado(): boolean {
     const ui = catalogStatusToUiStatus(this.workflowStatus);
     const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
     return (
       rank !== undefined &&
-      rank >= CSJ_STATUS_WORKFLOW_RANK['Enviado a CERREM'] &&
+      rank >= CSJ_STATUS_WORKFLOW_RANK['En evaluación CERREM'] &&
       rank < CSJ_STATUS_WORKFLOW_RANK['Cerrado']
     );
   }
@@ -676,9 +880,8 @@ export class MedidasComponent implements OnInit, OnChanges {
     if (!this.cerremFieldKeys.includes(key)) return this.fieldEditable(key);
     if (this.cerremGuardada() && !this.cerremEditMode()) return false;
     if (this.cerremEditMode()) return true;
-    if ((this.permissions()[key] as MedidasFieldMode) === 'editable') return true;
-    if (!this.cerremGuardada() && this.flujoCerremAlcanzado()) return true;
-    return false;
+    if (this.permissions()[key] === 'editable') return true;
+    return !this.cerremGuardada() && this.flujoCerremAlcanzado();
   }
 
   isMedidasEditable(): boolean {
@@ -749,58 +952,80 @@ export class MedidasComponent implements OnInit, OnChanges {
         `/api/incidents/${this.incidentId}/medidas`,
       )
       .subscribe({
-        next: ({ gestion, medidas, solicitud }) => {
-          this.solicitud.set(solicitud ?? null);
-          this.gestionSnapshot.set(gestion);
-          if (gestion) {
-            this.form = {
-              ...this.form,
-              ...gestion,
-              fecha_cerrem: this.toDateInput(gestion.fecha_cerrem),
-              fecha_resolucion: this.toDateInput(gestion.fecha_resolucion),
-            };
-            this.osegGuardada.set(this.isOsegPersistida(gestion));
-            this.cerremGuardada.set(this.isCerremPersistida(gestion));
-          } else {
-            this.form = {
-              servidor_judicial: '',
-              cedula: '',
-              cargo: '',
-              codigo_oficio: '',
-              tramite_destino: '',
-              fecha_cerrem: '',
-              resolucion_cerrem: '',
-              fecha_resolucion: '',
-              ID_riesgo: null as unknown as number,
-              tipo_esquema: null,
-              compartido_con: '',
-              observaciones: '',
-            };
-            this.osegGuardada.set(false);
-            this.cerremGuardada.set(false);
-          }
-          if (!gestion && solicitud) {
-            this.form.servidor_judicial = solicitud.servidor_judicial;
-            this.form.cedula = solicitud.cedula;
-            this.form.cargo = solicitud.cargo;
-          }
-          const lista = medidas.map((m) => ({ ...m, asignado: true }));
-          this.medidasSeleccionadas.set(lista);
-          this.medidasGuardadas.set(lista.length > 0);
-          this.medidasEditMode.set(false);
-          this.cerremEditMode.set(false);
-
-          const ui = catalogStatusToUiStatus(this.workflowStatus);
-          const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
-          if (
-            rank !== undefined &&
-            rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
-            !String(this.form.codigo_oficio || '').trim()
-          ) {
-            this.ensureGestionDraft();
-          }
-        },
+        next: ({ gestion, medidas, solicitud }) =>
+          this.applyLoadedGestion(gestion, medidas, solicitud ?? null),
       });
+  }
+
+  private resetEmptyGestionForm(): void {
+    this.form = {
+      servidor_judicial: '',
+      cedula: '',
+      cargo: '',
+      codigo_oficio: '',
+      tramite_destino: '',
+      fecha_cerrem: '',
+      resolucion_cerrem: '',
+      fecha_resolucion: '',
+      ID_riesgo: null as unknown as number,
+      tipo_esquema: null,
+      compartido_con: '',
+      observaciones: '',
+    };
+    this.osegGuardada.set(false);
+    this.cerremGuardada.set(false);
+  }
+
+  private applySolicitudToForm(solicitud: Solicitud): void {
+    this.form.servidor_judicial = solicitud.servidor_judicial;
+    this.form.cedula = solicitud.cedula;
+    this.form.cargo = solicitud.cargo;
+  }
+
+  private maybeEnsureGestionDraft(): void {
+    const ui = catalogStatusToUiStatus(this.workflowStatus);
+    const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
+    if (
+      rank !== undefined &&
+      rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
+      !String(this.form.codigo_oficio || '').trim()
+    ) {
+      this.ensureGestionDraft();
+    }
+  }
+
+  private applyLoadedGestion(
+    gestion: Gestion | null,
+    medidas: MedidaAsignada[],
+    solicitud: Solicitud | null,
+  ): void {
+    this.solicitud.set(solicitud);
+    this.gestionSnapshot.set(gestion);
+    if (gestion) {
+      this.form = {
+        ...this.form,
+        ...gestion,
+        fecha_cerrem: this.toDateInput(gestion.fecha_cerrem),
+        fecha_resolucion: this.toDateInput(gestion.fecha_resolucion),
+      };
+      this.osegGuardada.set(this.isOsegPersistida(gestion));
+      this.cerremGuardada.set(this.isCerremPersistida(gestion));
+    } else {
+      this.resetEmptyGestionForm();
+    }
+    if (!gestion && solicitud) {
+      this.applySolicitudToForm(solicitud);
+    }
+
+    const lista = medidas
+      .filter((m) => !this.isEsquemaProteccionNombre(m.nombre))
+      .map((m) => ({ ...m, asignado: true }));
+    this.medidasSeleccionadas.set(lista);
+    this.medidasGuardadas.set(lista.length > 0);
+    this.medidasEditMode.set(false);
+    this.cerremEditMode.set(false);
+    this.maybeEnsureGestionDraft();
+    this.captureDraftBaseline();
   }
 
   private ensureGestionDraft() {
@@ -837,6 +1062,11 @@ export class MedidasComponent implements OnInit, OnChanges {
     return this.medidasSeleccionadas().some((m) => m.ID_tipo_medida === id);
   }
 
+  /** Catálogo legacy: «Esquema de protección» no es checkbox; va en columnas V/W del Excel. */
+  private isEsquemaProteccionNombre(nombre: string | null | undefined): boolean {
+    return /esquema de protecci/i.test(String(nombre ?? ''));
+  }
+
   getMedidaSeleccionada(id: number): MedidaAsignada | undefined {
     return this.medidasSeleccionadas().find((m) => m.ID_tipo_medida === id);
   }
@@ -847,7 +1077,8 @@ export class MedidasComponent implements OnInit, OnChanges {
     if (this.isMedidaSelected(id)) {
       this.medidasSeleccionadas.set(current.filter((m) => m.ID_tipo_medida !== id));
     } else {
-      const tipo = this.tiposMedida().find((t) => t.id === id)!;
+      const tipo = this.tiposMedida().find((t) => t.id === id);
+      if (!tipo) return;
       this.medidasSeleccionadas.set([
         ...current,
         {
@@ -859,6 +1090,7 @@ export class MedidasComponent implements OnInit, OnChanges {
         },
       ]);
     }
+    this.notifyPendingChanges();
   }
 
   updateCantidad(id: number, val: number) {
@@ -866,6 +1098,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.medidasSeleccionadas.update((list) =>
       list.map((m) => (m.ID_tipo_medida === id ? { ...m, cantidad: val } : m)),
     );
+    this.notifyPendingChanges();
   }
 
   updateObservacion(id: number, val: string) {
@@ -873,6 +1106,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.medidasSeleccionadas.update((list) =>
       list.map((m) => (m.ID_tipo_medida === id ? { ...m, observacion_medida: val } : m)),
     );
+    this.notifyPendingChanges();
   }
 
   guardarGestionOseg() {
@@ -909,71 +1143,93 @@ export class MedidasComponent implements OnInit, OnChanges {
     afterSuccess?: () => void,
     soloCerrem = false,
   ) {
+    void this.postGestionAsync(modulo, successMsg, afterSuccess, soloCerrem);
+  }
+
+  private async postGestionAsync(
+    modulo: ModuloMedidas,
+    successMsg: string,
+    afterSuccess?: () => void,
+    soloCerrem = false,
+  ): Promise<boolean> {
     const payload = soloCerrem
       ? {
           fecha_cerrem: this.form.fecha_cerrem,
           resolucion_cerrem: this.form.resolucion_cerrem,
           fecha_resolucion: this.form.fecha_resolucion,
           ID_riesgo: this.form.ID_riesgo,
-          tipo_esquema: this.form.tipo_esquema,
-          compartido_con: this.form.compartido_con,
-          observaciones: this.form.observaciones,
           workflowStatus: this.workflowStatus,
         }
       : {
           ...this.form,
           workflowStatus: this.workflowStatus,
         };
-    this.http
-      .post(`/api/incidents/${this.incidentId}/gestion`, payload)
-      .subscribe({
-        next: () => {
-          this.osegGuardada.set(this.isOsegPersistida(this.form));
-          this.cerremGuardada.set(this.isCerremPersistida(this.form));
-          afterSuccess?.();
-          this.showMensaje(modulo, successMsg, 'ok');
-          this.loadGestion();
-          this.refreshAuditHistory();
-          this.gestionUpdated.emit();
-        },
-        error: (err) => {
-          const msg =
-            err?.error?.error?.message || err?.error?.message || 'Error al guardar la gestión';
-          this.showMensaje(modulo, msg, 'error');
-        },
-      });
+    try {
+      await firstValueFrom(
+        this.http.post(`/api/incidents/${this.incidentId}/gestion`, payload),
+      );
+      this.osegGuardada.set(this.isOsegPersistida(this.form));
+      this.cerremGuardada.set(this.isCerremPersistida(this.form));
+      afterSuccess?.();
+      this.captureDraftBaseline();
+      this.showMensaje(modulo, successMsg, 'ok');
+      this.loadGestion();
+      this.refreshAuditHistory();
+      this.gestionUpdated.emit();
+      return true;
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg =
+        e?.error?.error?.message || e?.error?.message || 'Error al guardar la gestión';
+      this.showMensaje(modulo, msg, 'error');
+      return false;
+    }
   }
 
   guardarMedidas() {
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
     if (this.medidasGuardadas() && !this.medidasEditMode()) return;
-    this.http
-      .post(`/api/incidents/${this.incidentId}/medidas`, {
-        medidas: this.medidasSeleccionadas().map((m) => ({
-          ID_tipo_medida: m.ID_tipo_medida,
-          cantidad: m.cantidad,
-          observacion_medida: m.observacion_medida,
-        })),
-      })
-      .subscribe({
-        next: () => {
-          this.medidasEditMode.set(false);
-          this.showMensaje(
-            'medidas',
-            this.medidasGuardadas()
-              ? 'Medidas actualizadas correctamente'
-              : 'Medidas asignadas correctamente',
-            'ok',
-          );
-          this.loadGestion();
-          this.refreshAuditHistory();
-        },
-        error: (err) => {
-          const msg =
-            err?.error?.error?.message || err?.error?.message || 'Error al asignar medidas';
-          this.showMensaje('medidas', msg, 'error');
-        },
-      });
+    this.guardarMedidasAsync();
+  }
+
+  private async guardarMedidasAsync(): Promise<boolean> {
+    if (isClosedWorkflowStatus(this.workflowStatus)) return false;
+    if (this.medidasGuardadas() && !this.medidasEditMode()) return true;
+    try {
+      await firstValueFrom(
+        this.http.post(`/api/incidents/${this.incidentId}/medidas`, {
+          medidas: this.medidasSeleccionadas().map((m) => ({
+            ID_tipo_medida: m.ID_tipo_medida,
+            cantidad: m.cantidad,
+            observacion_medida: m.observacion_medida,
+          })),
+          tipo_esquema: this.form.tipo_esquema,
+          compartido_con: this.form.compartido_con,
+          observaciones: this.form.observaciones,
+        }),
+      );
+      this.medidasEditMode.set(false);
+      this.medidasGuardadas.set(this.medidasSeleccionadas().length > 0);
+      this.captureDraftBaseline();
+      this.showMensaje(
+        'medidas',
+        this.medidasGuardadas()
+          ? 'Medidas actualizadas correctamente'
+          : 'Medidas asignadas correctamente',
+        'ok',
+      );
+      this.loadGestion();
+      this.refreshAuditHistory();
+      this.gestionUpdated.emit();
+      this.medidasSaved.emit();
+      return true;
+    } catch (err: unknown) {
+      const e = err as { error?: { error?: { message?: string }; message?: string } };
+      const msg =
+        e?.error?.error?.message || e?.error?.message || 'Error al asignar medidas';
+      this.showMensaje('medidas', msg, 'error');
+      return false;
+    }
   }
 
   private isCerremPersistida(

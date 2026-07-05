@@ -3,6 +3,7 @@ export type IncidentStatus =
   | 'En gestión OSEG'
   | 'Enviado a CERREM'
   | 'En evaluación CERREM'
+  | 'Reiteraciones'
   | 'Medidas asignadas'
   | 'Cerrado'
   | 'Cancelado'
@@ -15,8 +16,8 @@ export type IncidentStatus =
 export const DASHBOARD_ACTIVE_STATUSES: readonly IncidentStatus[] = [
   'Nuevo',
   'En gestión OSEG',
-  'Enviado a CERREM',
   'En evaluación CERREM',
+  'Reiteraciones',
   'Medidas asignadas',
 ] as const;
 
@@ -29,6 +30,8 @@ export const DASHBOARD_CLOSED_STATUSES: readonly IncidentStatus[] = [
 
 export function isDashboardActiveStatus(status: string | null | undefined): boolean {
   const value = String(status ?? '').trim();
+  const ui = catalogStatusToUiStatus(value);
+  if (ui === 'Enviado a CERREM') return true;
   return (DASHBOARD_ACTIVE_STATUSES as readonly string[]).includes(value);
 }
 
@@ -43,6 +46,7 @@ export const CATALOG_STATUS_TO_UI: Record<string, IncidentStatus> = {
   'En gestión OSEG': 'En gestión OSEG',
   'Enviado a CERREM': 'Enviado a CERREM',
   'En evaluación CERREM': 'En evaluación CERREM',
+  Reiteraciones: 'Reiteraciones',
   'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
@@ -61,8 +65,9 @@ export function catalogStatusToUiStatus(catalogName: string): string {
 export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 3,
-  'En evaluación CERREM': 4,
+  'Enviado a CERREM': 2,
+  'En evaluación CERREM': 3,
+  Reiteraciones: 4,
   'Medidas asignadas': 5,
   Cerrado: 6,
   Cancelado: 6,
