@@ -17,6 +17,11 @@ const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./ve
 const { linkLocationToIncident } = require('./location');
 const { isFinalState, requiresMedidas, isForwardStatusTransition } = require('./transitions');
 const { hasAssignedMedidas, getGestionByIncidente, validateGestionForStatus } = require('./medidas');
+const {
+  isRiesgoExtraordinario,
+  isRiesgoOrdinario,
+  requiresMedidasForGestion,
+} = require('./riesgoNivel');
 const HttpError = require('../../utils/HttpError');
 
 const USER_DISPLAY_NAME_SQL = `TRIM(CONCAT(
@@ -840,7 +845,50 @@ async function assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, vi
   if (gestionError) throw new HttpError(409, gestionError);
 }
 
-async function assertMedidasIfRequired(newStatus, visibleId) {
+async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId) {
+  if (String(agencyCode).toUpperCase() !== 'CSJ' || !newStatus || newStatus === currentStatus) {
+    return;
+  }
+
+  const gestion = await getGestionByIncidente(visibleId);
+  const cerremGuardado =
+    Boolean(String(gestion?.resolucion_cerrem || '').trim()) && Boolean(gestion?.ID_riesgo);
+
+  if (newStatus === 'Medidas asignadas' && cerremGuardado && isRiesgoOrdinario(gestion)) {
+    throw new HttpError(
+      409,
+      'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre el incidente en «Cerrado».',
+    );
+  }
+
+  if (
+    currentStatus === 'En evaluación CERREM' &&
+    newStatus === 'Cerrado' &&
+    cerremGuardado &&
+    isRiesgoExtraordinario(gestion)
+  ) {
+    throw new HttpError(
+      409,
+      'El nivel de riesgo Extraordinario requiere pasar por «Medidas asignadas» antes de cerrar.',
+    );
+  }
+}
+
+async function assertMedidasIfRequired(newStatus, visibleId, agencyCode) {
+  const gestion = await getGestionByIncidente(visibleId);
+  const isCsj = String(agencyCode || '').toUpperCase() === 'CSJ';
+
+  if (newStatus === 'Cerrado' && isCsj && requiresMedidasForGestion(gestion)) {
+    const tieneMedidas = await hasAssignedMedidas(visibleId);
+    if (!tieneMedidas) {
+      throw new HttpError(
+        409,
+        'El nivel de riesgo Extraordinario requiere asignar medidas de seguridad antes de cerrar el incidente.',
+      );
+    }
+    return;
+  }
+
   if (!newStatus || newStatus === 'Cerrado' || !requiresMedidas(newStatus)) return;
   const tieneMedidas = await hasAssignedMedidas(visibleId);
   if (!tieneMedidas) {
@@ -910,7 +958,8 @@ async function updateIncident(visibleId, body, user) {
 
   assertIncidentStatusChange(currentStatus, newStatus, agencyCode);
   await assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId);
-  await assertMedidasIfRequired(newStatus, visibleId);
+  await assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId);
+  await assertMedidasIfRequired(newStatus, visibleId, agencyCode);
 
   const conn = await pool.getConnection();
   try {

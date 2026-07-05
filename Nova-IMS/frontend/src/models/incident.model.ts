@@ -61,11 +61,11 @@ export function catalogStatusToUiStatus(catalogName: string): string {
 export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 2,
-  'En evaluación CERREM': 3,
-  'Medidas asignadas': 4,
-  Cerrado: 5,
-  Cancelado: 5,
+  'Enviado a CERREM': 3,
+  'En evaluación CERREM': 4,
+  'Medidas asignadas': 5,
+  Cerrado: 6,
+  Cancelado: 6,
 };
 
 /** Orden del flujo POL. */

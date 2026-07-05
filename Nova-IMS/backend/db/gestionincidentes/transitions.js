@@ -42,11 +42,11 @@ const TRANSITIONS = {
 const WORKFLOW_RANK_CSJ = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 2,
-  'En evaluación CERREM': 3,
-  'Medidas asignadas': 4,
-  Cerrado: 5,
-  Cancelado: 5,
+  'Enviado a CERREM': 3,
+  'En evaluación CERREM': 4,
+  'Medidas asignadas': 5,
+  Cerrado: 6,
+  Cancelado: 6,
 };
 
 /** Orden del flujo POL. */

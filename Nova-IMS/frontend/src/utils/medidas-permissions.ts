@@ -1,4 +1,12 @@
 import { catalogStatusToUiStatus } from '../models/incident.model';
+import {
+  isRiesgoExtraordinario,
+  isRiesgoOrdinario,
+  requiresMedidasForRiesgo,
+  type RiesgoGestionSnapshot,
+} from './riesgo-nivel';
+
+export type { RiesgoGestionSnapshot };
 
 export type MedidasFieldMode = 'hidden' | 'readonly' | 'editable' | 'auto';
 
@@ -44,11 +52,10 @@ export function isCsjMedidasWorkflow(agency: string): boolean {
   return String(agency ?? '').trim().toUpperCase() === 'CSJ';
 }
 
-export interface GestionSnapshot {
+export interface GestionSnapshot extends RiesgoGestionSnapshot {
   codigo_oficio?: string | null;
   tramite_destino?: string | null;
   resolucion_cerrem?: string | null;
-  ID_riesgo?: number | null;
 }
 
 export function hasOsegGestionData(gestion: GestionSnapshot | null | undefined): boolean {
@@ -125,8 +132,12 @@ export function isClosedWorkflowStatus(status: string): boolean {
   return ui === 'Cerrado' || ui === 'Cancelado';
 }
 
-/** Matriz CSJ acordada: habilitación por estado del incidente. */
-export function getMedidasPermissions(status: string, agency = 'CSJ'): MedidasPermissions {
+/** Matriz CSJ acordada: habilitación por estado del incidente y nivel de riesgo CERREM. */
+export function getMedidasPermissions(
+  status: string,
+  agency = 'CSJ',
+  gestion?: GestionSnapshot | null,
+): MedidasPermissions {
   if (!isCsjMedidasWorkflow(agency)) {
     return { ...HIDDEN, showPanel: false };
   }
@@ -179,6 +190,26 @@ export function getMedidasPermissions(status: string, agency = 'CSJ'): MedidasPe
       };
 
     case 'Medidas asignadas':
+      if (!isRiesgoExtraordinario(gestion)) {
+        return {
+          showPanel: true,
+          showOsegBlock: true,
+          showCerremBlock: true,
+          showMedidasBlock: false,
+          servidorJudicial: 'readonly',
+          oficioTramite: 'readonly',
+          tramiteDestino: 'readonly',
+          fechaCerrem: 'readonly',
+          resolucionCerrem: 'readonly',
+          fechaResolucion: 'readonly',
+          nivelRiesgo: 'readonly',
+          tipoEsquema: 'readonly',
+          observaciones: 'readonly',
+          medidasFisicas: 'hidden',
+          canSaveGestion: false,
+          canSaveMedidas: false,
+        };
+      }
       return {
         showPanel: true,
         showOsegBlock: true,
@@ -267,7 +298,7 @@ export function shouldNavigateToMedidasTab(status: string): boolean {
   return (MEDIADAS_WORKFLOW_STATUSES as readonly string[]).includes(ui);
 }
 
-export function medidasTabHint(status: string): string {
+export function medidasTabHint(status: string, gestion?: GestionSnapshot | null): string {
   const ui = catalogStatusToUiStatus(status);
   switch (ui) {
     case 'En gestión OSEG':
@@ -275,6 +306,12 @@ export function medidasTabHint(status: string): string {
     case 'Enviado a CERREM':
       return 'La gestión OSEG quedó registrada. Complete la decisión CERREM o cierre el caso en «Cerrado» (pestaña Detalle).';
     case 'En evaluación CERREM':
+      if (isRiesgoExtraordinario(gestion)) {
+        return 'Riesgo Extraordinario: registre la decisión CERREM, pase a «Medidas asignadas» y asigne medidas antes de cerrar.';
+      }
+      if (isRiesgoOrdinario(gestion)) {
+        return 'Riesgo Ordinario: registre la decisión CERREM y cierre el incidente en «Cerrado» sin medidas de seguridad.';
+      }
       return 'Registre la decisión CERREM: fechas, resolución y nivel de riesgo.';
     case 'Medidas asignadas':
       return 'Asigne al menos una medida de seguridad y pulse «Asignar medidas» antes de actualizar el incidente.';
@@ -284,6 +321,73 @@ export function medidasTabHint(status: string): string {
     default:
       return '';
   }
+}
+
+export function requiresMedidasBeforeClose(gestion?: GestionSnapshot | null): boolean {
+  return requiresMedidasForRiesgo(gestion);
+}
+
+/** Riesgo Ordinario ya guardado en CERREM (resolución + nivel de riesgo). */
+export function isOrdinarioCerremGuardado(gestion?: GestionSnapshot | null): boolean {
+  return hasCerremGestionData(gestion) && isRiesgoOrdinario(gestion);
+}
+
+/** Extraordinario ya guardado en CERREM. */
+export function isExtraordinarioCerremGuardado(gestion?: GestionSnapshot | null): boolean {
+  return hasCerremGestionData(gestion) && isRiesgoExtraordinario(gestion);
+}
+
+/** Filtra transiciones de estado CSJ según nivel de riesgo CERREM guardado. */
+export function isCsjStatusChoiceAllowed(
+  fromStatus: string,
+  toStatus: string,
+  gestion?: GestionSnapshot | null,
+): boolean {
+  const to = catalogStatusToUiStatus(toStatus);
+
+  if (to === 'Medidas asignadas' && isOrdinarioCerremGuardado(gestion)) {
+    return false;
+  }
+
+  const from = catalogStatusToUiStatus(fromStatus);
+  if (from === 'En evaluación CERREM' && to === 'Cerrado' && isExtraordinarioCerremGuardado(gestion)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getCsjStatusDisabledReason(
+  fromStatus: string,
+  toStatus: string,
+  gestion?: GestionSnapshot | null,
+): string | null {
+  const to = catalogStatusToUiStatus(toStatus);
+  if (to === 'Medidas asignadas' && isOrdinarioCerremGuardado(gestion)) {
+    return 'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre en «Cerrado».';
+  }
+  const from = catalogStatusToUiStatus(fromStatus);
+  if (from === 'En evaluación CERREM' && to === 'Cerrado' && isExtraordinarioCerremGuardado(gestion)) {
+    return 'Riesgo Extraordinario: asigne medidas antes de cerrar.';
+  }
+  return null;
+}
+
+export function statusOptionLabel(
+  catalogName: string,
+  _fromStatus: string,
+  gestion?: GestionSnapshot | null,
+  agency = 'CSJ',
+): string {
+  const label = catalogStatusToUiStatus(catalogName);
+  if (
+    !isCsjMedidasWorkflow(agency) ||
+    catalogStatusToUiStatus(catalogName) !== 'Medidas asignadas' ||
+    !isOrdinarioCerremGuardado(gestion)
+  ) {
+    return label;
+  }
+  return `${label} (no aplica — Ordinario)`;
 }
 
 export function medidasPanelLockedMessage(status: string, agency = 'CSJ'): string {

@@ -80,8 +80,8 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
 }
 
 const statusOrder: Record<string, number> = {
-  Nuevo: 7,
-  'En gestión OSEG': 6,
+  Nuevo: 8,
+  'En gestión OSEG': 7,
   'Enviado a CERREM': 5,
   'En evaluación CERREM': 4,
   'Medidas asignadas': 3,
@@ -1095,13 +1095,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   activeIncidentsCount = computed(() => this.dashboardActiveIncidents().length);
   criticalPriorityCount = computed(
     () => this.dashboardActiveIncidents().filter((inc) => inc.priority === 'Crítica').length,
-  );
-  closedCount = computed(
-    () => this.incidents().filter((inc) => isHiddenByDefaultInIncidentList(inc.status)).length,
-  );
-
-  avgGestionLabel = computed(
-    () => this.incidentService.dashboardMetrics()?.gestion.formatted ?? 'N/A',
   );
 
   avgProteccionLabel = computed(

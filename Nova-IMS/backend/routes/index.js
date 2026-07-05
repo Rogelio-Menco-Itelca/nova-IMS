@@ -251,6 +251,15 @@ router.post('/incidents/:id/medidas', async (req, res, next) => {
         error: { message: 'Seleccione al menos una medida de seguridad.' },
       });
     }
+    const { isRiesgoOrdinario } = require('../db/gestionincidentes/riesgoNivel');
+    if (isRiesgoOrdinario(gestion)) {
+      return res.status(409).json({
+        error: {
+          message:
+            'El nivel de riesgo Ordinario no requiere medidas de seguridad. Cierre el incidente en «Cerrado».',
+        },
+      });
+    }
     const beforeMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);
     await medidas.asignarMedidas(gestion.ID_gestion, lista, req.user);
     const afterMedidas = await medidas.getMedidasByGestion(gestion.ID_gestion);

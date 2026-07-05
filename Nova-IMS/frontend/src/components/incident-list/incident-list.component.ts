@@ -48,6 +48,11 @@ import {
   isCsjMedidasWorkflow,
   medidasTabHint,
   shouldNavigateToMedidasTab,
+  isCsjStatusChoiceAllowed,
+  requiresMedidasBeforeClose,
+  getCsjStatusDisabledReason,
+  statusOptionLabel,
+  type GestionSnapshot,
 } from '../../utils/medidas-permissions';
 import { Subscription, of, firstValueFrom } from 'rxjs';
 import {
@@ -99,8 +104,8 @@ const priorityOrder: Record<IncidentPriority, number> = {
 };
 
 const statusOrder: Record<IncidentStatus, number> = {
-  Nuevo: 11,
-  'En gestión OSEG': 10,
+  Nuevo: 12,
+  'En gestión OSEG': 11,
   'Enviado a CERREM': 9,
   'En evaluación CERREM': 8,
   'Medidas asignadas': 7,
@@ -259,6 +264,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   origins = signal<CatalogOption[]>([]);
   incidentStatuses = signal<CatalogOption[]>([]);
   allowedStatuses = signal<string[]>([]);
+  workflowGestion = signal<GestionSnapshot | null>(null);
   currentIncidentUiStatus = signal('');
   /** Municipios por fila de lugar involucrado (índice del FormArray). */
   placeMunicipalities = signal<Map<number, ColombiaMunicipality[]>>(new Map());
@@ -367,6 +373,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           if (incident) {
             this.setupStatusDropdownForEdit(agency, incident.status);
             this.populateFormWithState(incident);
+            this.refreshWorkflowGestion(incident.id);
             setTimeout(() => this.initMap(incident.lat, incident.lng), 0);
           }
         }
@@ -1484,6 +1491,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       if (!isForwardStatusTransition(savedStatusUi, name, agency)) {
         return false;
       }
+      if (
+        isCsjMedidasWorkflow(agency) &&
+        !isCsjStatusChoiceAllowed(savedStatusUi, name, this.workflowGestion())
+      ) {
+        return false;
+      }
       return this.incidentStatuses().some((st) => st.name === name);
     }
 
@@ -1500,6 +1513,50 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   statusLabel(catalogName: string): string {
     return catalogStatusToUiStatus(catalogName);
+  }
+
+  statusFromForDropdown(): string {
+    return catalogStatusToUiStatus(
+      String(this.activeIncident()?.status ?? this.incidentForm.get('status')?.value ?? '').trim(),
+    );
+  }
+
+  isStatusDisabled(catalogName: string): boolean {
+    const name = String(catalogName ?? '').trim();
+    if (!name) return true;
+
+    const currentFormValue = String(this.incidentForm.get('status')?.value ?? '').trim();
+    const effectiveCurrent =
+      currentFormValue ||
+      this.statusNameForForm(String(this.activeIncident()?.status ?? '').trim());
+    if (name === effectiveCurrent) return false;
+
+    return !this.isStatusAllowed(name);
+  }
+
+  statusOptionLabel(catalogName: string): string {
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    if (!isCsjMedidasWorkflow(agency) || this.activeTabId() === 'new') {
+      return this.statusLabel(catalogName);
+    }
+    return statusOptionLabel(
+      catalogName,
+      this.statusFromForDropdown(),
+      this.workflowGestion(),
+      agency,
+    );
+  }
+
+  statusDisabledReason(catalogName: string): string {
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    if (!isCsjMedidasWorkflow(agency) || this.activeTabId() === 'new') return '';
+    return (
+      getCsjStatusDisabledReason(
+        this.statusFromForDropdown(),
+        catalogName,
+        this.workflowGestion(),
+      ) ?? ''
+    );
   }
 
   private loadAllIncidentStatuses(agency: string, afterLoad?: () => void): void {
@@ -1975,9 +2032,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
       if (!this.isStatusAllowed(name)) {
         ctrl.setValue(this.lastValidStatus, { emitEvent: false });
+        const reason = this.statusDisabledReason(name);
         this.notificationService.addNotification(
           'Estado no permitido',
-          'Ese cambio de estado no está permitido en el flujo actual del incidente.',
+          reason ||
+            'Ese cambio de estado no está permitido en el flujo actual del incidente.',
         );
         this.cdr.markForCheck();
         return;
@@ -2415,8 +2474,41 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private requiresMedidasForSave(statusValue: string): boolean {
-    return catalogStatusToUiStatus(String(statusValue ?? '').trim()) === 'Medidas asignadas';
+  private requiresMedidasForSave(
+    statusValue: string,
+    gestion?: GestionSnapshot | null,
+  ): boolean {
+    const ui = catalogStatusToUiStatus(String(statusValue ?? '').trim());
+    if (ui === 'Medidas asignadas') return true;
+    if (ui === 'Cerrado') return requiresMedidasBeforeClose(gestion);
+    return false;
+  }
+
+  refreshWorkflowGestion(incidentId: string): void {
+    if (!isCsjMedidasWorkflow(this.currentAgency())) {
+      this.workflowGestion.set(null);
+      return;
+    }
+    this.http
+      .get<{
+        gestion: {
+          codigo_oficio?: string;
+          tramite_destino?: string;
+          resolucion_cerrem?: string;
+          ID_riesgo?: number;
+          nivel_riesgo?: string;
+        } | null;
+      }>(`/api/incidents/${incidentId}/medidas`)
+      .subscribe({
+        next: ({ gestion }) => {
+          this.workflowGestion.set(gestion ?? null);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.workflowGestion.set(null);
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   private hasAssignedMedidas(incidentId: string) {
@@ -2426,6 +2518,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         tramite_destino?: string;
         resolucion_cerrem?: string;
         ID_riesgo?: number;
+        nivel_riesgo?: string;
       } | null;
       medidas: unknown[];
     }>(`/api/incidents/${incidentId}/medidas`);
@@ -2629,21 +2722,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     const targetStatus = catalogStatusToUiStatus(String(updatedData.status ?? ''));
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
-
-    if (targetStatus === 'Cerrado') {
-      this.commitIncidentUpdate(updatedData);
-      return;
-    }
+    const savedStatus = catalogStatusToUiStatus(
+      String(this.activeIncident()?.status ?? '').trim(),
+    );
 
     if (isCsjMedidasWorkflow(agency)) {
       this.hasAssignedMedidas(incidentId).subscribe({
         next: ({ gestion, medidas }) => {
-          const gestionRecord = gestion as {
-            codigo_oficio?: string;
-            tramite_destino?: string;
-            resolucion_cerrem?: string;
-            ID_riesgo?: number;
-          } | null;
+          const gestionRecord = gestion as GestionSnapshot | null;
           if (needsOsegGestionForTransition(targetStatus)) {
             if (
               !gestionRecord?.codigo_oficio?.trim() ||
@@ -2671,11 +2757,40 @@ export class IncidentListComponent implements OnInit, OnDestroy {
               return;
             }
           }
-          if (this.requiresMedidasForSave(targetStatus) && !medidas?.length) {
+          if (
+            savedStatus === 'En evaluación CERREM' &&
+            targetStatus === 'Cerrado' &&
+            !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
+          ) {
             this.detailTab.set('medidas');
             this.notificationService.addNotification(
               'No se puede guardar',
-              'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
+              'Riesgo Extraordinario: pase a «Medidas asignadas» y asigne medidas antes de cerrar.',
+            );
+            this.abortLeaveAfterSave();
+            this.cdr.markForCheck();
+            return;
+          }
+          if (
+            targetStatus === 'Medidas asignadas' &&
+            !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
+          ) {
+            this.detailTab.set('medidas');
+            this.notificationService.addNotification(
+              'No se puede guardar',
+              'Riesgo Ordinario: cierre el incidente en «Cerrado» sin medidas de seguridad.',
+            );
+            this.abortLeaveAfterSave();
+            this.cdr.markForCheck();
+            return;
+          }
+          if (this.requiresMedidasForSave(targetStatus, gestionRecord) && !medidas?.length) {
+            this.detailTab.set('medidas');
+            this.notificationService.addNotification(
+              'No se puede guardar',
+              targetStatus === 'Cerrado'
+                ? 'Riesgo Extraordinario: asigne al menos una medida de seguridad antes de cerrar.'
+                : 'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
             );
             this.abortLeaveAfterSave();
             this.cdr.markForCheck();
@@ -2684,7 +2799,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           this.commitIncidentUpdate(updatedData);
         },
         error: () => {
-          if (this.requiresMedidasForSave(targetStatus)) {
+          if (this.requiresMedidasForSave(targetStatus, this.workflowGestion())) {
             this.detailTab.set('medidas');
             this.notificationService.addNotification(
               'No se puede guardar',
@@ -2768,6 +2883,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       this.setupStatusDropdownForEdit(agency, saved.status);
       this.populateFormWithState(saved);
+      this.refreshWorkflowGestion(incidentId);
       this.configService.getAuditLogs().catch(() => void 0);
       this.notificationService.addNotification(
         'Incidente Actualizado',

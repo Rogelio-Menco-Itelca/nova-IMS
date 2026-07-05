@@ -497,6 +497,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
   @Output() goToDetalle = new EventEmitter<void>();
+  @Output() gestionUpdated = new EventEmitter<void>();
 
   readonly workflowSteps = CSJ_MEDIADAS_WORKFLOW_STEPS;
 
@@ -525,7 +526,7 @@ export class MedidasComponent implements OnInit, OnChanges {
         this.medidasSeleccionadas().length,
       );
     }
-    return getMedidasPermissions(this.workflowStatus, this.agency);
+    return getMedidasPermissions(this.workflowStatus, this.agency, this.gestionSnapshot());
   });
   closedReviewEmpty = computed(
     () =>
@@ -534,7 +535,7 @@ export class MedidasComponent implements OnInit, OnChanges {
       !this.permissions().showCerremBlock &&
       !this.permissions().showMedidasBlock,
   );
-  hint = computed(() => medidasTabHint(this.workflowStatus));
+  hint = computed(() => medidasTabHint(this.workflowStatus, this.gestionSnapshot()));
   uiStatus = computed(() => catalogStatusToUiStatus(this.workflowStatus));
   isNuevoLocked = computed(() => isNuevoLockedMedidasPanel(this.workflowStatus, this.agency));
   panelLockedMessage = computed(() =>
@@ -933,6 +934,7 @@ export class MedidasComponent implements OnInit, OnChanges {
           this.showMensaje(modulo, successMsg, 'ok');
           this.loadGestion();
           this.refreshAuditHistory();
+          this.gestionUpdated.emit();
         },
         error: (err) => {
           const msg =

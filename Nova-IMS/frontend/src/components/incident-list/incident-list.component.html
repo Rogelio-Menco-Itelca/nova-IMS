@@ -302,8 +302,12 @@
                 >
                   <option value="" disabled>Seleccione estado</option>
                   @for (st of incidentStatuses(); track st.id) {
-                    <option [value]="st.name">
-                      {{ statusLabel(st.name) }}
+                    <option
+                      [value]="st.name"
+                      [disabled]="isStatusDisabled(st.name)"
+                      [title]="statusDisabledReason(st.name)"
+                    >
+                      {{ statusOptionLabel(st.name) }}
                     </option>
                   }
                 </select>
@@ -1390,6 +1394,7 @@
                 [workflowStatus]="workflowStatusForMedidas()"
                 [agency]="currentAgency()"
                 (goToDetalle)="setDetailTab('detalle')"
+                (gestionUpdated)="refreshWorkflowGestion(incident.id)"
               />
             }
           </div>

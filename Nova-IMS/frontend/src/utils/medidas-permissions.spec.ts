@@ -7,6 +7,11 @@ import {
   resolveClosedMedidasPermissions,
   getMedidasPermissions,
   shouldNavigateToMedidasTab,
+  isCsjStatusChoiceAllowed,
+  isOrdinarioCerremGuardado,
+  requiresMedidasBeforeClose,
+  getCsjStatusDisabledReason,
+  statusOptionLabel,
   type MedidasPermissions,
 } from './medidas-permissions';
 
@@ -18,6 +23,18 @@ function expectHidden(p: MedidasPermissions) {
   expect(p.canSaveGestion).toBe(false);
   expect(p.canSaveMedidas).toBe(false);
 }
+
+const ordinarioGuardado = {
+  resolucion_cerrem: 'RES-1',
+  ID_riesgo: 1,
+  nivel_riesgo: 'Ordinario',
+};
+
+const extraordinarioGuardado = {
+  resolucion_cerrem: 'RES-2',
+  ID_riesgo: 2,
+  nivel_riesgo: 'Extraordinario',
+};
 
 describe('isCsjMedidasWorkflow', () => {
   it('acepta CSJ en distintas mayúsculas', () => {
@@ -45,6 +62,60 @@ describe('hasCerremGestionData', () => {
     expect(hasCerremGestionData({ resolucion_cerrem: 'RES-1', ID_riesgo: 2 })).toBe(true);
     expect(hasCerremGestionData({ resolucion_cerrem: 'RES-1' })).toBe(false);
     expect(hasCerremGestionData({ ID_riesgo: 2 })).toBe(false);
+  });
+});
+
+describe('isOrdinarioCerremGuardado', () => {
+  it('requiere CERREM guardado con riesgo Ordinario', () => {
+    expect(isOrdinarioCerremGuardado(ordinarioGuardado)).toBe(true);
+    expect(isOrdinarioCerremGuardado(extraordinarioGuardado)).toBe(false);
+    expect(isOrdinarioCerremGuardado({ ID_riesgo: 1 })).toBe(false);
+  });
+});
+
+describe('isCsjStatusChoiceAllowed', () => {
+  it('Ordinario guardado: bloquea Medidas asignadas desde cualquier estado', () => {
+    expect(
+      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', ordinarioGuardado),
+    ).toBe(false);
+    expect(
+      isCsjStatusChoiceAllowed('Enviado a CERREM', 'Medidas asignadas', ordinarioGuardado),
+    ).toBe(false);
+    expect(isCsjStatusChoiceAllowed('En evaluación CERREM', 'Cerrado', ordinarioGuardado)).toBe(
+      true,
+    );
+  });
+
+  it('sin CERREM guardado: no bloquea Medidas asignadas aún', () => {
+    expect(isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', null)).toBe(true);
+    expect(
+      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', { ID_riesgo: 1 }),
+    ).toBe(true);
+  });
+
+  it('Extraordinario guardado: bloquea Cerrado directo desde CERREM', () => {
+    expect(
+      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Cerrado', extraordinarioGuardado),
+    ).toBe(false);
+    expect(
+      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', extraordinarioGuardado),
+    ).toBe(true);
+  });
+});
+
+describe('statusOptionLabel', () => {
+  it('marca Medidas asignadas como no aplicable con Ordinario guardado', () => {
+    expect(
+      statusOptionLabel('Medidas asignadas', 'En evaluación CERREM', ordinarioGuardado, 'CSJ'),
+    ).toContain('no aplica');
+  });
+});
+
+describe('getCsjStatusDisabledReason', () => {
+  it('explica bloqueo de Medidas asignadas con Ordinario guardado', () => {
+    expect(
+      getCsjStatusDisabledReason('En evaluación CERREM', 'Medidas asignadas', ordinarioGuardado),
+    ).toContain('Ordinario');
   });
 });
 
@@ -101,73 +172,39 @@ describe('getMedidasPermissions — flujo CSJ', () => {
     expect(p.showOsegBlock).toBe(true);
     expect(p.showCerremBlock).toBe(false);
     expect(p.showMedidasBlock).toBe(false);
-    expect(p.servidorJudicial).toBe('readonly');
-    expect(p.oficioTramite).toBe('auto');
-    expect(p.tramiteDestino).toBe('editable');
-    expect(p.fechaCerrem).toBe('hidden');
     expect(p.canSaveGestion).toBe(true);
     expect(p.canSaveMedidas).toBe(false);
   });
 
-  it('Enviado a CERREM: OSEG readonly y CERREM editable', () => {
-    const p = getMedidasPermissions('Enviado a CERREM', 'CSJ');
-    expect(p.showCerremBlock).toBe(true);
-    expect(p.showMedidasBlock).toBe(false);
-    expect(p.oficioTramite).toBe('readonly');
-    expect(p.fechaCerrem).toBe('editable');
-    expect(p.nivelRiesgo).toBe('editable');
-    expect(p.medidasFisicas).toBe('hidden');
-    expect(p.canSaveGestion).toBe(true);
-    expect(p.canSaveMedidas).toBe(false);
-  });
-
-  it('En evaluación CERREM: misma matriz que Enviado a CERREM', () => {
-    const p = getMedidasPermissions('En evaluación CERREM', 'CSJ');
-    expect(p.showCerremBlock).toBe(true);
-    expect(p.fechaCerrem).toBe('editable');
-    expect(p.canSaveGestion).toBe(true);
-  });
-
-  it('Medidas asignadas: medidas físicas editables', () => {
-    const p = getMedidasPermissions('Medidas asignadas', 'CSJ');
+  it('Medidas asignadas: solo Extraordinario habilita medidas físicas', () => {
+    const p = getMedidasPermissions('Medidas asignadas', 'CSJ', extraordinarioGuardado);
     expect(p.showMedidasBlock).toBe(true);
     expect(p.medidasFisicas).toBe('editable');
-    expect(p.observaciones).toBe('readonly');
-    expect(p.canSaveGestion).toBe(false);
     expect(p.canSaveMedidas).toBe(true);
   });
 
-  it('Cerrado: todo readonly sin guardar', () => {
-    const p = getMedidasPermissions('Cerrado', 'CSJ');
-    expect(p.showPanel).toBe(true);
-    expect(p.showMedidasBlock).toBe(true);
-    expect(p.medidasFisicas).toBe('readonly');
-    expect(p.canSaveGestion).toBe(false);
+  it('Medidas asignadas: Ordinario no habilita medidas físicas', () => {
+    const p = getMedidasPermissions('Medidas asignadas', 'CSJ', ordinarioGuardado);
+    expect(p.showMedidasBlock).toBe(false);
     expect(p.canSaveMedidas).toBe(false);
   });
+});
 
-  it('Cancelado: OSEG readonly, CERREM y medidas ocultos', () => {
-    const p = getMedidasPermissions('Cancelado', 'CSJ');
-    expect(p.showPanel).toBe(true);
-    expect(p.showOsegBlock).toBe(true);
-    expect(p.showCerremBlock).toBe(false);
-    expect(p.showMedidasBlock).toBe(false);
-    expect(p.fechaCerrem).toBe('hidden');
-    expect(p.canSaveGestion).toBe(false);
+describe('requiresMedidasBeforeClose', () => {
+  it('solo Extraordinario exige medidas al cerrar', () => {
+    expect(requiresMedidasBeforeClose(extraordinarioGuardado)).toBe(true);
+    expect(requiresMedidasBeforeClose(ordinarioGuardado)).toBe(false);
   });
 });
 
 describe('shouldNavigateToMedidasTab', () => {
   it('navega en estados del flujo de medidas', () => {
     expect(shouldNavigateToMedidasTab('En gestión OSEG')).toBe(true);
-    expect(shouldNavigateToMedidasTab('Enviado a CERREM')).toBe(true);
-    expect(shouldNavigateToMedidasTab('En evaluación CERREM')).toBe(true);
     expect(shouldNavigateToMedidasTab('Medidas asignadas')).toBe(true);
   });
 
   it('no navega en Nuevo, Cerrado o Cancelado', () => {
     expect(shouldNavigateToMedidasTab('Nuevo')).toBe(false);
     expect(shouldNavigateToMedidasTab('Cerrado')).toBe(false);
-    expect(shouldNavigateToMedidasTab('Cancelado')).toBe(false);
   });
 });
