@@ -59,6 +59,9 @@ async function startOtpFlow(user, rememberUser, resend = false) {
     await sendOtpEmail({ to: user.email, name: user.name, code });
   } catch (err) {
     logger.error('[2FA] Error enviando OTP:', err.message);
+    if (process.env.NODE_ENV !== 'production') {
+      logger.warn(`[2FA] OTP de desarrollo para ${user.email}: ${code}`);
+    }
   }
 
   await loginLogs.safeLog(() =>

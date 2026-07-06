@@ -71,6 +71,12 @@ async function sendMailViaResend({ from, to, subject, text, html }) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = payload?.message || payload?.error || response.statusText;
+    if (/not authorized to send emails from/i.test(String(detail))) {
+      throw new Error(
+        `Resend: el dominio del remitente (${getMailFrom()}) no está verificado. ` +
+          'Verifique itelca.com.co en resend.com/domains o use MAIL_FROM=onboarding@resend.dev para pruebas.',
+      );
+    }
     throw new Error(`Resend: ${detail}`);
   }
 
