@@ -158,7 +158,7 @@ function isValidPlate(plate) {
 
 function resolveEmailResponseMessage(mode, destinatarios) {
   if (mode === 'console') {
-    return `Correo simulado en consola del servidor (SMTP no configurado). Enviado a: ${destinatarios}`;
+    return `Correo simulado en consola del servidor (proveedor de correo no configurado). Enviado a: ${destinatarios}`;
   }
   return `Enviado a: ${destinatarios}`;
 }

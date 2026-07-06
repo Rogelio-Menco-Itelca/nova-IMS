@@ -6,18 +6,81 @@ const DEFAULT_MAIL_FROM = 'Itelca S.A.S <NOVA.IMS.CSJ@itelca.com.co>';
 
 let transporter = null;
 
+function isResendConfigured() {
+  return Boolean(String(process.env.RESEND_API_KEY || '').trim());
+}
+
 function isSmtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+/** resend (HTTPS, Railway/Vercel) | smtp (on-prem) | console (dev sin envío) */
+function getMailProvider() {
+  const requested = String(process.env.MAIL_PROVIDER || '').trim().toLowerCase();
+  if (requested === 'console') return 'console';
+  if (requested === 'smtp') return isSmtpConfigured() ? 'smtp' : 'console';
+  if (requested === 'resend') return isResendConfigured() ? 'resend' : 'console';
+  if (isResendConfigured()) return 'resend';
+  if (isSmtpConfigured()) return 'smtp';
+  return 'console';
+}
+
+function isMailConfigured() {
+  return getMailProvider() !== 'console';
+}
+
 function getMailFrom() {
-  const from = String(process.env.SMTP_FROM || '').trim();
+  const from = String(process.env.MAIL_FROM || process.env.SMTP_FROM || '').trim();
   if (from) return from;
   const user = String(process.env.SMTP_USER || '').trim();
   if (user) return `Itelca S.A.S <${user}>`;
   return DEFAULT_MAIL_FROM;
 }
 
+function normalizeRecipients(to) {
+  const list = Array.isArray(to) ? to : [to];
+  return list.map((item) => String(item ?? '').trim()).filter(Boolean);
+}
+
+async function sendMailViaResend({ from, to, subject, text, html }) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY no configurada');
+  }
+
+  const recipients = normalizeRecipients(to);
+  if (!recipients.length) {
+    throw new Error('No hay destinatarios de correo');
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: from || getMailFrom(),
+      to: recipients,
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = payload?.message || payload?.error || response.statusText;
+    throw new Error(`Resend: ${detail}`);
+  }
+
+  return payload;
+}
+
+/* ----- SMTP (Nodemailer) — reservado para despliegue on-prem / Office365 -----
+ * En Railway/Vercel los puertos SMTP suelen estar bloqueados.
+ * Reactivar con: MAIL_PROVIDER=smtp y variables SMTP_*.
+ */
 function getTransporter() {
   if (!isSmtpConfigured()) return null;
   if (!transporter) {
@@ -38,7 +101,7 @@ function getTransporter() {
   return transporter;
 }
 
-async function sendMail({ from, to, subject, text, html }) {
+async function sendMailViaSmtp({ from, to, subject, text, html }) {
   const transport = getTransporter();
   if (!transport) {
     throw new Error('SMTP no configurado (SMTP_HOST, SMTP_USER, SMTP_PASS)');
@@ -46,11 +109,22 @@ async function sendMail({ from, to, subject, text, html }) {
 
   return transport.sendMail({
     from: from || getMailFrom(),
-    to: Array.isArray(to) ? to.join(', ') : to,
+    to: normalizeRecipients(to).join(', '),
     subject,
     text,
     html,
   });
+}
+
+async function sendMail({ from, to, subject, text, html }) {
+  const provider = getMailProvider();
+  if (provider === 'resend') {
+    return sendMailViaResend({ from, to, subject, text, html });
+  }
+  if (provider === 'smtp') {
+    return sendMailViaSmtp({ from, to, subject, text, html });
+  }
+  throw new Error('Correo en modo consola (configure RESEND_API_KEY o MAIL_PROVIDER=smtp)');
 }
 
 function escapeHtml(value) {
@@ -83,8 +157,8 @@ async function sendWelcomeEmail({
 }) {
   logger.info('📧 Intentando enviar correo de bienvenida');
 
-  if (!isSmtpConfigured()) {
-    logger.warn('[MAIL] modo consola (SMTP no configurado)');
+  if (!isMailConfigured()) {
+    logger.warn(`[MAIL] modo consola (${getMailProvider()})`);
     return;
   }
 
@@ -613,8 +687,8 @@ function formatIncidentBodyHtml(incident) {
 }
 
 async function sendIncidentNotification({ to, incident }) {
-  if (!isSmtpConfigured()) {
-    logger.info('📧 EMAIL incidente (modo consola)');
+  if (!isMailConfigured()) {
+    logger.info(`📧 EMAIL incidente (modo consola, provider=${getMailProvider()})`);
     return { mode: 'console', recipients: Array.isArray(to) ? to : [to] };
   }
 
@@ -631,12 +705,12 @@ async function sendIncidentNotification({ to, incident }) {
     html,
   });
 
-  return { mode: 'api', recipients };
+  return { mode: getMailProvider(), recipients };
 }
 
 async function sendOtpEmail({ to, name, code }) {
-  if (!isSmtpConfigured()) {
-    logger.info('📧 OTP (modo consola) [REDACTED]');
+  if (!isMailConfigured()) {
+    logger.info(`📧 OTP (modo consola, provider=${getMailProvider()}) código=${code}`);
     return;
   }
 
