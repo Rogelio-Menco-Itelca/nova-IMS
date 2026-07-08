@@ -18,6 +18,7 @@ import {
   hasMedidasPanelPendingChanges,
   pendingMedidasSections,
   snapshotMedidasDraft,
+  describeMedidasSaveDelta,
   type MedidasDraftSnapshot,
 } from '../../utils/medidas-pending-changes';
 import { ConfigurationService } from '../../services/configuration.service';
@@ -588,10 +589,13 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() incidentId!: string;
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
+  /** Réplica en signal para que los computed reaccionen al cambio de @Input. */
+  private readonly workflowStatusSig = signal('Nuevo');
+  private readonly agencySig = signal('CSJ');
   @Output() goToDetalle = new EventEmitter<void>();
   @Output() gestionUpdated = new EventEmitter<void>();
   /** Medidas físicas + esquema guardados en `/medidas` (distinto del formulario del incidente). */
-  @Output() medidasSaved = new EventEmitter<void>();
+  @Output() medidasSaved = new EventEmitter<string | undefined>();
   /** true cuando hay borrador sin guardar en OSEG, CERREM o medidas. */
   @Output() pendingChangesChange = new EventEmitter<boolean>();
 
@@ -616,26 +620,30 @@ export class MedidasComponent implements OnInit, OnChanges {
   gestionSnapshot = signal<Partial<Gestion> | null>(null);
 
   permissions = computed(() => {
-    if (isClosedWorkflowStatus(this.workflowStatus)) {
+    const status = this.workflowStatusSig();
+    const agency = this.agencySig();
+    if (isClosedWorkflowStatus(status)) {
       return resolveClosedMedidasPermissions(
         this.gestionSnapshot(),
         this.medidasSeleccionadas().length,
       );
     }
-    return getMedidasPermissions(this.workflowStatus, this.agency, this.gestionSnapshot());
+    return getMedidasPermissions(status, agency, this.gestionSnapshot());
   });
   closedReviewEmpty = computed(
     () =>
-      isClosedWorkflowStatus(this.workflowStatus) &&
+      isClosedWorkflowStatus(this.workflowStatusSig()) &&
       !this.permissions().showOsegBlock &&
       !this.permissions().showCerremBlock &&
       !this.permissions().showMedidasBlock,
   );
-  hint = computed(() => medidasTabHint(this.workflowStatus, this.gestionSnapshot()));
-  uiStatus = computed(() => catalogStatusToUiStatus(this.workflowStatus));
-  isNuevoLocked = computed(() => isNuevoLockedMedidasPanel(this.workflowStatus, this.agency));
+  hint = computed(() => medidasTabHint(this.workflowStatusSig(), this.gestionSnapshot()));
+  uiStatus = computed(() => catalogStatusToUiStatus(this.workflowStatusSig()));
+  isNuevoLocked = computed(() =>
+    isNuevoLockedMedidasPanel(this.workflowStatusSig(), this.agencySig()),
+  );
   panelLockedMessage = computed(() =>
-    medidasPanelLockedMessage(this.workflowStatus, this.agency),
+    medidasPanelLockedMessage(this.workflowStatusSig(), this.agencySig()),
   );
   /** OSEG ya guardado en BD: oficio + trámite/destino completos. */
   osegGuardada = signal(false);
@@ -652,7 +660,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     'nivelRiesgo',
   ];
   displayHint = computed(() => {
-    const ui = catalogStatusToUiStatus(this.workflowStatus);
+    const ui = catalogStatusToUiStatus(this.workflowStatusSig());
     if (ui === 'En gestión OSEG' && this.osegGuardada()) {
       return 'Gestión OSEG registrada. Los datos quedaron bloqueados; avance el flujo o cierre el caso en «Cerrado» (pestaña Detalle).';
     }
@@ -687,12 +695,24 @@ export class MedidasComponent implements OnInit, OnChanges {
   };
 
   ngOnInit() {
+    this.workflowStatusSig.set(this.workflowStatus);
+    this.agencySig.set(this.agency);
     this.loadTiposMedida();
     this.loadRiesgos();
     this.loadGestion();
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['workflowStatus']) {
+      this.workflowStatusSig.set(this.workflowStatus);
+    }
+    if (changes['agency']) {
+      this.agencySig.set(this.agency);
+    }
+    if (changes['incidentId'] && !changes['incidentId'].firstChange) {
+      this.loadGestion();
+      return;
+    }
     if (!changes['workflowStatus']) return;
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
     const ui = catalogStatusToUiStatus(this.workflowStatus);
@@ -1186,6 +1206,19 @@ export class MedidasComponent implements OnInit, OnChanges {
     }
   }
 
+  private describeSavedMedidasDelta(): string | null {
+    const after = snapshotMedidasDraft(this.form, this.medidasSeleccionadas());
+    const nameById = new Map(this.tiposMedida().map((t) => [t.id, t.nombre]));
+    return describeMedidasSaveDelta(this.draftBaseline, after, (id) => nameById.get(id) ?? '');
+  }
+
+  getAssignedMedidasForDisplay(): { nombre: string; cantidad: number }[] {
+    return this.medidasSeleccionadas().map((m) => ({
+      nombre: m.nombre,
+      cantidad: m.cantidad,
+    }));
+  }
+
   guardarMedidas() {
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
     if (this.medidasGuardadas() && !this.medidasEditMode()) return;
@@ -1210,18 +1243,21 @@ export class MedidasComponent implements OnInit, OnChanges {
       );
       this.medidasEditMode.set(false);
       this.medidasGuardadas.set(this.medidasSeleccionadas().length > 0);
+      const saveDelta = this.describeSavedMedidasDelta();
       this.captureDraftBaseline();
       this.showMensaje(
         'medidas',
-        this.medidasGuardadas()
-          ? 'Medidas actualizadas correctamente'
-          : 'Medidas asignadas correctamente',
+        saveDelta
+          ? `Medidas guardadas: ${saveDelta}`
+          : this.medidasGuardadas()
+            ? 'Medidas actualizadas correctamente'
+            : 'Medidas asignadas correctamente',
         'ok',
       );
       this.loadGestion();
       this.refreshAuditHistory();
       this.gestionUpdated.emit();
-      this.medidasSaved.emit();
+      this.medidasSaved.emit(saveDelta ?? undefined);
       return true;
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };

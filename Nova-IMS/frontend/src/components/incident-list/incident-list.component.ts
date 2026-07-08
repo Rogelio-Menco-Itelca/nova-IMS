@@ -41,6 +41,7 @@ import {
   isVisibleInActiveViews,
   incidentMatchesCatalogStatus,
   catalogStatusToUiStatus,
+  incidentIdSortKey,
   isForwardStatusTransition,
   needsCerremGestionForTransition,
   needsOsegGestionForTransition,
@@ -99,30 +100,7 @@ import {
   countReiteracionNotes,
   parseDmyDateTime,
 } from '../../utils/incident-notes';
-import { daysSinceCerremEnvio } from '../../utils/cerrem-follow-up';
 import { AuditLog } from '../../models/admin.model';
-
-const priorityOrder: Record<IncidentPriority, number> = {
-  Crítica: 4,
-  Alta: 3,
-  Media: 2,
-  Baja: 1,
-};
-
-const statusOrder: Record<IncidentStatus, number> = {
-  Nuevo: 12,
-  'En gestión OSEG': 11,
-  'Enviado a CERREM': 9,
-  'En evaluación CERREM': 8,
-  Reiteraciones: 7,
-  'Medidas asignadas': 6,
-  Asignado: 6,
-  'En camino': 5,
-  'En proceso': 4,
-  Resuelto: 3,
-  Cerrado: 2,
-  Cancelado: 1,
-};
 
 @Component({
   selector: 'app-incident-list',
@@ -134,7 +112,7 @@ const statusOrder: Record<IncidentStatus, number> = {
 })
 export class IncidentListComponent implements OnInit, OnDestroy {
   @ViewChild(MedidasComponent) medidasPanel?: MedidasComponent;
-  @ViewChild('reiteracionPanel') reiteracionPanelRef?: ElementRef<HTMLElement>;
+  @ViewChild('agregarComentarioField') agregarComentarioField?: ElementRef<HTMLTextAreaElement>;
 
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
@@ -245,7 +223,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);
   updateConfirmOpen = signal(false);
-  reiterarModalOpen = signal(false);
   private pendingLeaveAction: (() => void) | null = null;
   private leaveAfterSave = false;
   commentsHistory = signal<IncidentNoteEntry[]>([]);
@@ -297,8 +274,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   /** Municipios cargados por fila de lugar involucrado (índice → listo). */
   placeMunicipalitiesLoaded = signal<Map<number, boolean>>(new Map());
   vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
-  sortColumn = signal<'priority' | 'status' | 'default'>('default');
-  sortDirection = signal<'asc' | 'desc'>('desc');
   readonly personService = inject(PersonService);
 
   incidentForm = this.fb.group({
@@ -2038,22 +2013,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   });
 
   private sortIncidents(incidents: Incident[]): Incident[] {
-    const sorted = incidents.slice();
-    const column = this.sortColumn();
-    const direction = this.sortDirection();
-    if (column === 'default') {
-      return sorted.sort(
-        (a, b) =>
-          priorityOrder[b.priority] - priorityOrder[a.priority] ||
-          statusOrder[b.status] - statusOrder[a.status],
-      );
-    }
-    const dir = direction === 'asc' ? 1 : -1;
-    return sorted.sort((a, b) => {
-      const valA = column === 'priority' ? priorityOrder[a.priority] : statusOrder[a.status];
-      const valB = column === 'priority' ? priorityOrder[b.priority] : statusOrder[b.status];
-      return (valA - valB) * dir;
-    });
+    return incidents
+      .slice()
+      .sort((a, b) => incidentIdSortKey(b.id) - incidentIdSortKey(a.id));
   }
 
   ngOnInit() {
@@ -2140,12 +2102,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Abre Medidas o el panel de reiteración según el estado elegido en el selector. */
+  /** Abre Medidas o enfoca comentarios según el estado elegido en el selector. */
   private navigateForWorkflowStatus(catalogStatusName: string): void {
     const uiStatus = catalogStatusToUiStatus(catalogStatusName);
     if (uiStatus === 'Reiteraciones') {
       this.applyDetailTab('detalle');
-      this.scrollToReiteracionPanel();
+      this.scrollToAgregarComentario();
       this.cdr.markForCheck();
       return;
     }
@@ -2167,111 +2129,41 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new';
   }
 
-  /** Panel de seguimiento/reiteración en Detalle (estado seleccionado o ya guardado). */
-  showReiteracionPanel(): boolean {
-    if (isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new') {
-      const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
-      const selected = catalogStatusToUiStatus(
-        String(this.incidentForm.get('status')?.value ?? '').trim(),
-      );
-      return saved === 'Reiteraciones' || selected === 'Reiteraciones';
-    }
-    return false;
+  private scrollToAgregarComentario(): void {
+    setTimeout(() => {
+      const el = this.agregarComentarioField?.nativeElement;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+    }, 80);
   }
 
-  private scrollToReiteracionPanel(): void {
-    setTimeout(() => {
-      this.reiteracionPanelRef?.nativeElement?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      });
-    }, 80);
+  /** Comentario obligatorio al pasar a «Reiteraciones» desde otro estado. */
+  requiresReiteracionCommentOnSave(): boolean {
+    if (!isCsjMedidasWorkflow(this.currentAgency()) || this.activeTabId() === 'new') {
+      return false;
+    }
+    const selected = catalogStatusToUiStatus(
+      String(this.incidentForm.get('status')?.value ?? '').trim(),
+    );
+    const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
+    return selected === 'Reiteraciones' && saved !== 'Reiteraciones';
   }
 
   commentFieldPlaceholder(): string {
     if (this.activeTabId() === 'new') {
       return 'Descripción del incidente, hechos reportados, notas...';
     }
+    if (this.requiresReiteracionCommentOnSave()) {
+      return 'Describa la reiteración ante UNP/Policía; al guardar pasará al historial de comentarios...';
+    }
+    const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
+    if (saved === 'Reiteraciones') {
+      return 'Nueva reiteración o comentario; al guardar pasa al historial y este campo se limpia...';
+    }
     return 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...';
   }
 
-  // ── Mejoras UX «Reiteraciones» ──
-
-  /** Puede abrir el modal de reiteración (estado seleccionado o guardado en «Reiteraciones»). */
-  canReiterar(): boolean {
-    if (isCsjMedidasWorkflow(this.currentAgency()) && this.activeTabId() !== 'new') {
-      const saved = catalogStatusToUiStatus(String(this.activeIncident()?.status ?? '').trim());
-      const selected = catalogStatusToUiStatus(
-        String(this.incidentForm.get('status')?.value ?? '').trim(),
-      );
-      if (selected !== 'Reiteraciones' && saved !== 'Reiteraciones') return false;
-      if (saved === 'Reiteraciones') {
-        return isCsjStatusChoiceAllowed('Reiteraciones', 'Reiteraciones', this.workflowGestion());
-      }
-      return isCsjStatusChoiceAllowed(saved, 'Reiteraciones', this.workflowGestion());
-    }
-    return false;
-  }
-
-  /** Borrador de reiteración listo pero aún no guardado en servidor. */
-  reiteracionPendienteDeGuardar(): boolean {
-    if (!this.showReiteracionPanel()) return false;
-    return Boolean(String(this.incidentForm.get('agregarComentario')?.value ?? '').trim());
-  }
-
-  openReiterarModal(): void {
-    if (!this.canReiterar()) return;
-    const statusName = this.statusNameForForm('Reiteraciones');
-    if (statusName) {
-      this.incidentForm.get('status')?.setValue(statusName, { emitEvent: false });
-      this.syncLastValidStatus();
-    }
-    this.reiterarModalOpen.set(true);
-    this.cdr.markForCheck();
-  }
-
-  closeReiterarModal(): void {
-    this.reiterarModalOpen.set(false);
-    this.cdr.markForCheck();
-  }
-
-  /** Prepara estado + comentario; el operador debe pulsar «Actualizar incidente». */
-  confirmReiterar(texto: string): void {
-    const comentario = String(texto ?? '').trim();
-    if (!comentario) {
-      this.notificationService.addNotification(
-        'Comentario obligatorio',
-        'Escriba la reiteración antes de confirmar.',
-      );
-      return;
-    }
-    const statusName = this.statusNameForForm('Reiteraciones');
-    this.incidentForm.get('status')?.setValue(statusName, { emitEvent: false });
-    this.incidentForm.get('agregarComentario')?.setValue(comentario);
-    this.incidentForm.markAsDirty();
-    this.syncLastValidStatus();
-    this.reiterarModalOpen.set(false);
-    this.notificationService.addNotification(
-      'Reiteración preparada',
-      'Pulse «Actualizar incidente» para registrar la reiteración en el servidor.',
-    );
-    this.scrollToReiteracionPanel();
-    this.cdr.markForCheck();
-  }
-
-  /** Texto base de reiteración parametrizado por los días sin respuesta. */
-  reiteracionTemplateText(): string {
-    const dias = this.daysSinceLastFollowUp(this.activeIncident());
-    const tramo =
-      dias != null
-        ? `Han transcurrido ${dias} ${dias === 1 ? 'día' : 'días'} desde el envío a CERREM`
-        : 'Ha transcurrido un tiempo considerable desde el envío a CERREM';
-    return (
-      `${tramo} sin respuesta de UNP/Policía sobre la evaluación de medidas. ` +
-      `Se reitera la solicitud.`
-    );
-  }
-
+  // ── Seguimiento «Reiteraciones» (lista / badges) ──
   private statusChangeLogsFor(incidentId: string): AuditLog[] {
     return this.auditLogs()
       .filter(
@@ -2298,54 +2190,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.logChangedStatusTo(log, 'Reiteraciones'),
     ).length;
     return Math.max(fromComments, fromAudit);
-  }
-
-  /** Días desde el envío a CERREM mientras el caso está en flujo de reiteración. */
-  daysSinceLastFollowUp(incident: Incident | null | undefined): number | null {
-    if (!incident) return null;
-    const saved = catalogStatusToUiStatus(String(incident.status ?? '').trim());
-    let inReiteracionFlow = saved === 'Reiteraciones';
-    if (this.activeIncident()?.id === incident.id) {
-      const selected = catalogStatusToUiStatus(
-        String(this.incidentForm.get('status')?.value ?? '').trim(),
-      );
-      inReiteracionFlow = inReiteracionFlow || selected === 'Reiteraciones';
-    }
-    if (!inReiteracionFlow) return null;
-
-    let fechaCerrem: string | null | undefined;
-    if (this.activeIncident()?.id === incident.id) {
-      fechaCerrem = this.workflowGestion()?.fecha_cerrem;
-    }
-
-    const logs = this.statusChangeLogsFor(incident.id);
-    const cerremLogs = logs.filter(
-      (log) =>
-        this.logChangedStatusTo(log, 'En evaluación CERREM') ||
-        this.logChangedStatusTo(log, 'Enviado a CERREM'),
-    );
-    const oldestCerrem = cerremLogs.length ? cerremLogs[cerremLogs.length - 1] : null;
-    const cerremPhaseSince = oldestCerrem
-      ? this.parseTimelineDate(String(oldestCerrem.timestamp ?? ''))
-      : null;
-
-    return daysSinceCerremEnvio({ fechaCerrem, cerremPhaseSince });
-  }
-
-  /** Texto «N días sin respuesta» junto al badge (o null si no aplica). */
-  followUpLabel(incident: Incident | null | undefined): string | null {
-    const dias = this.daysSinceLastFollowUp(incident);
-    if (dias == null) return null;
-    if (dias === 0) return 'Hoy sin respuesta';
-    return `${dias} ${dias === 1 ? 'día' : 'días'} sin respuesta`;
-  }
-
-  /** Etiqueta del badge: «Reiteraciones (3)» cuando aplica. */
-  statusBadgeLabel(incident: Incident | null | undefined): string {
-    const status = String(incident?.status ?? '');
-    if (catalogStatusToUiStatus(status.trim()) !== 'Reiteraciones') return status;
-    const count = this.reiteracionesCount(incident);
-    return count > 1 ? `Reiteraciones (${count})` : 'Reiteraciones';
   }
 
   workflowStatusForMedidas(): string {
@@ -2642,15 +2486,214 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const tabId = this.activeTabId();
     if (!tabId || tabId === 'new') return false;
     if (String(this.incidentForm.get('agregarComentario')?.value ?? '').trim()) return true;
-    if (this.incidentForm.dirty) return true;
     if (this.hasPendingMedidasChanges()) return true;
     const incident = this.activeIncident();
     if (!incident) return false;
-    const formStatus = catalogStatusToUiStatus(
-      String(this.incidentForm.get('status')?.value ?? '').trim(),
-    );
+    return this.incidentFormDiffersFromSaved(incident);
+  }
+
+  /** Compara el formulario con el incidente guardado (más fiable que incidentForm.dirty). */
+  private incidentFormDiffersFromSaved(incident: Incident): boolean {
+    const form = this.incidentForm.getRawValue();
+    const formStatus = catalogStatusToUiStatus(String(form.status ?? '').trim());
     const savedStatus = catalogStatusToUiStatus(String(incident.status ?? '').trim());
-    return formStatus !== savedStatus;
+    if (formStatus !== savedStatus) return true;
+
+    const selectedType = this.incidentTypes().find((t) => t.name === form.event_id);
+    const formTypeKey = String(selectedType?.id ?? form.event_id ?? '').trim();
+    const savedTypeKey = String(incident.incident_type_id ?? incident.event_id ?? '').trim();
+    if (formTypeKey !== savedTypeKey) return true;
+
+    const formPriority = String(form.priority_id ?? '').trim();
+    const savedPriority = String(incident.priority_id ?? incident.priority ?? '').trim();
+    if (formPriority !== savedPriority) return true;
+
+    if (String(form.origin ?? '').trim() !== String(incident.origin ?? '').trim()) return true;
+    if (
+      this.normalizePhone(String(form.phone ?? '')) !==
+      this.normalizePhone(String(incident.phone ?? ''))
+    ) {
+      return true;
+    }
+    if (String(form.location ?? '').trim() !== String(incident.location ?? '').trim()) return true;
+
+    const formLat = Number(form.lat);
+    const formLng = Number(form.lng);
+    const savedLat = Number(incident.lat);
+    const savedLng = Number(incident.lng);
+    if (
+      !Number.isFinite(formLat) ||
+      !Number.isFinite(formLng) ||
+      Math.abs(formLat - savedLat) > 0.000001 ||
+      Math.abs(formLng - savedLng) > 0.000001
+    ) {
+      return true;
+    }
+
+    if ((form.departmentId ?? null) !== (incident.departmentId ?? null)) return true;
+    if ((form.municipalityId ?? null) !== (incident.municipalityId ?? null)) return true;
+
+    const formLocationPhone = this.resolveLocationPhoneForSave(form.locationPhoneNumber);
+    const savedLocationPhone = String(incident.locationPhoneNumber ?? '').trim() || undefined;
+    if (String(formLocationPhone ?? '') !== String(savedLocationPhone ?? '')) return true;
+
+    if (
+      !this.jsonStableEqual(
+        this.involvedPeopleSnapshot(this.involvedPeopleForSave()),
+        this.involvedPeopleSnapshot(incident.involvedPeople ?? []),
+      )
+    ) {
+      return true;
+    }
+    if (
+      !this.jsonStableEqual(
+        this.involvedPlacesSnapshot(
+          ((form.involvedPlaces ?? []) as InvolvedPlace[]).filter(
+            (p) => String(p.name || '').trim() && String(p.address || '').trim(),
+          ),
+        ),
+        this.involvedPlacesSnapshot(incident.involvedPlaces ?? []),
+      )
+    ) {
+      return true;
+    }
+    if (
+      !this.jsonStableEqual(
+        this.involvedVehiclesSnapshot(this.involvedVehiclesForSave()),
+        this.involvedVehiclesSnapshot(incident.involvedVehicles ?? []),
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private jsonStableEqual(a: unknown, b: unknown): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  private involvedPeopleSnapshot(people: InvolvedPerson[]): unknown[] {
+    return people.map((p) => ({
+      primerNombre: String(p.primerNombre ?? '').trim(),
+      segundoNombre: String(p.segundoNombre ?? '').trim(),
+      primerApellido: String(p.primerApellido ?? '').trim(),
+      segundoApellido: String(p.segundoApellido ?? '').trim(),
+      roleId: p.roleId ?? null,
+      documentType: String(p.documentType ?? '').trim(),
+      documentId: String(p.documentId ?? '').trim(),
+      genderId: p.genderId ?? null,
+      contact: String(p.contact ?? p.phone ?? '').trim(),
+      comentarios: String(p.comentarios ?? p.details ?? '').trim(),
+    }));
+  }
+
+  private involvedPlacesSnapshot(places: InvolvedPlace[]): unknown[] {
+    return places.map((p) => ({
+      name: String(p.name ?? '').trim(),
+      address: String(p.address ?? '').trim(),
+      departmentId: p.departmentId ?? null,
+      municipalityId: p.municipalityId ?? null,
+      contact: String(p.contact ?? '').trim(),
+      roleId: p.roleId ?? null,
+      comments: String(p.comments ?? '').trim(),
+    }));
+  }
+
+  private involvedVehiclesSnapshot(vehicles: InvolvedVehicle[]): unknown[] {
+    return vehicles.map((v) => ({
+      plate: String(v.plate ?? '')
+        .trim()
+        .toUpperCase(),
+      role: String(v.role ?? '').trim(),
+      make: String(v.make ?? '').trim(),
+      model: String(v.model ?? '').trim(),
+      color: String(v.color ?? '').trim(),
+      details: String(v.details ?? '').trim(),
+    }));
+  }
+
+  private notifyNoIncidentChanges(): void {
+    this.notificationService.addNotification(
+      'Sin cambios',
+      'No hay nada por actualizar en este incidente.',
+    );
+  }
+
+  private medidasSavedNotificationMessage(
+    incidentId: string,
+    suffix: string,
+    saveDelta?: string,
+  ): string {
+    const medidas = String(saveDelta ?? '').trim();
+    if (medidas) {
+      return `Se registró en ${incidentId}: ${medidas}. ${suffix}`;
+    }
+    return suffix;
+  }
+
+  private buildIncidentUpdateNotification(
+    incidentId: string,
+    base: Incident,
+    final: Incident,
+    draftComment: string,
+    reiterationNumber?: number,
+  ): { title: string; message: string } {
+    const details: string[] = [];
+    const baseStatus = catalogStatusToUiStatus(String(base.status ?? '').trim());
+    const newStatus = catalogStatusToUiStatus(String(final.status ?? '').trim());
+
+    if (baseStatus !== newStatus) {
+      details.push(`estado cambiado de «${baseStatus}» a «${newStatus}»`);
+    }
+
+    const comment = String(draftComment ?? '').trim();
+    if (comment) {
+      const excerpt = comment.length > 72 ? `${comment.slice(0, 71)}…` : comment;
+      if (newStatus === 'Reiteraciones' && reiterationNumber != null) {
+        details.push(`reiteración N.º ${reiterationNumber}: «${excerpt}»`);
+      } else {
+        details.push(`comentario agregado: «${excerpt}»`);
+      }
+    }
+
+    const basePriority = String(base.priority_id ?? base.priority ?? '').trim();
+    const newPriority = String(final.priority_id ?? final.priority ?? '').trim();
+    if (basePriority && newPriority && basePriority !== newPriority) {
+      details.push(`prioridad actualizada a ${newPriority}`);
+    }
+
+    if (String(base.origin ?? '').trim() !== String(final.origin ?? '').trim()) {
+      details.push(`origen: ${String(final.origin ?? '').trim()}`);
+    }
+
+    if (String(base.location ?? '').trim() !== String(final.location ?? '').trim()) {
+      details.push('ubicación del incidente modificada');
+    }
+
+    const basePeople = base.involvedPeople?.length ?? 0;
+    const newPeople = final.involvedPeople?.length ?? 0;
+    if (basePeople !== newPeople) {
+      details.push(`personas involucradas: ${newPeople}`);
+    }
+
+    const intro = `Se actualizó ${incidentId}.`;
+    const message = details.length
+      ? `${intro} ${details.map((d) => d.charAt(0).toUpperCase() + d.slice(1)).join('. ')}.`
+      : `${intro} Cambios guardados.`;
+
+    if (newStatus === 'Reiteraciones' && reiterationNumber != null) {
+      return { title: 'Reiteración registrada', message };
+    }
+
+    return { title: 'Incidente actualizado', message };
+  }
+
+  private abortUpdateWithoutChanges(): void {
+    this.notifyNoIncidentChanges();
+    this.abortLeaveAfterSave();
+    this.incidentForm.markAsPristine();
+    this.cdr.markForCheck();
   }
 
   hasPendingIncidentChanges(): boolean {
@@ -2662,7 +2705,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.registerIncident();
       return;
     }
-    if (!this.hasPendingIncidentChanges()) return;
+    if (!this.hasPendingIncidentChanges()) {
+      this.notifyNoIncidentChanges();
+      return;
+    }
     this.openUpdateConfirm();
   }
 
@@ -2678,6 +2724,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   confirmUpdateIncident(): void {
     this.updateConfirmOpen.set(false);
+    if (!this.hasPendingIncidentChanges()) {
+      this.abortUpdateWithoutChanges();
+      return;
+    }
     this.updateIncident();
     this.cdr.markForCheck();
   }
@@ -2840,7 +2890,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
    * Guardar medidas usa POST /medidas y no marca el formulario del incidente.
    * Tras guardar, preseleccionamos «Medidas asignadas» para habilitar «Actualizar incidente».
    */
-  onMedidasAsignadasGuardadas(incidentId: string): void {
+  onMedidasAsignadasGuardadas(incidentId: string, saveDelta?: string): void {
     this.refreshWorkflowGestion(incidentId);
     this.hasAssignedMedidas(incidentId).subscribe({
       next: ({ medidas }) => {
@@ -2853,7 +2903,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         if (savedStatus === 'Medidas asignadas') {
           this.notificationService.addNotification(
             'Medidas guardadas',
-            'Las medidas quedaron registradas. El incidente ya está en «Medidas asignadas».',
+            this.medidasSavedNotificationMessage(
+              incidentId,
+              'Las medidas quedaron registradas. El incidente ya está en «Medidas asignadas».',
+              saveDelta,
+            ),
           );
           this.cdr.markForCheck();
           return;
@@ -2863,7 +2917,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         if (!targetName || !this.isStatusAllowed(targetName)) {
           this.notificationService.addNotification(
             'Medidas guardadas',
-            'Seleccione «Medidas asignadas» en Detalle y pulse «Actualizar incidente».',
+            this.medidasSavedNotificationMessage(
+              incidentId,
+              'Seleccione «Medidas asignadas» en Detalle y pulse «Actualizar incidente».',
+              saveDelta,
+            ),
           );
           this.cdr.markForCheck();
           return;
@@ -2875,7 +2933,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.detailTab.set('detalle');
         this.notificationService.addNotification(
           'Medidas guardadas',
-          'Se preseleccionó «Medidas asignadas». Pulse «Actualizar incidente» para registrar el estado.',
+          this.medidasSavedNotificationMessage(
+            incidentId,
+            'Se preseleccionó «Medidas asignadas». Pulse «Actualizar incidente» para registrar el estado.',
+            saveDelta,
+          ),
         );
         this.cdr.markForCheck();
       },
@@ -3092,6 +3154,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (!this.hasPendingIncidentChanges()) {
+      this.abortUpdateWithoutChanges();
+      return;
+    }
+
     if (!this.validateBeforeSave()) {
       this.abortLeaveAfterSave();
       return;
@@ -3109,13 +3176,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (
       isCsjMedidasWorkflow(agency) &&
       targetStatus === 'Reiteraciones' &&
+      savedStatus !== 'Reiteraciones' &&
       !String(updatedData.agregarComentario ?? '').trim()
     ) {
       this.detailTab.set('detalle');
-      this.scrollToReiteracionPanel();
+      this.incidentForm.get('agregarComentario')?.markAsTouched();
+      this.scrollToAgregarComentario();
       this.notificationService.addNotification(
-        'Reiteración incompleta',
-        'Use «Reiterar solicitud» para redactar el comentario antes de actualizar el incidente.',
+        'Comentario obligatorio',
+        'Escriba la reiteración en «Agregar comentario» antes de actualizar el incidente.',
       );
       this.abortLeaveAfterSave();
       this.cdr.markForCheck();
@@ -3243,6 +3312,11 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private commitIncidentUpdate(updatedData: ReturnType<typeof this.incidentForm.getRawValue>) {
+    if (!this.hasPendingIncidentChanges()) {
+      this.abortUpdateWithoutChanges();
+      return;
+    }
+
     const incidentId = this.activeIncident()!.id;
     const base = this.activeIncident()!;
     const draftComment = String(updatedData.agregarComentario ?? '').trim();
@@ -3282,36 +3356,23 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.refreshWorkflowGestion(incidentId);
       this.configService.getAuditLogs().catch(() => void 0);
       const savedUiStatus = catalogStatusToUiStatus(String(saved.status ?? '').trim());
+      const reiterationNumber =
+        savedUiStatus === 'Reiteraciones' && draftComment
+          ? this.reiteracionesCount(base) + 1
+          : undefined;
+      const notice = this.buildIncidentUpdateNotification(
+        incidentId,
+        base,
+        finalData,
+        draftComment,
+        reiterationNumber,
+      );
       if (savedUiStatus === 'Reiteraciones') {
         this.applyDetailTab('detalle');
-        if (draftComment) {
-          const numero = this.reiteracionesCount(base) + 1;
-          this.notificationService.addNotification(
-            'Reiteración registrada',
-            `Reiteración N.º ${numero} registrada para ${incidentId}.`,
-            incidentId,
-          );
-        } else {
-          this.notificationService.addNotification(
-            'Incidente Actualizado',
-            `Se guardaron los cambios para #${incidentId}.`,
-            incidentId,
-          );
-        }
       } else if (shouldNavigateToMedidasTab(savedUiStatus)) {
         this.applyDetailTab('medidas');
-        this.notificationService.addNotification(
-          'Incidente Actualizado',
-          `Se guardaron los cambios para #${incidentId}.`,
-          incidentId,
-        );
-      } else {
-        this.notificationService.addNotification(
-          'Incidente Actualizado',
-          `Se guardaron los cambios para #${incidentId}.`,
-          incidentId,
-        );
       }
+      this.notificationService.addNotification(notice.title, notice.message, incidentId);
       this.loadCommentsHistory(mergedComments);
       this.clearAgregarComentario();
       this.incidentForm.markAsPristine();
@@ -3418,7 +3479,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   sendSingleIncidentByEmail(incident: Incident) {
-    if (this.incidentForm.dirty) {
+    if (this.hasPendingIncidentChanges()) {
       this.notificationService.addNotification(
         'Guarde los cambios',
         'Actualice el incidente antes de enviar el correo.',
@@ -3477,16 +3538,6 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   nextListPage(): void {
     this.goToListPage(this.listCurrentPage() + 1);
-  }
-
-  setSort(column: 'priority' | 'status'): void {
-    if (this.sortColumn() === column) {
-      this.sortDirection.set(this.sortDirection() === 'desc' ? 'asc' : 'desc');
-    } else {
-      this.sortColumn.set(column);
-      this.sortDirection.set('desc');
-    }
-    this.listCurrentPage.set(1);
   }
 
   getStatusColor(status: IncidentStatus): string {

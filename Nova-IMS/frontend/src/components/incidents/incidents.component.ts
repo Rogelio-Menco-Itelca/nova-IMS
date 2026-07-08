@@ -15,6 +15,7 @@ import {
   HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormGroup } from '@angular/forms';
 import {
   Incident,
@@ -23,6 +24,10 @@ import {
   isVisibleInActiveViews,
   isHiddenByDefaultInIncidentList,
   DASHBOARD_ACTIVE_STATUSES,
+  catalogStatusToUiStatus,
+  incidentMatchesCatalogStatus,
+  incidentIdSortKey,
+  type CatalogOption,
   PersonRole,
   VehicleRole,
   InvolvedVehicle,
@@ -50,13 +55,6 @@ import {
 } from '../../utils/google-maps-legacy';
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
 
-const priorityOrder: Record<IncidentPriority, number> = {
-  Crítica: 4,
-  Alta: 3,
-  Media: 2,
-  Baja: 1,
-};
-
 function isDocumentType(value: string): value is DocumentType {
   return (DOCUMENT_TYPE_OPTIONS as readonly string[]).includes(value);
 }
@@ -78,21 +76,6 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isInvolvedVehicle);
 }
-
-const statusOrder: Record<string, number> = {
-  Nuevo: 8,
-  'En gestión OSEG': 7,
-  Reiteraciones: 6,
-  'Enviado a CERREM': 5,
-  'En evaluación CERREM': 4,
-  'Medidas asignadas': 3,
-  Asignado: 6,
-  'En camino': 5,
-  'En proceso': 4,
-  Resuelto: 0,
-  Cerrado: 0,
-  Cancelado: 0,
-};
 
 /** Vista inicial del mapa del dashboard (Bogotá D.C.) */
 const BOGOTA_CENTER = { lat: 4.651, lng: -74.072 };
@@ -144,6 +127,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly auditClient = inject(AuditClientService);
+  private readonly http = inject(HttpClient);
 
   // Tab Management
   openIncidentTabs = signal<Incident[]>([]);
@@ -199,6 +183,15 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   incidents = this.incidentService.incidents;
   auditLogs = this.configService.auditLogs;
   filterText = signal('');
+  filterStatus = signal('');
+  incidentStatuses = signal<CatalogOption[]>([]);
+  /** Opciones del filtro: mismos estados que Incidentes, sin cerrados (solo activos en dashboard). */
+  dashboardStatusFilterOptions = computed(() =>
+    this.incidentStatuses().filter((st) => {
+      const ui = catalogStatusToUiStatus(st.name);
+      return ui !== 'Cerrado' && ui !== 'Cancelado' && ui !== 'Resuelto';
+    }),
+  );
   readonly dashboardPageSize = 10;
   dashboardCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
@@ -206,8 +199,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   incidentTypes = this.configService.incidentTypes;
   personRoles: PersonRole[] = ['Víctima', 'Victimario', 'Testigo'];
   vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
-  sortColumn = signal<'priority' | 'status' | 'default'>('default');
-  sortDirection = signal<'asc' | 'desc'>('desc');
   selectedDashboardIncidentId = signal<string | null>(null);
   /** Dirección exacta por geocodificación inversa (id → formatted_address) */
   resolvedAddresses = signal<Record<string, string>>({});
@@ -1071,14 +1062,17 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   filteredIncidents = computed(() => {
     const text = this.filterText().toLowerCase();
+    const statusFilter = this.filterStatus();
     const incidents = this.getDashboardActiveIncidents().filter((incident) => {
-      if (!text) return true;
-      return (
+      const textMatch =
+        !text ||
         incident.id.toLowerCase().includes(text) ||
         incident.type.toLowerCase().includes(text) ||
         incident.location.toLowerCase().includes(text) ||
-        (incident.operator || '').toLowerCase().includes(text)
-      );
+        (incident.operator || '').toLowerCase().includes(text);
+      const statusMatch =
+        !statusFilter || incidentMatchesCatalogStatus(incident.status, statusFilter);
+      return textMatch && statusMatch;
     });
     return this.sortIncidents(incidents);
   });
@@ -1103,13 +1097,33 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     () => this.incidents().filter((inc) => inc.status === 'Reiteraciones').length,
   );
 
-  avgProteccionLabel = computed(
-    () => this.incidentService.dashboardMetrics()?.proteccion.formatted ?? 'N/A',
+  avgProteccionLabel = computed(() => {
+    const metric = this.incidentService.dashboardMetrics()?.proteccion;
+    if (!metric || metric.sampleCount <= 0 || !metric.formatted) return 'N/A';
+    return metric.formatted;
+  });
+
+  avgProteccionHint = computed(() => {
+    const count = this.incidentService.dashboardMetrics()?.proteccion.sampleCount ?? 0;
+    if (count <= 0) return 'Sin casos con medidas aún';
+    return count === 1 ? '1 caso con medidas' : `${count} casos con medidas`;
+  });
+
+  avgProteccionTitle = computed(
+    () =>
+      `Promedio desde la creación del incidente hasta la primera asignación de medidas de seguridad. ${this.avgProteccionHint()}`,
   );
 
-  private incidentSortTime(incident: Incident): number {
-    const parsed = Date.parse(incident.timestamp || '');
-    return Number.isNaN(parsed) ? 0 : parsed;
+  avgProteccionValueClass = computed(() =>
+    this.avgProteccionLabel().length > 8
+      ? 'ml-auto mr-4 shrink-0 text-2xl font-bold leading-tight tabular-nums text-white'
+      : 'ml-auto mr-8 shrink-0 text-4xl font-bold tabular-nums text-white',
+  );
+
+  private sortIncidents(incidents: Incident[]): Incident[] {
+    return incidents
+      .slice()
+      .sort((a, b) => incidentIdSortKey(b.id) - incidentIdSortKey(a.id));
   }
 
   formatCreationDate(timestamp: string | null | undefined): string {
@@ -1120,28 +1134,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
   }
 
-  private sortIncidents(incidents: Incident[]): Incident[] {
-    const sorted = incidents.slice();
-    const column = this.sortColumn();
-    const direction = this.sortDirection();
-    if (column === 'default') {
-      return sorted.sort(
-        (a, b) =>
-          this.incidentSortTime(b) - this.incidentSortTime(a) ||
-          priorityOrder[b.priority] - priorityOrder[a.priority] ||
-          statusOrder[b.status] - statusOrder[a.status],
-      );
-    }
-    const dir = direction === 'asc' ? 1 : -1;
-    return sorted.sort((a, b) => {
-      const valA = column === 'priority' ? priorityOrder[a.priority] : statusOrder[a.status];
-      const valB = column === 'priority' ? priorityOrder[b.priority] : statusOrder[b.status];
-      return (valA - valB) * dir;
-    });
-  }
-
   ngOnInit() {
     if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
+    this.loadDashboardStatusCatalog();
 
     this.typeSub = this.incidentForm.get('event_id')?.valueChanges.subscribe((typeName) => {
       this.selectedIncidentTypeName.set(typeName || null);
@@ -1477,6 +1472,25 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardCurrentPage.set(1);
   }
 
+  onFilterStatus(event: Event) {
+    this.filterStatus.set((event.target as HTMLSelectElement).value);
+    this.dashboardCurrentPage.set(1);
+  }
+
+  private loadDashboardStatusCatalog(): void {
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    this.http.get<CatalogOption[]>('/api/incident-statuses', { params: { agency } }).subscribe({
+      next: (rows) => {
+        this.incidentStatuses.set(Array.isArray(rows) ? rows : []);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.incidentStatuses.set([]);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   goToDashboardPage(page: number): void {
     const total = this.dashboardTotalPages();
     if (page >= 1 && page <= total) {
@@ -1490,16 +1504,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   nextDashboardPage(): void {
     this.goToDashboardPage(this.dashboardCurrentPage() + 1);
-  }
-
-  setSort(column: 'priority' | 'status'): void {
-    if (this.sortColumn() === column) {
-      this.sortDirection.set(this.sortDirection() === 'desc' ? 'asc' : 'desc');
-    } else {
-      this.sortColumn.set(column);
-      this.sortDirection.set('desc');
-    }
-    this.dashboardCurrentPage.set(1);
   }
 
   getStatusColor(status: IncidentStatus): string {

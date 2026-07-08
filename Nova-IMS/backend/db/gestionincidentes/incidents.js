@@ -58,6 +58,11 @@ const INCIDENT_OPERATOR_NAME_SQL = `
     )
   )`;
 
+const INCIDENT_LAST_ACTIVITY_SQL = `COALESCE(
+  (SELECT MAX(ai.fecha) FROM auditoria_incidente ai WHERE ai.incidentes_id = i.ID_incidente),
+  i.FechaHora
+)`;
+
 const INCIDENT_BASE_SELECT = `
   i.ID_incidente AS internal_id,
   i.ID_visible AS id,
@@ -79,7 +84,7 @@ const INCIDENT_BASE_SELECT = `
   i.Comentario_estado AS details,
   i.IDAgencias AS agency_code,
   i.FechaHora AS created_at,
-  i.FechaHora AS updated_at,
+  ${INCIDENT_LAST_ACTIVITY_SQL} AS updated_at,
   (${INCIDENT_OPERATOR_NAME_SQL}) AS operator_name`;
 
 const INCIDENT_JOINS = `
@@ -488,7 +493,7 @@ async function hydrateIncidents(rows, reader = pool) {
 async function listIncidents(limit = 100) {
   const rows = await fetchIncidentRows(
     `WHERE (i.ID_visible IS NULL OR i.ID_visible NOT LIKE 'CAT-PERS-%')
-     ORDER BY i.FechaHora DESC LIMIT ?`,
+     ORDER BY i.ID_incidente DESC LIMIT ?`,
     [limit],
   );
   return hydrateIncidents(rows);

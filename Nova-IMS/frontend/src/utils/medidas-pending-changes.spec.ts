@@ -3,6 +3,7 @@ import {
   hasMedidasPanelPendingChanges,
   pendingMedidasSections,
   snapshotMedidasDraft,
+  describeMedidasSaveDelta,
   type MedidasPendingContext,
 } from './medidas-pending-changes';
 
@@ -68,6 +69,34 @@ describe('hasMedidasPanelPendingChanges', () => {
         showCerremBlock: false,
       }),
     ).toBe(true);
+  });
+});
+
+describe('describeMedidasSaveDelta', () => {
+  const names = new Map([
+    [1, 'Hombre de protección'],
+    [2, 'Vehículo blindado'],
+    [3, 'Medio de comunicación'],
+  ]);
+  const resolveName = (id: number) => names.get(id) ?? '';
+
+  it('solo muestra medidas nuevas o incrementadas en este guardado', () => {
+    const before = snapshotMedidasDraft(
+      {},
+      [
+        { ID_tipo_medida: 2, cantidad: 1, observacion_medida: '' },
+        { ID_tipo_medida: 3, cantidad: 1, observacion_medida: '' },
+      ],
+    );
+    const after = snapshotMedidasDraft(
+      {},
+      [
+        { ID_tipo_medida: 1, cantidad: 2, observacion_medida: '' },
+        { ID_tipo_medida: 2, cantidad: 1, observacion_medida: '' },
+        { ID_tipo_medida: 3, cantidad: 1, observacion_medida: '' },
+      ],
+    );
+    expect(describeMedidasSaveDelta(before, after, resolveName)).toBe('2× Hombre de protección');
   });
 });
 

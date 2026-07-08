@@ -152,6 +152,14 @@ export function isHiddenByDefaultInIncidentList(status: string | null | undefine
 export function isVisibleInActiveViews(status: string | null | undefined): boolean {
   return !isHiddenByDefaultInIncidentList(status);
 }
+
+/** Clave numérica del ID visible (INC-0000009 → 9) para ordenar por creación. */
+export function incidentIdSortKey(id: string | null | undefined): number {
+  const raw = String(id ?? '').trim();
+  const digits = raw.match(/(\d+)\s*$/)?.[1] ?? raw.replace(/\D/g, '');
+  const parsed = Number.parseInt(digits, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 export type IncidentPriority = 'Baja' | 'Media' | 'Alta' | 'Crítica';
 
 export type PersonRole = 'Víctima' | 'Victimario' | 'Testigo';
@@ -343,7 +351,10 @@ export interface DashboardResponseMetrics {
 
 export interface Incident {
   id: string;
+  /** Fecha de creación (no cambia al actualizar). */
   timestamp: string;
+  /** Última actividad registrada (actualización o creación). */
+  updatedAt?: string;
   status: IncidentStatus;
   event_id: string; // ID_evento
   incident_type_id?: string;

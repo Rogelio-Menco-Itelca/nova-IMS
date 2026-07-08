@@ -327,7 +327,7 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
       }
       return 'Registre la decisión CERREM: fechas, resolución y nivel de riesgo.';
     case 'Reiteraciones':
-      return 'Extraordinario en reiteración: use «Reiterar solicitud», redacte el comentario y pulse «Actualizar incidente» para guardar.';
+      return 'Extraordinario en reiteración: redacte el comentario en «Agregar comentario» y pulse «Actualizar incidente» para guardar.';
     case 'Medidas asignadas':
       return 'Asigne al menos una medida de seguridad y pulse «Guardar» en el módulo Medidas antes de actualizar el incidente.';
     case 'Cerrado':

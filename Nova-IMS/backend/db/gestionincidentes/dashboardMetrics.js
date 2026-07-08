@@ -74,10 +74,50 @@ async function queryAverageTimeToStatus(statusLabel) {
   return buildTimeMetric(row);
 }
 
+async function queryAverageTimeToProtection() {
+  const statusLabel = STATUS_TARGETS.PROTECCION;
+  const actionPattern = `%→ ${statusLabel}`;
+  const changesPattern = `%→ ${statusLabel}%`;
+
+  const [[row]] = await pool.query(
+    `
+    SELECT
+      AVG(TIMESTAMPDIFF(SECOND, i.FechaHora, pt.protection_at)) AS avg_seconds,
+      COUNT(*) AS sample_count
+    FROM incidentes i
+    INNER JOIN (
+      SELECT base.incidentes_id, MIN(base.protection_at) AS protection_at
+      FROM (
+        SELECT gm.ID_incidente AS incidentes_id, im.fecha_asignacion AS protection_at
+        FROM gestion_medidas gm
+        INNER JOIN incidente_medidas im
+          ON im.ID_gestion = gm.ID_gestion
+         AND im.asignado = 1
+         AND im.fecha_asignacion IS NOT NULL
+
+        UNION ALL
+
+        SELECT ai.incidentes_id, ai.fecha AS protection_at
+        FROM auditoria_incidente ai
+        WHERE ai.accion LIKE 'Cambio de estado%'
+          AND ${statusReachedSql('ai')}
+      ) base
+      GROUP BY base.incidentes_id
+    ) pt ON pt.incidentes_id = i.ID_incidente
+    WHERE ${INCIDENT_SCOPE_SQL}
+      AND UPPER(i.IDAgencias) = ?
+      AND pt.protection_at >= i.FechaHora
+    `,
+    [actionPattern, changesPattern, statusLabel, statusLabel, CSJ_AGENCY],
+  );
+
+  return buildTimeMetric(row);
+}
+
 async function getCsjDashboardMetrics() {
   const [gestion, proteccion] = await Promise.all([
     queryAverageTimeToStatus(STATUS_TARGETS.GESTION),
-    queryAverageTimeToStatus(STATUS_TARGETS.PROTECCION),
+    queryAverageTimeToProtection(),
   ]);
 
   return {

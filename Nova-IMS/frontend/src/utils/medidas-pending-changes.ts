@@ -109,6 +109,44 @@ export function hasMedidasPanelPendingChanges(
 
 export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
 
+/** Texto de lo que cambió en este guardado (solo delta, no el listado completo). */
+export function describeMedidasSaveDelta(
+  before: MedidasDraftSnapshot | null,
+  after: MedidasDraftSnapshot,
+  resolveName: (id: number) => string,
+): string | null {
+  const beforeList = before?.medidas ?? [];
+  const beforeMap = new Map(beforeList.map((m) => [m.ID_tipo_medida, m]));
+  const parts: string[] = [];
+
+  for (const afterM of after.medidas) {
+    const beforeM = beforeMap.get(afterM.ID_tipo_medida);
+    const nombre = resolveName(afterM.ID_tipo_medida).trim() || `Medida ${afterM.ID_tipo_medida}`;
+
+    if (!beforeM) {
+      parts.push(afterM.cantidad > 1 ? `${afterM.cantidad}× ${nombre}` : nombre);
+      continue;
+    }
+
+    const qtyDelta = afterM.cantidad - beforeM.cantidad;
+    if (qtyDelta > 0) {
+      parts.push(qtyDelta > 1 ? `${qtyDelta}× ${nombre}` : nombre);
+    } else if (qtyDelta < 0) {
+      parts.push(`−${Math.abs(qtyDelta)}× ${nombre}`);
+    } else if (afterM.observacion_medida !== beforeM.observacion_medida) {
+      parts.push(`${nombre} (observación actualizada)`);
+    }
+  }
+
+  if (before && after.tipo_esquema !== before.tipo_esquema && after.tipo_esquema) {
+    parts.push(`Esquema: ${after.tipo_esquema}`);
+  }
+
+  if (!parts.length) return null;
+  if (parts.length <= 4) return parts.join(', ');
+  return `${parts.slice(0, 4).join(', ')} (+${parts.length - 4} más)`;
+}
+
 export function pendingMedidasSections(
   current: MedidasDraftSnapshot,
   baseline: MedidasDraftSnapshot | null,
