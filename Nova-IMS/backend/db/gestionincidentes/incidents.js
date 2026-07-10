@@ -864,22 +864,16 @@ async function assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, vi
   if (gestionError) throw new HttpError(409, gestionError);
 }
 
-async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId) {
-  if (String(agencyCode).toUpperCase() !== 'CSJ' || !newStatus || newStatus === currentStatus) {
-    return;
-  }
-
-  const gestion = await getGestionByIncidente(visibleId);
-  const cerremGuardado =
-    Boolean(String(gestion?.resolucion_cerrem || '').trim()) && Boolean(gestion?.ID_riesgo);
-
+function checkMedidasAsignadasNoRiesgoOrdinario(newStatus, cerremGuardado, gestion) {
   if (newStatus === STATUS_MEDIDAS_ASIGNADAS && cerremGuardado && isRiesgoOrdinario(gestion)) {
     throw new HttpError(
       409,
       'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre el incidente en «Cerrado».',
     );
   }
+}
 
+function checkMedidasAsignadasRequiereCerrem(newStatus, currentStatus, cerremGuardado) {
   if (
     newStatus === STATUS_MEDIDAS_ASIGNADAS &&
     !cerremGuardado &&
@@ -892,31 +886,29 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
       'Guarde la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo) antes de pasar a «Medidas asignadas».',
     );
   }
+}
 
-  if (newStatus === STATUS_REITERACIONES) {
-    if (cerremGuardado && isRiesgoOrdinario(gestion)) {
-      throw new HttpError(
-        409,
-        'Riesgo Ordinario guardado: no aplica el estado «Reiteraciones».',
-      );
-    }
-    if (!cerremGuardado || !isRiesgoExtraordinario(gestion)) {
-      throw new HttpError(
-        409,
-        'Solo riesgo Extraordinario con CERREM guardado puede pasar a «Reiteraciones».',
-      );
-    }
-    if (
-      currentStatus !== STATUS_EN_EVALUACION_CERREM &&
-      currentStatus !== STATUS_REITERACIONES
-    ) {
-      throw new HttpError(
-        409,
-        'Solo puede pasar a «Reiteraciones» desde «En evaluación CERREM» o repetir estando ya en «Reiteraciones».',
-      );
-    }
+function checkReiteracionesRules(newStatus, currentStatus, cerremGuardado, gestion) {
+  if (newStatus !== STATUS_REITERACIONES) return;
+
+  if (cerremGuardado && isRiesgoOrdinario(gestion)) {
+    throw new HttpError(409, 'Riesgo Ordinario guardado: no aplica el estado «Reiteraciones».');
   }
+  if (!cerremGuardado || !isRiesgoExtraordinario(gestion)) {
+    throw new HttpError(
+      409,
+      'Solo riesgo Extraordinario con CERREM guardado puede pasar a «Reiteraciones».',
+    );
+  }
+  if (currentStatus !== STATUS_EN_EVALUACION_CERREM && currentStatus !== STATUS_REITERACIONES) {
+    throw new HttpError(
+      409,
+      'Solo puede pasar a «Reiteraciones» desde «En evaluación CERREM» o repetir estando ya en «Reiteraciones».',
+    );
+  }
+}
 
+function checkCierreExtraordinarioRequiereMedidas(currentStatus, newStatus, cerremGuardado, gestion) {
   if (
     (currentStatus === STATUS_EN_EVALUACION_CERREM || currentStatus === STATUS_REITERACIONES) &&
     newStatus === STATUS_CERRADO &&
@@ -928,6 +920,21 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
       'El nivel de riesgo Extraordinario requiere pasar por «Medidas asignadas» antes de cerrar.',
     );
   }
+}
+
+async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId) {
+  if (String(agencyCode).toUpperCase() !== 'CSJ' || !newStatus || newStatus === currentStatus) {
+    return;
+  }
+
+  const gestion = await getGestionByIncidente(visibleId);
+  const cerremGuardado =
+    Boolean(String(gestion?.resolucion_cerrem || '').trim()) && Boolean(gestion?.ID_riesgo);
+
+  checkMedidasAsignadasNoRiesgoOrdinario(newStatus, cerremGuardado, gestion);
+  checkMedidasAsignadasRequiereCerrem(newStatus, currentStatus, cerremGuardado);
+  checkReiteracionesRules(newStatus, currentStatus, cerremGuardado, gestion);
+  checkCierreExtraordinarioRequiereMedidas(currentStatus, newStatus, cerremGuardado, gestion);
 }
 
 async function assertCommentIfRequired(currentStatus, newStatus, internalId, body) {

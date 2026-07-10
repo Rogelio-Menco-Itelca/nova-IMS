@@ -374,8 +374,9 @@ function buildMedidasAuditDetails(beforeList, afterList) {
 
   for (const [id, prev] of beforeMap) {
     if (afterMap.has(id)) continue;
+    const prevName = String(prev.nombre || `Tipo ${id}`).trim();
     details.push({
-      field: `Medida: ${String(prev.nombre || `Tipo ${id}`).trim()}`,
+      field: `Medida: ${prevName}`,
       old: formatMedidaLine(prev),
       new: '(retirada)',
     });
@@ -383,7 +384,8 @@ function buildMedidasAuditDetails(beforeList, afterList) {
 
   for (const [id, next] of afterMap) {
     const prev = beforeMap.get(id);
-    const label = `Medida: ${String(next.nombre || `Tipo ${id}`).trim()}`;
+    const nextName = String(next.nombre || `Tipo ${id}`).trim();
+    const label = `Medida: ${nextName}`;
     if (!prev) {
       details.push({
         field: label,
