@@ -36,13 +36,14 @@ const PRIORITY_TO_GI = {
   Baja: 'Baja',
   Media: 'Media',
   Alta: 'Alta',
-  Crítica: 'Alta',
+  Crítica: 'Crítica',
 };
 
 const PRIORITY_FROM_GI = {
   Baja: 'Baja',
   Media: 'Media',
   Alta: 'Alta',
+  Crítica: 'Crítica',
 };
 
 const PERSON_ROLE_TO_GI = {
