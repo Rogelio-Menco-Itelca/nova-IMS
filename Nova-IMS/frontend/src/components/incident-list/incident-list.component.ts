@@ -243,6 +243,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   /** Evita pisar la prioridad que el operador eligió manualmente. */
   private lastIncidentTypeName: string | null = null;
   private lastTypeDefaultPriority: IncidentPriority | null = null;
+  private priorityManuallyOverridden = false;
   private incidentDeptSub: Subscription | undefined;
   private readonly personLookupNotified = new Set<string>();
 
@@ -2046,7 +2047,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const priorityEmpty = !currentPriority;
       const priorityMatchesPreviousDefault =
         !!this.lastTypeDefaultPriority && currentPriority === this.lastTypeDefaultPriority;
-      const applyDefaultPriority = typeChanged && (priorityEmpty || priorityMatchesPreviousDefault);
+      const applyDefaultPriority =
+        typeChanged &&
+        !this.priorityManuallyOverridden &&
+        (priorityEmpty || priorityMatchesPreviousDefault);
 
       const patch: { type: string; priority_id?: IncidentPriority; priority?: IncidentPriority } = {
         type: selectedType.name,
@@ -2060,6 +2064,13 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.lastTypeDefaultPriority = selectedType.defaultPriority;
 
       this.incidentForm.patchValue(patch, { emitEvent: false });
+    });
+
+    this.incidentForm.get('priority_id')?.valueChanges.subscribe((priority) => {
+      const value = String(priority ?? '').trim();
+      if (!value) return;
+      this.priorityManuallyOverridden = true;
+      this.incidentForm.patchValue({ priority: value as IncidentPriority }, { emitEvent: false });
     });
 
     this.setupPhoneLookup();
@@ -3064,6 +3075,17 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  private resolveFormPriority(formValue: {
+    priority_id?: string | null;
+    priority?: string | null;
+  }): IncidentPriority {
+    const value = String(formValue.priority_id ?? formValue.priority ?? '').trim();
+    if (value === 'Baja' || value === 'Media' || value === 'Alta' || value === 'Crítica') {
+      return value;
+    }
+    return 'Media';
+  }
+
   private buildNewIncidentFromForm(): Incident | null {
     this.pruneEmptyInvolvedEntries();
 
@@ -3085,6 +3107,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     const comments = draft;
     const selectedType = this.incidentTypes().find((t) => t.name === formValue.event_id);
+    const formPriority = this.resolveFormPriority(formValue);
 
     return {
       id: '',
@@ -3095,7 +3118,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       status: (formValue.status || this.defaultStatusName()) as IncidentStatus,
       event_id: selectedType?.id ?? formValue.event_id ?? '',
       incident_type_id: selectedType?.id,
-      priority_id: formValue.priority_id ?? '',
+      priority_id: formPriority,
       origin: formValue.origin ?? '',
       phone: formValue.phone ?? '',
       location: formValue.location ?? '',
@@ -3106,7 +3129,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       details: '',
       comments,
       type: selectedType?.name ?? formValue.event_id ?? '',
-      priority: formValue.priority_id as IncidentPriority,
+      priority: formPriority,
       operator: this.noteAuthor(),
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: this.resolveLocationPhoneForSave(formValue.locationPhoneNumber),
@@ -3323,6 +3346,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const mergedComments = this.mergeCommentHistory(base.comments ?? '', draftComment);
 
     const selectedType = this.incidentTypes().find((t) => t.name === updatedData.event_id);
+    const formPriority = this.resolveFormPriority(updatedData);
     const finalData: Incident = {
       ...base,
       status: catalogStatusToUiStatus(
@@ -3330,7 +3354,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       ) as IncidentStatus,
       event_id: selectedType?.id ?? updatedData.event_id ?? '',
       incident_type_id: selectedType?.id,
-      priority_id: updatedData.priority_id ?? '',
+      priority_id: formPriority,
       origin: updatedData.origin ?? '',
       phone: updatedData.phone ?? '',
       location: updatedData.location ?? '',
@@ -3341,7 +3365,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       details: '',
       comments: mergedComments,
       type: selectedType?.name ?? updatedData.event_id ?? '',
-      priority: updatedData.priority_id as IncidentPriority,
+      priority: formPriority,
       involvedPeople: this.involvedPeopleForSave(),
       involvedPlaces: ((updatedData.involvedPlaces ?? []) as InvolvedPlace[]).filter(
         (p) => String(p.name || '').trim() && String(p.address || '').trim(),
@@ -3385,6 +3409,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.selectedIncidentTypeName.set(null);
     this.lastIncidentTypeName = null;
     this.lastTypeDefaultPriority = null;
+    this.priorityManuallyOverridden = false;
     this.incidentForm.reset({
       event_id: '',
       priority_id: '',
@@ -3438,6 +3463,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.lastIncidentTypeName = typeName;
     const selectedType = this.incidentTypes().find((t) => t.name === typeName);
     this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
+    const savedPriority = this.resolveFormPriority({
+      priority_id: state.priority_id,
+      priority: state.priority,
+    });
+    this.priorityManuallyOverridden =
+      !!savedPriority &&
+      !!this.lastTypeDefaultPriority &&
+      savedPriority !== this.lastTypeDefaultPriority;
     this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).catch(() => void 0);
     this.involvedPeople.clear();
     for (const p of involvedPeople ?? []) {

@@ -178,6 +178,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Evita pisar la prioridad que el operador eligió manualmente. */
   private lastIncidentTypeName: string | null = null;
   private lastTypeDefaultPriority: IncidentPriority | null = null;
+  private priorityManuallyOverridden = false;
   private readonly personLookupNotified = new Set<string>();
 
   incidents = this.incidentService.incidents;
@@ -1148,7 +1149,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       const priorityEmpty = !currentPriority;
       const priorityMatchesPreviousDefault =
         !!this.lastTypeDefaultPriority && currentPriority === this.lastTypeDefaultPriority;
-      const applyDefaultPriority = typeChanged && (priorityEmpty || priorityMatchesPreviousDefault);
+      const applyDefaultPriority =
+        typeChanged &&
+        !this.priorityManuallyOverridden &&
+        (priorityEmpty || priorityMatchesPreviousDefault);
 
       const patch: { type: string; priority_id?: IncidentPriority; priority?: IncidentPriority } = {
         type: selectedType.name,
@@ -1162,6 +1166,13 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.lastTypeDefaultPriority = selectedType.defaultPriority;
 
       this.incidentForm.patchValue(patch, { emitEvent: false });
+    });
+
+    this.incidentForm.get('priority_id')?.valueChanges.subscribe((priority) => {
+      const value = String(priority ?? '').trim();
+      if (!value) return;
+      this.priorityManuallyOverridden = true;
+      this.incidentForm.patchValue({ priority: value as IncidentPriority }, { emitEvent: false });
     });
 
     this.setupPhoneLookup();
@@ -1318,7 +1329,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       details: formValue.details ?? '',
       comments: formValue.comments ?? '',
       type: formValue.event_id ?? '',
-      priority: coerceIncidentPriority(formValue.priority ?? formValue.priority_id),
+      priority: coerceIncidentPriority(formValue.priority_id ?? formValue.priority),
       operator: this.authService.currentUser()?.name ?? 'Sistema',
       ani: formValue.phone ?? 'N/A',
       locationPhoneNumber: formValue.locationPhoneNumber ?? '',
@@ -1356,7 +1367,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       details: updatedData.details ?? '',
       comments: updatedData.comments ?? '',
       type: updatedData.event_id ?? '',
-      priority: coerceIncidentPriority(updatedData.priority ?? updatedData.priority_id),
+      priority: coerceIncidentPriority(updatedData.priority_id ?? updatedData.priority),
       involvedPeople: updatedData.involvedPeople ?? [],
       involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
     };

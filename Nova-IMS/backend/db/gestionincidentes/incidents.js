@@ -174,6 +174,7 @@ function mapIncidentRow(r, extras = {}) {
   return {
     ...r,
     status: mapStatusFromGi(r.status_raw),
+    priority: mapPriorityFromGi(r.priority),
     internal_id: r.internal_id,
     comments: extras.comments ?? r.comments ?? '',
     contact_info: extras.contact_info ?? null,
@@ -189,7 +190,7 @@ function mapIncidentRow(r, extras = {}) {
 
 async function resolveCatalogIds(
   agencyCode,
-  { status, priority, origin, incidentTypeId, eventId },
+  { status, priority, priority_id, origin, incidentTypeId, eventId },
 ) {
   const agency = normalizeAgencyCode(agencyCode);
 
@@ -225,7 +226,8 @@ async function resolveCatalogIds(
     estadoId = fb[0]?.ID_estado;
   }
 
-  const priorityName = mapPriorityToGi(priority || 'Media');
+  const priorityInput = String(priority ?? priority_id ?? '').trim();
+  const priorityName = mapPriorityToGi(priorityInput || 'Media');
   const [pri] = await pool.query(
     `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
     [priorityName],
