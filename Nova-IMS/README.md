@@ -136,9 +136,12 @@ LDAP_USER_ATTRIBUTE=uid
 LDAP_DEFAULT_ROLE_ID=RP-3
 LDAP_DEFAULT_AGENCY_CODE=CENTRAL
 
-SMTP_HOST=smtp.gmail.com
-SMTP_USER=tu_correo@gmail.com
-SMTP_PASS=tu_app_password
+MAIL_PROVIDER=smtp
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=NOVA.IMS.CSJ@itelca.com.co
+SMTP_PASS=tu_contraseña
+MAIL_FROM="Itelca S.A.S <NOVA.IMS.CSJ@itelca.com.co>"
 ```
 
 ---
