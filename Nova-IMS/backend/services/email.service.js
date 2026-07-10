@@ -100,7 +100,7 @@ function getTransporter() {
       },
       requireTLS: true,
       tls: {
-        ciphers: 'SSLv3',
+        minVersion: 'TLSv1.2',
       },
     });
   }
