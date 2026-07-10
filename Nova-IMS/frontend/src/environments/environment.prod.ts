@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://nova-ims-production.up.railway.app',
+  apiUrl: '',
   googleMapsApiKey: '',
   publicShareBaseUrl: '',
   powerBiEmbedUrl:

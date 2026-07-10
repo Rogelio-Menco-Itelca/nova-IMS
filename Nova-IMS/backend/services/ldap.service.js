@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Servicio de autenticación contra LDAP.
  *
  * Implementa el patrón estándar "search-then-bind":
@@ -20,6 +20,9 @@
  *     aún cuando haya errores.
  *
  * @module services/ldap.service
+ *
+ * NOTA TEMPORAL DE DEBUG: se agregaron 2 console.log en el paso [3] para
+ * diagnosticar un fallo de bind. Quitarlos una vez resuelto el problema.
  */
 
 const { Client } = require('ldapts');
@@ -161,6 +164,21 @@ async function authenticate(username, password) {
       entry = searchEntries[0];
     } catch (err) {
       if (err instanceof LdapAuthError) throw err;
+
+      // AD LDS (a diferencia de OpenLDAP) a veces responde "No such object"
+      // (código LDAP 32 / 0x20) cuando una búsqueda simplemente no encuentra
+      // ninguna coincidencia, en vez de responder éxito con 0 resultados.
+      // Sin este ajuste, un usuario que solo existe en MySQL (no en el
+      // directorio) bloquearía el login entero con un falso error de servidor.
+      const msg = String(err.message || '').toLowerCase();
+      const isAdLdsEmptyResult = err.code === 32 || /no_object|0x20/.test(msg);
+      if (isAdLdsEmptyResult) {
+        throw new LdapAuthError(
+          ErrorCode.USER_NOT_FOUND,
+          `Usuario no encontrado (AD LDS NO_OBJECT) para ${filter}`,
+        );
+      }
+
       throw new LdapAuthError(ErrorCode.SERVER_ERROR, `Error al buscar en LDAP: ${err.message}`);
     }
 
