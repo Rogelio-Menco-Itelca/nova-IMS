@@ -72,7 +72,7 @@ describe('appendIncidentNote', () => {
     const result = appendIncidentNote(prev, 'Luis', 'Siguiente');
     expect(result.startsWith(prev)).toBe(true);
     expect(result).toContain(INCIDENT_NOTE_SEPARATOR);
-    expect(result.endsWith('Siguiente'));
+    expect(result.endsWith('Siguiente')).toBe(true);
   });
 });
 

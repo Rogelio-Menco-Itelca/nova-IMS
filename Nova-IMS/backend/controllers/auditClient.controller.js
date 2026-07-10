@@ -39,12 +39,14 @@ const EVENT_BUILDERS = {
   report_download: (b) => {
     const nombre = str(b.reportName, 120) || 'reporte';
     const formato = str(b.format, 20);
+    const formatoSufijoAccion = formato ? ` (${formato.toUpperCase()})` : '';
+    const formatoSufijoDetalle = formato ? ` en formato ${formato.toUpperCase()}` : '';
     return {
       categoria: 'consulta',
       modulo: 'Reportes',
       tabla: null,
-      accion: `Descargó reporte${formato ? ` (${formato.toUpperCase()})` : ''}`,
-      detalle: `Descargó el ${nombre}${formato ? ` en formato ${formato.toUpperCase()}` : ''}`,
+      accion: `Descargó reporte${formatoSufijoAccion}`,
+      detalle: `Descargó el ${nombre}${formatoSufijoDetalle}`,
     };
   },
   map_geolocation: (b) => {
