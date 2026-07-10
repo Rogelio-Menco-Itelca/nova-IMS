@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-6 pb-1">
   <!-- Header -->
   <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
-    <h2 class="text-2xl font-bold text-white">Gestión de Incidentes</h2>
+    <h2 class="text-2xl font-bold text-white">Gestión De Incidentes</h2>
     <button
       type="button"
       (click)="toggleRegistrationForm()"
@@ -344,7 +344,7 @@
                   [class.incident-select--placeholder]="selectShowsPlaceholder('origin')"
                   required
                 >
-                  <option value="" disabled>Seleccione origen</option>
+                  <option value="" disabled>Seleccione Origen</option>
                   @for (o of origins(); track o.id) {
                     <option [value]="o.name">{{ o.name }}</option>
                   }
@@ -365,7 +365,7 @@
                   inputmode="tel"
                   autocomplete="tel"
                   formControlName="phone"
-                  placeholder="Ej. 3026172447 (opcional)"
+                  placeholder="Ej. 3006172445"
                   [class.border-red-500]="
                     incidentForm.get('phone')?.invalid &&
                     (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched)
@@ -394,7 +394,7 @@
               class="rounded-lg border border-gray-700/60 bg-gray-800/25 p-4 sm:p-5 space-y-5"
             >
               <div>
-                <h4 class="text-sm font-semibold text-white">Ubicación del Incidente</h4>
+                <h4 class="text-sm font-semibold text-white">UBICACIÓN DEL INCIDENTE</h4>
               </div>
 
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -410,7 +410,7 @@
                         id="location"
                         type="text"
                         formControlName="location"
-                        placeholder="Calle, carrera, barrio..."
+                        placeholder="Calle, Carrera, Barrio..."
                         (keydown.enter)="$event.preventDefault(); geocodeManualLocation()"
                         class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
                         required
@@ -720,7 +720,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-primerNombre'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Primer nombre <span class="text-red-400">*</span></label
+                          >Primer Nombre <span class="text-red-400">*</span></label
                         >
                         <input
                           [id]="'person-' + $index + '-primerNombre'"
@@ -734,7 +734,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-segundoNombre'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Segundo nombre</label
+                          >Segundo Nombre</label
                         >
                         <input
                           [id]="'person-' + $index + '-segundoNombre'"
@@ -748,7 +748,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-primerApellido'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Primer apellido <span class="text-red-400">*</span></label
+                          >Primer Apellido <span class="text-red-400">*</span></label
                         >
                         <input
                           [id]="'person-' + $index + '-primerApellido'"
@@ -762,7 +762,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-segundoApellido'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Segundo apellido</label
+                          >Segundo Apellido</label
                         >
                         <input
                           [id]="'person-' + $index + '-segundoApellido'"
@@ -784,7 +784,7 @@
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'roleId')"
                         >
-                          <option [ngValue]="null" disabled>Seleccione rol</option>
+                          <option [ngValue]="null" disabled>Seleccione Rol</option>
                           @for (role of personRoles(); track role.id) {
                             <option [ngValue]="role.id">{{ role.name }}</option>
                           }
@@ -794,7 +794,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-documentType'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Tipo de documento</label
+                          >Tipo De Documento</label
                         >
                         <select
                           [id]="'person-' + $index + '-documentType'"
@@ -802,7 +802,7 @@
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'documentType')"
                         >
-                          <option value="">Seleccione tipo</option>
+                          <option value="">Seleccione Tipo</option>
                           @for (doc of documentTypes(); track doc.code) {
                             <option [value]="doc.code">{{ doc.name }}</option>
                           }
@@ -812,7 +812,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-documentId'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Número de documento</label
+                          >Número De Documento</label
                         >
                         <input
                           [id]="'person-' + $index + '-documentId'"
@@ -836,7 +836,7 @@
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'genderId')"
                         >
-                          <option [ngValue]="null">Seleccione género</option>
+                          <option [ngValue]="null">Seleccione Género</option>
                           @for (g of genders(); track g.id) {
                             <option [ngValue]="g.id">{{ g.name }}</option>
                           }
@@ -846,7 +846,7 @@
                         <label
                           [attr.for]="'person-' + $index + '-contact'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Contacto / teléfono</label
+                          >Contacto / Teléfono</label
                         >
                         <input
                           [id]="'person-' + $index + '-contact'"
@@ -862,13 +862,13 @@
                         <label
                           [attr.for]="'person-' + $index + '-comentarios'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Comentarios del solicitante</label
+                          >Comentarios Del Solicitante</label
                         >
                         <textarea
                           [id]="'person-' + $index + '-comentarios'"
                           formControlName="comentarios"
                           rows="2"
-                          placeholder="Notas sobre el solicitante (opcional)"
+                          placeholder="Notas sobre el solicitante"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"
                         ></textarea>
                       </div>
@@ -926,7 +926,7 @@
                         <label
                           [attr.for]="'place-' + $index + '-name'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Nombre del lugar <span class="text-red-400">*</span></label
+                          >Nombre Del Lugar <span class="text-red-400">*</span></label
                         >
                         <input
                           [id]="'place-' + $index + '-name'"
@@ -1004,7 +1004,7 @@
                         <label
                           [attr.for]="'place-' + $index + '-roleId'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Rol / tipo de lugar <span class="text-red-400">*</span></label
+                          >Rol / Tipo de Lugar <span class="text-red-400">*</span></label
                         >
                         <select
                           [id]="'place-' + $index + '-roleId'"
@@ -1030,7 +1030,7 @@
                           [id]="'place-' + $index + '-contact'"
                           formControlName="contact"
                           type="text"
-                          placeholder="Teléfono o referencia"
+                          placeholder="Teléfono o Referencia"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
                         />
                       </div>
@@ -1038,7 +1038,7 @@
                         <label
                           [attr.for]="'place-' + $index + '-comments'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Comentarios del lugar</label
+                          >Comentarios Del Lugar</label
                         >
                         <textarea
                           [id]="'place-' + $index + '-comments'"
@@ -1096,13 +1096,13 @@
                         <label
                           [attr.for]="'vehicle-' + $index + '-plate'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Placa <span class="text-gray-500 font-normal">(opcional)</span></label
+                          >Placa <span class="text-gray-500 font-normal"></span></label
                         >
                         <input
                           [id]="'vehicle-' + $index + '-plate'"
                           formControlName="plate"
                           type="text"
-                          placeholder="ABC123 (opcional)"
+                          placeholder="Ej: ABC1234"
                           (input)="onVehiclePlateInput($index)"
                           (keydown.enter)="
                             $event.preventDefault(); normalizeAndLookupVehicle($index)
@@ -1130,7 +1130,7 @@
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedVehicleSelectEmpty($index, 'role')"
                         >
-                          <option value="" disabled>Seleccione rol</option>
+                          <option value="" disabled>Seleccione Rol</option>
                           @for (role of vehicleRoles; track role) {
                             <option [value]="role">{{ role }}</option>
                           }
@@ -1181,7 +1181,7 @@
                           [id]="'vehicle-' + $index + '-color'"
                           formControlName="color"
                           type="text"
-                          placeholder="Rojo"
+                          placeholder="Ej: Rojo"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
                       </div>
@@ -1189,7 +1189,7 @@
                         <label
                           [attr.for]="'vehicle-' + $index + '-details'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Comentarios del vehículo
+                          >Comentarios del Vehículo
                           <span class="text-gray-500 font-normal">(opcional)</span></label
                         >
                         <textarea
