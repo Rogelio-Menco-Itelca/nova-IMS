@@ -109,6 +109,40 @@ export function hasMedidasPanelPendingChanges(
 
 export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
 
+type MedidaEntry = MedidasDraftSnapshot['medidas'][number];
+
+function describeSingleMedidaDelta(
+  afterM: MedidaEntry,
+  beforeM: MedidaEntry | undefined,
+  nombre: string,
+): string | null {
+  if (!beforeM) {
+    return afterM.cantidad > 1 ? `${afterM.cantidad}× ${nombre}` : nombre;
+  }
+
+  const qtyDelta = afterM.cantidad - beforeM.cantidad;
+  if (qtyDelta > 0) {
+    return qtyDelta > 1 ? `${qtyDelta}× ${nombre}` : nombre;
+  }
+  if (qtyDelta < 0) {
+    return `−${Math.abs(qtyDelta)}× ${nombre}`;
+  }
+  if (afterM.observacion_medida !== beforeM.observacion_medida) {
+    return `${nombre} (observación actualizada)`;
+  }
+  return null;
+}
+
+function describeEsquemaDelta(
+  before: MedidasDraftSnapshot | null,
+  after: MedidasDraftSnapshot,
+): string | null {
+  if (before && after.tipo_esquema !== before.tipo_esquema && after.tipo_esquema) {
+    return `Esquema: ${after.tipo_esquema}`;
+  }
+  return null;
+}
+
 /** Texto de lo que cambió en este guardado (solo delta, no el listado completo). */
 export function describeMedidasSaveDelta(
   before: MedidasDraftSnapshot | null,
@@ -122,25 +156,12 @@ export function describeMedidasSaveDelta(
   for (const afterM of after.medidas) {
     const beforeM = beforeMap.get(afterM.ID_tipo_medida);
     const nombre = resolveName(afterM.ID_tipo_medida).trim() || `Medida ${afterM.ID_tipo_medida}`;
-
-    if (!beforeM) {
-      parts.push(afterM.cantidad > 1 ? `${afterM.cantidad}× ${nombre}` : nombre);
-      continue;
-    }
-
-    const qtyDelta = afterM.cantidad - beforeM.cantidad;
-    if (qtyDelta > 0) {
-      parts.push(qtyDelta > 1 ? `${qtyDelta}× ${nombre}` : nombre);
-    } else if (qtyDelta < 0) {
-      parts.push(`−${Math.abs(qtyDelta)}× ${nombre}`);
-    } else if (afterM.observacion_medida !== beforeM.observacion_medida) {
-      parts.push(`${nombre} (observación actualizada)`);
-    }
+    const desc = describeSingleMedidaDelta(afterM, beforeM, nombre);
+    if (desc) parts.push(desc);
   }
 
-  if (before && after.tipo_esquema !== before.tipo_esquema && after.tipo_esquema) {
-    parts.push(`Esquema: ${after.tipo_esquema}`);
-  }
+  const esquemaDesc = describeEsquemaDelta(before, after);
+  if (esquemaDesc) parts.push(esquemaDesc);
 
   if (!parts.length) return null;
   if (parts.length <= 4) return parts.join(', ');

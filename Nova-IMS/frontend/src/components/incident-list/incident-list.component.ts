@@ -2643,6 +2643,51 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return suffix;
   }
 
+  private buildStatusChangeDetail(baseStatus: string, newStatus: string): string | null {
+    if (baseStatus === newStatus) return null;
+    return `estado cambiado de «${baseStatus}» a «${newStatus}»`;
+  }
+
+  private buildCommentDetail(
+    draftComment: string,
+    newStatus: string,
+    reiterationNumber?: number,
+  ): string | null {
+    const comment = String(draftComment ?? '').trim();
+    if (!comment) return null;
+    const excerpt = comment.length > 72 ? `${comment.slice(0, 71)}…` : comment;
+    if (newStatus === 'Reiteraciones' && reiterationNumber != null) {
+      return `reiteración N.º ${reiterationNumber}: «${excerpt}»`;
+    }
+    return `comentario agregado: «${excerpt}»`;
+  }
+
+  private buildPriorityDetail(base: Incident, final: Incident): string | null {
+    const basePriority = String(base.priority_id ?? base.priority ?? '').trim();
+    const newPriority = String(final.priority_id ?? final.priority ?? '').trim();
+    if (basePriority && newPriority && basePriority !== newPriority) {
+      return `prioridad actualizada a ${newPriority}`;
+    }
+    return null;
+  }
+
+  private buildOriginDetail(base: Incident, final: Incident): string | null {
+    if (String(base.origin ?? '').trim() === String(final.origin ?? '').trim()) return null;
+    return `origen: ${String(final.origin ?? '').trim()}`;
+  }
+
+  private buildLocationDetail(base: Incident, final: Incident): string | null {
+    if (String(base.location ?? '').trim() === String(final.location ?? '').trim()) return null;
+    return 'ubicación del incidente modificada';
+  }
+
+  private buildPeopleDetail(base: Incident, final: Incident): string | null {
+    const basePeople = base.involvedPeople?.length ?? 0;
+    const newPeople = final.involvedPeople?.length ?? 0;
+    if (basePeople === newPeople) return null;
+    return `personas involucradas: ${newPeople}`;
+  }
+
   private buildIncidentUpdateNotification(
     incidentId: string,
     base: Incident,
@@ -2650,43 +2695,17 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     draftComment: string,
     reiterationNumber?: number,
   ): { title: string; message: string } {
-    const details: string[] = [];
     const baseStatus = catalogStatusToUiStatus(String(base.status ?? '').trim());
     const newStatus = catalogStatusToUiStatus(String(final.status ?? '').trim());
 
-    if (baseStatus !== newStatus) {
-      details.push(`estado cambiado de «${baseStatus}» a «${newStatus}»`);
-    }
-
-    const comment = String(draftComment ?? '').trim();
-    if (comment) {
-      const excerpt = comment.length > 72 ? `${comment.slice(0, 71)}…` : comment;
-      if (newStatus === 'Reiteraciones' && reiterationNumber != null) {
-        details.push(`reiteración N.º ${reiterationNumber}: «${excerpt}»`);
-      } else {
-        details.push(`comentario agregado: «${excerpt}»`);
-      }
-    }
-
-    const basePriority = String(base.priority_id ?? base.priority ?? '').trim();
-    const newPriority = String(final.priority_id ?? final.priority ?? '').trim();
-    if (basePriority && newPriority && basePriority !== newPriority) {
-      details.push(`prioridad actualizada a ${newPriority}`);
-    }
-
-    if (String(base.origin ?? '').trim() !== String(final.origin ?? '').trim()) {
-      details.push(`origen: ${String(final.origin ?? '').trim()}`);
-    }
-
-    if (String(base.location ?? '').trim() !== String(final.location ?? '').trim()) {
-      details.push('ubicación del incidente modificada');
-    }
-
-    const basePeople = base.involvedPeople?.length ?? 0;
-    const newPeople = final.involvedPeople?.length ?? 0;
-    if (basePeople !== newPeople) {
-      details.push(`personas involucradas: ${newPeople}`);
-    }
+    const details = [
+      this.buildStatusChangeDetail(baseStatus, newStatus),
+      this.buildCommentDetail(draftComment, newStatus, reiterationNumber),
+      this.buildPriorityDetail(base, final),
+      this.buildOriginDetail(base, final),
+      this.buildLocationDetail(base, final),
+      this.buildPeopleDetail(base, final),
+    ].filter((d): d is string => d !== null);
 
     const intro = `Se actualizó ${incidentId}.`;
     const message = details.length

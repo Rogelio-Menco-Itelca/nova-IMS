@@ -1,7 +1,6 @@
 const logger = require('../utils/logger');
 
-function errorHandler(err, req, res, next) {
-  void next;
+function errorHandler(err, req, res, _next) {
   const status = err.status || 500;
   if (status >= 500) {
     logger.error('[ERROR]', err);

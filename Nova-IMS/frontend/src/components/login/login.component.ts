@@ -224,7 +224,9 @@ export class LoginComponent implements OnInit, OnDestroy {
             this.startResendCountdown();
           } else {
             this.notificationService.clearSessionNotifications();
-            void this.authService.bootstrapSessionPermissions();
+            this.authService.bootstrapSessionPermissions().catch(() => {
+              // Silenciar: el bootstrap de permisos no debe bloquear el flujo de login.
+            });
             if (res.mustChangePassword) {
               this.authService.mustChangePassword.set(true);
               this.authService.currentView.set('change-password');
@@ -256,7 +258,9 @@ export class LoginComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.isLoading.set(false);
         this.notificationService.clearSessionNotifications();
-        void this.authService.bootstrapSessionPermissions();
+        this.authService.bootstrapSessionPermissions().catch(() => {
+          // Silenciar: el bootstrap de permisos no debe bloquear el flujo de login.
+        });
         if (res.mustChangePassword) {
           this.authService.mustChangePassword.set(true);
           this.authService.currentView.set('change-password');
