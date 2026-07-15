@@ -133,6 +133,19 @@ async function findByRequestUrlPattern(requestId) {
   return rows[0] || null;
 }
 
+async function syncLinkedLocationCoords(internalIncidentId, lat, lng, executor = pool) {
+  if (!internalIncidentId) return 0;
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) return 0;
+  const [r] = await executor.query(
+    `UPDATE ubicacion SET lat = ?, \`long\` = ?
+     WHERE ID_incidente = ?`,
+    [la, ln, internalIncidentId],
+  );
+  return r.affectedRows;
+}
+
 module.exports = {
   createLocationRequest,
   receiveLocation,
@@ -141,5 +154,6 @@ module.exports = {
   updateLocationByRequestUrl,
   findByRequestUrlPattern,
   linkLocationToIncident,
+  syncLinkedLocationCoords,
   locationChannelFromGi,
 };

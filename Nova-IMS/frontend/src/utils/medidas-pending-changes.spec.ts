@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   hasMedidasPanelPendingChanges,
+  labelsForPendingMedidasSections,
   pendingMedidasSections,
   snapshotMedidasDraft,
   describeMedidasSaveDelta,
@@ -115,6 +116,27 @@ describe('pendingMedidasSections', () => {
       'oseg',
       'cerrem',
       'medidas',
+    ]);
+  });
+});
+
+describe('labelsForPendingMedidasSections', () => {
+  it('devuelve etiquetas legibles por sección', () => {
+    const baseline = snapshotMedidasDraft({}, []);
+    const current = snapshotMedidasDraft({ tramite_destino: 'UNP' }, []);
+    const ctx: MedidasPendingContext = {
+      closed: false,
+      osegGuardada: false,
+      cerremGuardada: false,
+      cerremEditMode: false,
+      medidasGuardadas: false,
+      medidasEditMode: false,
+      showOsegBlock: true,
+      showCerremBlock: false,
+      showMedidasBlock: false,
+    };
+    expect(labelsForPendingMedidasSections(current, baseline, ctx)).toEqual([
+      'Gestión OSEG (trámite / destino)',
     ]);
   });
 });

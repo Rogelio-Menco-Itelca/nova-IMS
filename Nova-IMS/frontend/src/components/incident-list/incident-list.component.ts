@@ -101,6 +101,32 @@ import {
   parseDmyDateTime,
 } from '../../utils/incident-notes';
 import { AuditLog } from '../../models/admin.model';
+import {
+  IncidentLocationCoordSync,
+  buildGeocodeQuery,
+  geocodeAddressQuery,
+  hasValidIncidentCoords,
+  shouldApplyIncomingGpsLocation,
+} from '../../utils/incident-location-coords';
+import {
+  clampLatLngToColombia,
+  clampMapZoomAfterCountryFit,
+  colombiaMapViewportOptions,
+  fitMapToColombia,
+  IMS_COORD,
+  IMS_DEFAULT_MAP_CENTER,
+  IMS_GEO,
+  IMS_MAP_ZOOM,
+  appendCountryToGeocodeQuery,
+  googleMapsCountryRestriction,
+  roundCoord,
+  toLocalColombianPhone,
+} from '../../utils/ims-geo.constants';
+
+export interface LeaveConfirmChangeItem {
+  label: string;
+  detail?: string;
+}
 
 @Component({
   selector: 'app-incident-list',
@@ -218,10 +244,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   leaveConfirmOpen = signal(false);
-  /** Borrador sin guardar en pestaña Medidas (OSEG / CERREM / medidas). */
   medidasPendingChanges = signal(false);
-  /** true = modal abierto desde pestaña «Nuevo incidente» */
   leaveConfirmForNewTab = signal(false);
+  leaveConfirmChanges = signal<LeaveConfirmChangeItem[]>([]);
   updateConfirmOpen = signal(false);
   private pendingLeaveAction: (() => void) | null = null;
   private leaveAfterSave = false;
@@ -245,6 +270,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   private lastTypeDefaultPriority: IncidentPriority | null = null;
   private priorityManuallyOverridden = false;
   private incidentDeptSub: Subscription | undefined;
+  private locationTextSub: Subscription | undefined;
+  private locationResolveSub: Subscription | undefined;
+  private readonly locationCoordSync = new IncidentLocationCoordSync();
+  /** Invalida geocodificaciones async obsoletas tras guardar o cambiar de pestaña. */
+  private formSyncEpoch = 0;
+  private syncedFormFingerprint: { incidentId: string; fp: string } | null = null;
+  private formSyncStableTimer: ReturnType<typeof setTimeout> | null = null;
+  private medidasEngaged = false;
   private readonly personLookupNotified = new Set<string>();
 
   incidents = this.incidentService.incidents;
@@ -320,8 +353,17 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const locationData = this.locationService.locationReceived();
       if (!locationData) return;
 
-      const lat = Number(locationData.lat.toFixed(6));
-      const lng = Number(locationData.lng.toFixed(6));
+      if (!this.shouldApplyIncomingLocation(locationData)) {
+        this.locationService.clearLocation();
+        this.notificationService.addNotification(
+          'Ubicación omitida',
+          'Llegó una ubicación GPS de otro contacto; no se aplicó sobre el formulario actual.',
+        );
+        return;
+      }
+
+      const lat = roundCoord(locationData.lat);
+      const lng = roundCoord(locationData.lng);
 
       this.showNewIncidentTab.set(true);
       this.setActiveTab('new');
@@ -374,16 +416,141 @@ export class IncidentListComponent implements OnInit, OnDestroy {
           const incident = this.resolveIncidentForTab(tabId);
           if (incident) {
             this.setupStatusDropdownForEdit(agency, incident.status);
-            this.populateFormWithState(incident);
+            this.populateFormWithState(incident, { trustCoords: true });
             this.refreshWorkflowGestion(incident.id);
             if (shouldNavigateToMedidasTab(String(incident.status ?? ''))) {
               this.applyDetailTab('medidas');
             }
-            setTimeout(() => this.initMap(incident.lat, incident.lng), 0);
+            setTimeout(() => {
+              void this.initMap(incident.lat, incident.lng).finally(() => {
+                this.scheduleFormSyncAfterStable(incident.id);
+              });
+            }, 0);
           }
         }
       });
     });
+  }
+
+  private bumpFormSyncEpoch(): void {
+    this.formSyncEpoch += 1;
+  }
+
+  private normalizeCatalogId(value: unknown): string {
+    const raw = String(value ?? '').trim();
+    const match = /(\d+)/.exec(raw);
+    return match ? match[1] : raw;
+  }
+
+  private incidentTypeKeyFromForm(eventId: unknown): string {
+    const name = String(eventId ?? '').trim();
+    const selected = this.incidentTypes().find((t) => t.name === name);
+    return this.normalizeCatalogId(selected?.id ?? name);
+  }
+
+  private incidentTypeKeyFromIncident(incident: Incident): string {
+    const byTypeName = incident.type
+      ? this.incidentTypes().find((t) => t.name === incident.type)?.id
+      : undefined;
+    return this.normalizeCatalogId(
+      byTypeName ?? incident.incident_type_id ?? incident.event_id,
+    );
+  }
+
+  private normalizeOptionalId(value: unknown): number | null {
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private normalizeLocationPhoneCompare(value: unknown): string {
+    const resolved = this.resolveLocationPhoneForSave(value);
+    if (!resolved || resolved === 'N/A') return '';
+    return toLocalColombianPhone(resolved);
+  }
+
+  private coordsMatch(
+    formLat: unknown,
+    formLng: unknown,
+    savedLat: unknown,
+    savedLng: unknown,
+  ): boolean {
+    const formOk = hasValidIncidentCoords(formLat, formLng);
+    const savedOk = hasValidIncidentCoords(savedLat, savedLng);
+    if (!formOk && !savedOk) return true;
+    if (!formOk || !savedOk) return false;
+    return (
+      Math.abs(roundCoord(Number(formLat)) - roundCoord(Number(savedLat))) <=
+        IMS_COORD.nullEpsilon &&
+      Math.abs(roundCoord(Number(formLng)) - roundCoord(Number(savedLng))) <=
+        IMS_COORD.nullEpsilon
+    );
+  }
+
+  private buildFormPersistenceFingerprint(): string {
+    const form = this.incidentForm.getRawValue();
+    return JSON.stringify({
+      status: catalogStatusToUiStatus(String(form.status ?? '').trim()),
+      // Usar el valor del formulario (nombre del tipo), no el catálogo async.
+      typeKey: String(form.event_id ?? '').trim().toLowerCase(),
+      priority: this.resolveFormPriority(form),
+      origin: String(form.origin ?? '').trim(),
+      phone: this.normalizePhone(String(form.phone ?? '')),
+      location: String(form.location ?? '').trim(),
+      lat: hasValidIncidentCoords(form.lat, form.lng) ? roundCoord(Number(form.lat)) : null,
+      lng: hasValidIncidentCoords(form.lat, form.lng) ? roundCoord(Number(form.lng)) : null,
+      departmentId: this.normalizeOptionalId(form.departmentId),
+      municipalityId: this.normalizeOptionalId(form.municipalityId),
+      locationPhone: this.normalizeLocationPhoneCompare(form.locationPhoneNumber),
+      people: this.involvedPeopleSnapshot(this.involvedPeopleForSave()),
+      places: this.involvedPlacesSnapshot(
+        ((form.involvedPlaces ?? []) as InvolvedPlace[]).filter(
+          (p) => String(p.name || '').trim() && String(p.address || '').trim(),
+        ),
+      ),
+      vehicles: this.involvedVehiclesSnapshot(this.involvedVehiclesForSave()),
+    });
+  }
+
+  private markFormSyncedWithServer(incidentId: string): void {
+    this.syncedFormFingerprint = {
+      incidentId,
+      fp: this.buildFormPersistenceFingerprint(),
+    };
+    this.incidentForm.markAsPristine();
+  }
+
+  // Tras catálogos/mapa async, alinear huella del form
+  private scheduleFormSyncAfterStable(incidentId: string): void {
+    const sync = () => {
+      if (this.activeTabId() !== incidentId) return;
+      this.markFormSyncedWithServer(incidentId);
+    };
+    queueMicrotask(sync);
+    for (const delay of [0, 150, 500]) {
+      setTimeout(sync, delay);
+    }
+    if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
+    this.formSyncStableTimer = setTimeout(() => {
+      this.formSyncStableTimer = null;
+      sync();
+    }, 900);
+  }
+
+  /** true solo si el operador modificó el formulario respecto a la última carga/guardado. */
+  private hasFormEditsSinceSync(): boolean {
+    const tabId = this.activeTabId();
+    if (!tabId || tabId === 'new') return false;
+    const baseline = this.syncedFormFingerprint;
+    if (!baseline || baseline.incidentId !== tabId) return false;
+    if (baseline.fp === this.buildFormPersistenceFingerprint()) return false;
+
+    const incident = this.activeIncident();
+    if (incident && !this.incidentFormDiffersFromSaved(incident)) {
+      this.markFormSyncedWithServer(tabId);
+      return false;
+    }
+    return true;
   }
 
   /** SMS/WhatsApp: teléfono del enlace de ubicación; si no, N/A en vitácora. */
@@ -392,12 +559,133 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     return v || 'N/A';
   }
 
-  private toLocalPhone(phone: string): string {
-    const digits = phone.replaceAll(/\D/g, '');
-    if (digits.startsWith('57') && digits.length > 10) {
-      return digits.slice(2);
+  private getLocationSnapshot() {
+    const raw = this.incidentForm.getRawValue();
+    return {
+      location: String(raw.location ?? ''),
+      departmentId: raw.departmentId ?? null,
+      municipalityId: raw.municipalityId ?? null,
+    };
+  }
+
+  private markLocationCoordsSynced(): void {
+    this.locationCoordSync.markSynced(this.getLocationSnapshot());
+  }
+
+  private shouldApplyIncomingLocation(locationData: LocationData): boolean {
+    const incoming = locationData.phoneNumber
+      ? toLocalColombianPhone(locationData.phoneNumber)
+      : '';
+    const formPhone = toLocalColombianPhone(String(this.incidentForm.get('phone')?.value || ''));
+    const locPhone = toLocalColombianPhone(
+      String(this.incidentForm.getRawValue().locationPhoneNumber ?? ''),
+    );
+    const pendingPhone = this.locationService.pendingPhone()
+      ? toLocalColombianPhone(this.locationService.pendingPhone()!)
+      : '';
+
+    return shouldApplyIncomingGpsLocation({
+      incomingPhone: incoming,
+      formPhone,
+      locationPhone: locPhone,
+      pendingPhone,
+      hasCoords: hasValidIncidentCoords(
+        this.incidentForm.get('lat')?.value,
+        this.incidentForm.get('lng')?.value,
+      ),
+      hasAddress: Boolean(String(this.incidentForm.get('location')?.value ?? '').trim()),
+    });
+  }
+
+  private async prepareIncidentCoordsForSave(): Promise<boolean> {
+    const lat = this.incidentForm.get('lat')?.value;
+    const lng = this.incidentForm.get('lng')?.value;
+    const snapshot = this.getLocationSnapshot();
+    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
+      return true;
     }
-    return digits;
+
+    const address = String(snapshot.location ?? '').trim();
+    if (!address) {
+      this.notificationService.addNotification(
+        'Ubicación incompleta',
+        'Indique la dirección de referencia antes de guardar.',
+      );
+      return false;
+    }
+
+    await this.ensureGeocoderReady();
+    if (!this.geocoder) {
+      this.notificationService.addNotification(
+        'Mapa no disponible',
+        'No se pudo validar la ubicación en el mapa. Intente de nuevo.',
+      );
+      return false;
+    }
+
+    const query = buildGeocodeQuery(
+      snapshot,
+      (id) => this.departments().find((d) => d.id === id)?.name,
+      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
+    );
+    const geocoded = await geocodeAddressQuery(this.geocoder, query);
+    if (!geocoded) {
+      this.notificationService.addNotification(
+        'Dirección no ubicada',
+        'No se pudo ubicar la dirección en el mapa. Use el buscador, Enter o el pin del mapa.',
+      );
+      return false;
+    }
+
+    await this.applyLocationFromGeocode(
+      geocoded.lat,
+      geocoded.lng,
+      geocoded.formattedAddress,
+    );
+    return true;
+  }
+
+  private ensureFormCoords(lat: number, lng: number): void {
+    if (hasValidIncidentCoords(this.incidentForm.get('lat')?.value, this.incidentForm.get('lng')?.value)) {
+      return;
+    }
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue(
+        { lat: roundCoord(lat), lng: roundCoord(lng) },
+        { emitEvent: false },
+      );
+    });
+    this.markLocationCoordsSynced();
+  }
+
+  private async resolveLocationFromForm(): Promise<void> {
+    if (this.locationCoordSync.isPatching()) return;
+    const epoch = this.formSyncEpoch;
+    const snapshot = this.getLocationSnapshot();
+    if (!String(snapshot.location ?? '').trim()) return;
+
+    const lat = this.incidentForm.get('lat')?.value;
+    const lng = this.incidentForm.get('lng')?.value;
+    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
+      return;
+    }
+
+    await this.ensureGeocoderReady();
+    if (epoch !== this.formSyncEpoch || !this.geocoder) return;
+
+    const query = buildGeocodeQuery(
+      snapshot,
+      (id) => this.departments().find((d) => d.id === id)?.name,
+      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
+    );
+    const geocoded = await geocodeAddressQuery(this.geocoder, query);
+    if (epoch !== this.formSyncEpoch || !geocoded) return;
+
+    await this.applyLocationFromGeocode(
+      geocoded.lat,
+      geocoded.lng,
+      geocoded.formattedAddress,
+    );
   }
 
   private async ensureGeocoderReady(): Promise<void> {
@@ -410,50 +698,60 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     lat: number,
     lng: number,
   ): Promise<void> {
-    const patch: Record<string, unknown> = {
-      lat,
-      lng,
-      origin: this.pickOriginForLocationChannel(locationData.channel),
-    };
+    const epoch = this.formSyncEpoch;
+    this.locationCoordSync.runPatch(() => {
+      const patch: Record<string, unknown> = {
+        lat,
+        lng,
+        origin: this.pickOriginForLocationChannel(locationData.channel),
+      };
+      if (locationData.phoneNumber) {
+        patch['phone'] = locationData.phoneNumber;
+      }
+      if (locationData.address) {
+        patch['location'] = locationData.address;
+      }
+      this.incidentForm.patchValue(patch, { emitEvent: false });
+      if (locationData.phoneNumber) {
+        const locationPhoneCtrl = this.incidentForm.get('locationPhoneNumber');
+        locationPhoneCtrl?.enable({ emitEvent: false });
+        locationPhoneCtrl?.setValue(locationData.phoneNumber, { emitEvent: false });
+        locationPhoneCtrl?.disable({ emitEvent: false });
+      }
+    });
     if (locationData.phoneNumber) {
-      patch['phone'] = locationData.phoneNumber;
-    }
-    if (locationData.address) {
-      patch['location'] = locationData.address;
-    }
-    this.incidentForm.patchValue(patch);
-    if (locationData.phoneNumber) {
-      const locationPhoneCtrl = this.incidentForm.get('locationPhoneNumber');
-      locationPhoneCtrl?.enable({ emitEvent: false });
-      locationPhoneCtrl?.setValue(locationData.phoneNumber, {
-        emitEvent: false,
-      });
-      locationPhoneCtrl?.disable({ emitEvent: false });
       this.lookupPersonByPhone(locationData.phoneNumber);
     }
+    if (epoch !== this.formSyncEpoch) return;
     await this.syncMapToCoords(lat, lng);
+    this.markLocationCoordsSynced();
     await this.ensureGeocoderReady();
+    if (epoch !== this.formSyncEpoch) return;
     const addressFromServer = locationData.address?.trim();
     if (addressFromServer) {
-      this.incidentForm.patchValue({ location: addressFromServer }, { emitEvent: false });
+      this.locationCoordSync.runPatch(() => {
+        this.incidentForm.patchValue({ location: addressFromServer }, { emitEvent: false });
+      });
       if (this.geocoder) {
-        this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          this.ngZone.run(() => {
-            if (status === 'OK' && results?.[0]) {
-              this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => void 0);
-              this.cdr.markForCheck();
-            }
-          });
-        });
+        const { results, status } = await this.geocodeLatLng(this.geocoder, lat, lng);
+        if (epoch !== this.formSyncEpoch) return;
+        if (status === 'OK' && results?.[0]) {
+          await this.applyDepartmentMunicipalityFromGeocode(results[0]);
+          if (epoch !== this.formSyncEpoch) return;
+          this.markLocationCoordsSynced();
+        }
       }
     } else {
-      this.reverseGeocodeFromGps(locationData.lat, locationData.lng);
+      await this.reverseGeocodeFromGps(locationData.lat, locationData.lng, epoch);
     }
+    if (epoch !== this.formSyncEpoch) return;
+    this.ensureFormCoords(lat, lng);
+    await this.syncMapToCoords(lat, lng);
     this.cdr.detectChanges();
   }
 
   private applyPhoneFromLocationRequest(phone: string): void {
-    const local = this.toLocalPhone(phone);
+    const local = toLocalColombianPhone(phone);
     this.incidentForm.patchValue({
       phone: local,
       origin:
@@ -469,11 +767,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private lookupPersonByPhone(phone: string): void {
-    const local = this.toLocalPhone(phone);
+    const local = toLocalColombianPhone(phone);
     if (local.length < 7) return;
+    const epoch = this.formSyncEpoch;
 
     this.personService.lookupByPhone(local).subscribe({
-      next: (person) => this.applyPersonLookupResult(person),
+      next: (person) => {
+        if (epoch !== this.formSyncEpoch) return;
+        this.applyPersonLookupResult(person);
+      },
       error: () => void 0,
     });
   }
@@ -528,21 +830,32 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     const formLat = this.incidentForm.get('lat')?.value;
     const formLng = this.incidentForm.get('lng')?.value;
-    const centerLat = lat ?? formLat ?? 4.60971;
-    const centerLng = lng ?? formLng ?? -74.08175;
+    const centerLat = Number(lat ?? formLat ?? IMS_DEFAULT_MAP_CENTER.lat);
+    const centerLng = Number(lng ?? formLng ?? IMS_DEFAULT_MAP_CENTER.lng);
+    const hasCoords = hasValidIncidentCoords(centerLat, centerLng);
 
     this.map = new google.maps.Map(mapEl, {
       center: { lat: centerLat, lng: centerLng },
-      zoom: 15,
+      zoom: hasCoords ? IMS_MAP_ZOOM.incidentForm : IMS_MAP_ZOOM.countryMin,
       mapId: 'DEMO_MAP_ID',
       disableDefaultUI: false,
       mapTypeControl: false,
       streetViewControl: false,
+      ...colombiaMapViewportOptions(),
     });
+
+    if (!hasCoords) {
+      fitMapToColombia(this.map);
+      google.maps.event.addListenerOnce(this.map, 'idle', () => {
+        clampMapZoomAfterCountryFit(this.map!);
+      });
+    }
 
     this.marker = createMapPin({
       map: this.map,
-      position: { lat: centerLat, lng: centerLng },
+      position: hasCoords
+        ? { lat: centerLat, lng: centerLng }
+        : { lat: IMS_DEFAULT_MAP_CENTER.lat, lng: IMS_DEFAULT_MAP_CENTER.lng },
       draggable: true,
       title: 'Ubicación del incidente',
     });
@@ -553,21 +866,22 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
-      marker.setPosition(e.latLng);
-      const clickLat = e.latLng.lat();
-      const clickLng = e.latLng.lng();
+      const clamped = clampLatLngToColombia(e.latLng.lat(), e.latLng.lng());
+      marker.setPosition(clamped);
       this.ngZone.run(() => {
-        this.updateFormCoords(clickLat, clickLng);
-        this.reverseGeocode(clickLat, clickLng);
+        this.updateFormCoords(clamped.lat, clamped.lng);
+        this.reverseGeocode(clamped.lat, clamped.lng);
       });
     });
 
     marker.addListener('dragend', () => {
       const pos = marker.getPosition();
       if (!pos) return;
+      const clamped = clampLatLngToColombia(pos.lat(), pos.lng());
+      marker.setPosition(clamped);
       this.ngZone.run(() => {
-        this.updateFormCoords(pos.lat(), pos.lng());
-        this.reverseGeocode(pos.lat(), pos.lng());
+        this.updateFormCoords(clamped.lat, clamped.lng);
+        this.reverseGeocode(clamped.lat, clamped.lng);
       });
     });
 
@@ -602,7 +916,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (!(locationInput instanceof HTMLInputElement)) return;
 
     this.autocomplete = createPlaceAutocomplete(locationInput, {
-      componentRestrictions: { country: 'co' },
+      componentRestrictions: googleMapsCountryRestriction(),
       fields: ['geometry', 'formatted_address', 'address_components'],
     });
 
@@ -639,13 +953,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private async forwardGeocodeAddress(address: string): Promise<void> {
+    const epoch = this.formSyncEpoch;
     const geocoder = await this.ensureGeocoder();
-    if (!geocoder) return;
+    if (epoch !== this.formSyncEpoch || !geocoder) return;
 
-    const query = /colombia/i.test(address) ? address : `${address}, Colombia`;
+    const query = appendCountryToGeocodeQuery(address);
 
-    geocoder.geocode({ address: query, region: 'co' }, (results, status) => {
+    geocoder.geocode({ address: query, region: IMS_GEO.countryCode }, (results, status) => {
       this.ngZone.run(() => {
+        if (epoch !== this.formSyncEpoch) return;
         if (status !== 'OK' || !results?.[0]?.geometry?.location) {
           this.notificationService.addNotification(
             'Dirección no encontrada',
@@ -671,14 +987,27 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     formattedAddress?: string,
     geocodeResult?: google.maps.GeocoderResult | google.maps.places.PlaceResult,
   ): Promise<void> {
-    this.updateFormCoords(lat, lng);
-    if (formattedAddress) {
-      this.incidentForm.patchValue({ location: formattedAddress }, { emitEvent: false });
-    }
+    const epoch = this.formSyncEpoch;
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue(
+        {
+          lat: roundCoord(lat),
+          lng: roundCoord(lng),
+          ...(formattedAddress ? { location: formattedAddress } : {}),
+        },
+        { emitEvent: false },
+      );
+    });
+    this.markLocationCoordsSynced();
     if (geocodeResult) {
       await this.applyDepartmentMunicipalityFromGeocode(geocodeResult);
+      if (epoch !== this.formSyncEpoch) return;
+      this.markLocationCoordsSynced();
     }
+    this.ensureFormCoords(lat, lng);
     await this.syncMapToCoords(lat, lng);
+    if (epoch !== this.formSyncEpoch) return;
+    this.markLocationCoordsSynced();
     this.cdr.markForCheck();
   }
 
@@ -835,23 +1164,29 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       );
       this.incidentMunicipalities.set(municipalities);
       const municipality = this.matchMunicipality(municipalities, municipalityCandidates);
-      this.incidentForm.patchValue(
-        {
-          departmentId: department.id,
-          municipalityId: municipality?.id ?? null,
-        },
-        { emitEvent: false },
-      );
+      this.locationCoordSync.runPatch(() => {
+        this.incidentForm.patchValue(
+          {
+            departmentId: department.id,
+            municipalityId: municipality?.id ?? null,
+          },
+          { emitEvent: false },
+        );
+      });
     } catch {
       this.incidentMunicipalities.set([]);
     }
   }
 
   private updateFormCoords(lat: number, lng: number) {
-    this.incidentForm.patchValue({
-      lat: Number(lat.toFixed(6)),
-      lng: Number(lng.toFixed(6)),
+    const clamped = clampLatLngToColombia(lat, lng);
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue(
+        { lat: clamped.lat, lng: clamped.lng },
+        { emitEvent: false },
+      );
     });
+    this.markLocationCoordsSynced();
   }
 
   /** Mapa / arrastre de marcador: rellena dirección desde coordenadas. */
@@ -860,8 +1195,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   /** Ubicación recibida por SMS/WhatsApp: solo esta fuente llena el campo Ubicación. */
-  private reverseGeocodeFromGps(lat: number, lng: number) {
-    this.runReverseGeocode(lat, lng, true);
+  private reverseGeocodeFromGps(lat: number, lng: number, epoch = this.formSyncEpoch) {
+    this.runReverseGeocode(lat, lng, true, epoch);
   }
 
   private geocodeLatLng(
@@ -880,36 +1215,56 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private patchLocationFromReverseGeocode(address: string, fromGpsRequest: boolean): void {
-    if (fromGpsRequest) {
-      this.incidentForm.patchValue({ location: address }, { emitEvent: false });
-      return;
-    }
-    const current = String(this.incidentForm.get('location')?.value || '').trim();
-    if (!current) {
-      this.incidentForm.patchValue({ location: address }, { emitEvent: false });
-    }
+    this.locationCoordSync.runPatch(() => {
+      if (fromGpsRequest) {
+        this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+        return;
+      }
+      const current = String(this.incidentForm.get('location')?.value || '').trim();
+      if (!current) {
+        this.incidentForm.patchValue({ location: address }, { emitEvent: false });
+      }
+    });
   }
 
   private handleReverseGeocodeResult(
     results: google.maps.GeocoderResult[] | null,
     status: google.maps.GeocoderStatusString,
     fromGpsRequest: boolean,
+    epoch = this.formSyncEpoch,
   ): void {
+    if (epoch !== this.formSyncEpoch) return;
     if (status !== 'OK' || !results?.[0]) return;
 
     this.patchLocationFromReverseGeocode(results[0].formatted_address, fromGpsRequest);
-    this.applyDepartmentMunicipalityFromGeocode(results[0]).catch(() => void 0);
+    this.applyDepartmentMunicipalityFromGeocode(results[0])
+      .then(() => {
+        if (epoch !== this.formSyncEpoch) return;
+        this.markLocationCoordsSynced();
+        const lat = this.incidentForm.get('lat')?.value;
+        const lng = this.incidentForm.get('lng')?.value;
+        if (hasValidIncidentCoords(lat, lng)) {
+          void this.syncMapToCoords(Number(lat), Number(lng));
+        }
+      })
+      .catch(() => void 0);
     this.cdr.markForCheck();
   }
 
-  private async runReverseGeocode(lat: number, lng: number, fromGpsRequest: boolean) {
+  private async runReverseGeocode(
+    lat: number,
+    lng: number,
+    fromGpsRequest: boolean,
+    epoch = this.formSyncEpoch,
+  ) {
     try {
       await this.ensureGeocoderReady();
-      if (!this.geocoder) return;
+      if (epoch !== this.formSyncEpoch || !this.geocoder) return;
 
       const { results, status } = await this.geocodeLatLng(this.geocoder, lat, lng);
+      if (epoch !== this.formSyncEpoch) return;
       this.ngZone.run(() => {
-        this.handleReverseGeocodeResult(results, status, fromGpsRequest);
+        this.handleReverseGeocodeResult(results, status, fromGpsRequest, epoch);
       });
     } catch {
       // Sin Maps/geocoder: se mantienen coordenadas ya aplicadas.
@@ -1646,6 +2001,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const ctrl = this.incidentForm.get('status');
     if (!resolved || !ctrl || ctrl.value === resolved) return;
     ctrl.setValue(resolved, { emitEvent: false });
+    this.scheduleFormSyncAfterStable(incident.id);
     this.cdr.markForCheck();
   }
 
@@ -2074,6 +2430,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     });
 
     this.setupPhoneLookup();
+    this.setupLocationTextGuard();
+    this.setupLocationGeoResolve();
     this.setupStatusChangeHandler();
     this.formDirtySub = this.incidentForm.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
@@ -2252,6 +2610,62 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         ),
       )
       .subscribe((person) => this.applyPersonLookupResult(person));
+  }
+
+  private setupLocationTextGuard(): void {
+    this.locationTextSub?.unsubscribe();
+    const locationControl = this.incidentForm.get('location');
+    const departmentControl = this.incidentForm.get('departmentId');
+    const municipalityControl = this.incidentForm.get('municipalityId');
+
+    const invalidateCoordsIfStale = () => {
+      if (this.locationCoordSync.isPatching()) return;
+      const latCtrl = this.incidentForm.get('lat');
+      const lngCtrl = this.incidentForm.get('lng');
+      const hasCoords = hasValidIncidentCoords(latCtrl?.value, lngCtrl?.value);
+      if (!this.locationCoordSync.shouldInvalidate(this.getLocationSnapshot(), hasCoords)) {
+        return;
+      }
+      latCtrl?.setValue(null, { emitEvent: false });
+      lngCtrl?.setValue(null, { emitEvent: false });
+      this.locationCoordSync.clearSync();
+      this.cdr.markForCheck();
+    };
+
+    const subs: Subscription[] = [];
+    if (locationControl) subs.push(locationControl.valueChanges.subscribe(invalidateCoordsIfStale));
+    if (departmentControl) subs.push(departmentControl.valueChanges.subscribe(invalidateCoordsIfStale));
+    if (municipalityControl) {
+      subs.push(municipalityControl.valueChanges.subscribe(invalidateCoordsIfStale));
+    }
+    this.locationTextSub = new Subscription();
+    subs.forEach((s) => this.locationTextSub?.add(s));
+  }
+
+  /** Tras editar dirección/depto/municipio, geocodifica y mueve el pin. */
+  private setupLocationGeoResolve(): void {
+    this.locationResolveSub?.unsubscribe();
+    const locationControl = this.incidentForm.get('location');
+    const municipalityControl = this.incidentForm.get('municipalityId');
+    const subs: Subscription[] = [];
+
+    if (locationControl) {
+      subs.push(
+        locationControl.valueChanges.pipe(debounceTime(800)).subscribe(() => {
+          void this.resolveLocationFromForm();
+        }),
+      );
+    }
+    if (municipalityControl) {
+      subs.push(
+        municipalityControl.valueChanges.pipe(debounceTime(400)).subscribe(() => {
+          void this.resolveLocationFromForm();
+        }),
+      );
+    }
+
+    this.locationResolveSub = new Subscription();
+    subs.forEach((s) => this.locationResolveSub?.add(s));
   }
 
   private applyPersonLookupResult(person: Person | null): void {
@@ -2479,13 +2893,21 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.newIncidentFormState.set(this.incidentForm.getRawValue() as Partial<Incident>);
     }
     this.medidasPendingChanges.set(false);
+    this.medidasEngaged = false;
+    this.syncedFormFingerprint = null;
     this.activeTabId.set(tabId);
   }
 
   private hasPendingMedidasChanges(): boolean {
-    return (
-      this.medidasPendingChanges() || (this.medidasPanel?.hasPendingChanges() ?? false)
-    );
+    if (!this.medidasEngaged && this.detailTab() !== 'medidas') {
+      return false;
+    }
+    if (this.detailTab() === 'medidas') {
+      return (
+        this.medidasPendingChanges() || (this.medidasPanel?.hasPendingChanges() ?? false)
+      );
+    }
+    return this.medidasPendingChanges();
   }
 
   onMedidasPendingChanges(pending: boolean): void {
@@ -2498,63 +2920,79 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     if (!tabId || tabId === 'new') return false;
     if (String(this.incidentForm.get('agregarComentario')?.value ?? '').trim()) return true;
     if (this.hasPendingMedidasChanges()) return true;
-    const incident = this.activeIncident();
-    if (!incident) return false;
-    return this.incidentFormDiffersFromSaved(incident);
+    return this.hasFormEditsSinceSync();
   }
 
-  /** Compara el formulario con el incidente guardado (más fiable que incidentForm.dirty). */
-  private incidentFormDiffersFromSaved(incident: Incident): boolean {
+  private describeFormFieldChanges(incident: Incident): string[] {
+    const items: string[] = [];
     const form = this.incidentForm.getRawValue();
     const formStatus = catalogStatusToUiStatus(String(form.status ?? '').trim());
     const savedStatus = catalogStatusToUiStatus(String(incident.status ?? '').trim());
-    if (formStatus !== savedStatus) return true;
-
-    const selectedType = this.incidentTypes().find((t) => t.name === form.event_id);
-    const formTypeKey = String(selectedType?.id ?? form.event_id ?? '').trim();
-    const savedTypeKey = String(incident.incident_type_id ?? incident.event_id ?? '').trim();
-    if (formTypeKey !== savedTypeKey) return true;
-
-    const formPriority = String(form.priority_id ?? '').trim();
-    const savedPriority = String(incident.priority_id ?? incident.priority ?? '').trim();
-    if (formPriority !== savedPriority) return true;
-
-    if (String(form.origin ?? '').trim() !== String(incident.origin ?? '').trim()) return true;
-    if (
-      this.normalizePhone(String(form.phone ?? '')) !==
-      this.normalizePhone(String(incident.phone ?? ''))
-    ) {
-      return true;
-    }
-    if (String(form.location ?? '').trim() !== String(incident.location ?? '').trim()) return true;
-
-    const formLat = Number(form.lat);
-    const formLng = Number(form.lng);
-    const savedLat = Number(incident.lat);
-    const savedLng = Number(incident.lng);
-    if (
-      !Number.isFinite(formLat) ||
-      !Number.isFinite(formLng) ||
-      Math.abs(formLat - savedLat) > 0.000001 ||
-      Math.abs(formLng - savedLng) > 0.000001
-    ) {
-      return true;
+    if (formStatus !== savedStatus) {
+      items.push(`Estado (${savedStatus} → ${formStatus})`);
     }
 
-    if ((form.departmentId ?? null) !== (incident.departmentId ?? null)) return true;
-    if ((form.municipalityId ?? null) !== (incident.municipalityId ?? null)) return true;
+    if (this.incidentTypeKeyFromForm(form.event_id) !== this.incidentTypeKeyFromIncident(incident)) {
+      const typeName = String(form.event_id ?? incident.type ?? '').trim() || 'Sin tipo';
+      const savedType = String(incident.type ?? '').trim();
+      items.push(
+        savedType && savedType !== typeName
+          ? `Tipo de incidente (${this.formatLeaveFieldDelta(savedType, typeName)})`
+          : `Tipo de incidente (${typeName})`,
+      );
+    }
 
-    const formLocationPhone = this.resolveLocationPhoneForSave(form.locationPhoneNumber);
-    const savedLocationPhone = String(incident.locationPhoneNumber ?? '').trim() || undefined;
-    if (String(formLocationPhone ?? '') !== String(savedLocationPhone ?? '')) return true;
+    const formPriority = this.resolveFormPriority(form);
+    const savedPriority = this.resolveFormPriority(incident);
+    if (formPriority !== savedPriority) {
+      items.push(`Prioridad (${savedPriority} → ${formPriority})`);
+    }
 
+    const formOrigin = String(form.origin ?? '').trim();
+    const savedOrigin = String(incident.origin ?? '').trim();
+    if (formOrigin !== savedOrigin) {
+      items.push(`Origen (${this.formatLeaveFieldDelta(savedOrigin, formOrigin)})`);
+    }
+
+    const formPhone = this.normalizePhone(String(form.phone ?? ''));
+    const savedPhone = this.normalizePhone(String(incident.phone ?? ''));
+    if (formPhone !== savedPhone) {
+      items.push(`Teléfono (${this.formatLeaveFieldDelta(savedPhone, formPhone)})`);
+    }
+
+    const formLocation = String(form.location ?? '').trim();
+    const savedLocation = String(incident.location ?? '').trim();
+    if (formLocation !== savedLocation) {
+      items.push(`Dirección (${this.formatLeaveFieldDelta(savedLocation, formLocation, 28)})`);
+    }
+    if (!this.coordsMatch(form.lat, form.lng, incident.lat, incident.lng)) {
+      items.push('Pin en el mapa');
+    }
+    if (
+      this.normalizeOptionalId(form.departmentId) !==
+      this.normalizeOptionalId(incident.departmentId)
+    ) {
+      items.push('Departamento');
+    }
+    if (
+      this.normalizeOptionalId(form.municipalityId) !==
+      this.normalizeOptionalId(incident.municipalityId)
+    ) {
+      items.push('Municipio');
+    }
+    if (
+      this.normalizeLocationPhoneCompare(form.locationPhoneNumber) !==
+      this.normalizeLocationPhoneCompare(incident.locationPhoneNumber)
+    ) {
+      items.push('Teléfono del enlace GPS');
+    }
     if (
       !this.jsonStableEqual(
         this.involvedPeopleSnapshot(this.involvedPeopleForSave()),
         this.involvedPeopleSnapshot(incident.involvedPeople ?? []),
       )
     ) {
-      return true;
+      items.push('Personas involucradas');
     }
     if (
       !this.jsonStableEqual(
@@ -2566,7 +3004,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.involvedPlacesSnapshot(incident.involvedPlaces ?? []),
       )
     ) {
-      return true;
+      items.push('Lugares involucrados');
     }
     if (
       !this.jsonStableEqual(
@@ -2574,10 +3012,118 @@ export class IncidentListComponent implements OnInit, OnDestroy {
         this.involvedVehiclesSnapshot(incident.involvedVehicles ?? []),
       )
     ) {
-      return true;
+      items.push('Vehículos involucrados');
     }
 
-    return false;
+    return items;
+  }
+
+  /** Compara el formulario con el incidente guardado (más fiable que incidentForm.dirty). */
+  private incidentFormDiffersFromSaved(incident: Incident): boolean {
+    return this.describeFormFieldChanges(incident).length > 0;
+  }
+
+  private describeNewIncidentDraftChanges(): string[] {
+    const items: string[] = [];
+    const v = this.incidentForm.getRawValue();
+    if (String(v.event_id || '').trim()) {
+      items.push(`Tipo: ${String(v.event_id).trim()}`);
+    }
+    if (String(v.priority_id || '').trim()) {
+      items.push(`Prioridad: ${String(v.priority_id).trim()}`);
+    }
+    if (String(v.location || '').trim()) {
+      items.push('Ubicación / dirección');
+    }
+    if (hasValidIncidentCoords(v.lat, v.lng)) {
+      items.push('Pin en el mapa');
+    }
+    if (String(v.agregarComentario || '').trim()) {
+      items.push('Descripción del incidente');
+    }
+    if (this.involvedPeople.length > 0) {
+      items.push('Personas involucradas');
+    }
+    if (this.involvedPlaces.length > 0) {
+      items.push('Lugares involucrados');
+    }
+    if (this.involvedVehicles.length > 0) {
+      items.push('Vehículos involucrados');
+    }
+    return items.length ? items : ['Datos del borrador'];
+  }
+
+  private buildLeaveConfirmSummary(): LeaveConfirmChangeItem[] {
+    const tabId = this.activeTabId();
+    const raw =
+      tabId === 'new'
+        ? this.describeNewIncidentDraftChanges()
+        : this.collectPendingIncidentChangeLabels();
+
+    return raw.map((text) => this.toLeaveConfirmChangeItem(text));
+  }
+
+  private collectPendingIncidentChangeLabels(): string[] {
+    const items: string[] = [];
+    if (String(this.incidentForm.get('agregarComentario')?.value ?? '').trim()) {
+      items.push('Comentario nuevo sin guardar');
+    }
+    if (this.hasPendingMedidasChanges()) {
+      const medidasLabels = this.medidasPanel?.pendingChangeLabels() ?? [];
+      items.push(...(medidasLabels.length ? medidasLabels : ['Medidas y gestión']));
+    }
+
+    items.push(...this.describeFormFieldChangesSinceSync());
+
+    return items.length ? items : ['Cambios en el incidente'];
+  }
+
+  private describeFormFieldChangesSinceSync(): string[] {
+    const tabId = this.activeTabId();
+    const baseline = this.syncedFormFingerprint;
+    if (!tabId || tabId === 'new' || !baseline || baseline.incidentId !== tabId) {
+      return [];
+    }
+
+    const base = parseFormFingerprint(baseline.fp);
+    const current = parseFormFingerprint(this.buildFormPersistenceFingerprint());
+    if (!base || !current) return [];
+
+    return describeFormFingerprintChanges(base, current, (before, after, maxEach) =>
+      this.formatLeaveFieldDelta(before, after, maxEach),
+    );
+  }
+
+  private toLeaveConfirmChangeItem(text: string): LeaveConfirmChangeItem {
+    const trimmed = text.trim();
+    const paren = /^(.+?)\s*\((.+)\)\s*$/.exec(trimmed);
+    if (paren) {
+      return { label: paren[1].trim(), detail: paren[2].trim() };
+    }
+    const colon = /^([^:]{1,48}):\s*(.+)$/.exec(trimmed);
+    if (colon) {
+      return { label: colon[1].trim(), detail: colon[2].trim() };
+    }
+    return { label: trimmed };
+  }
+
+  private truncateLeaveDetail(value: string, max = 32): string {
+    const t = value.trim();
+    if (!t) return '—';
+    if (t.length <= max) return t;
+    return `${t.slice(0, max - 1)}…`;
+  }
+
+  private formatLeaveFieldDelta(before: string, after: string, maxEach = 24): string {
+    const b = this.truncateLeaveDetail(before, maxEach);
+    const a = this.truncateLeaveDetail(after, maxEach);
+    if (b === '—' && a !== '—') return a;
+    if (b !== '—' && a === '—') return `${b} → —`;
+    return `${b} → ${a}`;
+  }
+
+  leaveConfirmPrimaryActionLabel(): string {
+    return this.leaveConfirmForNewTab() ? 'Crear incidente' : 'Guardar cambios';
   }
 
   private jsonStableEqual(a: unknown, b: unknown): boolean {
@@ -2787,6 +3333,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     }
     this.pendingLeaveAction = action;
     this.leaveConfirmForNewTab.set(this.activeTabId() === 'new');
+    this.leaveConfirmChanges.set(this.buildLeaveConfirmSummary());
     this.leaveConfirmOpen.set(true);
     this.cdr.markForCheck();
   }
@@ -2796,6 +3343,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveConfirmChanges.set([]);
     this.cdr.markForCheck();
   }
 
@@ -2805,6 +3353,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveConfirmChanges.set([]);
     this.incidentForm.markAsPristine();
     this.medidasPanel?.discardPendingChanges();
     this.medidasPendingChanges.set(false);
@@ -2846,6 +3395,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveConfirmChanges.set([]);
     const action = this.pendingLeaveAction;
     this.pendingLeaveAction = null;
     action?.();
@@ -2862,6 +3412,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   private applyDetailTab(tab: 'detalle' | 'medidas') {
+    if (tab === 'medidas') {
+      this.medidasEngaged = true;
+    }
     this.detailTab.set(tab);
     if (tab === 'detalle') {
       this.destroyMap();
@@ -3059,19 +3612,27 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   registerIncident() {
-    const newIncident = this.buildNewIncidentFromForm();
-    if (!newIncident) {
-      this.abortLeaveAfterSave();
-      return;
-    }
-
-    this.incidentService.createIncident(newIncident).subscribe({
-      next: (saved) => this.finalizeNewIncident(saved),
-      error: (err) => {
+    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
+      if (!coordsOk) {
         this.abortLeaveAfterSave();
-        this.incidentService.handleCreateError(err);
         this.cdr.markForCheck();
-      },
+        return;
+      }
+
+      const newIncident = this.buildNewIncidentFromForm();
+      if (!newIncident) {
+        this.abortLeaveAfterSave();
+        return;
+      }
+
+      this.incidentService.createIncident(newIncident).subscribe({
+        next: (saved) => this.finalizeNewIncident(saved),
+        error: (err) => {
+          this.abortLeaveAfterSave();
+          this.incidentService.handleCreateError(err);
+          this.cdr.markForCheck();
+        },
+      });
     });
   }
 
@@ -3168,22 +3729,25 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       `Se creó el incidente #${saved.id}.`,
       saved.id,
     );
-    this.incidentForm.markAsPristine();
     this.showNewIncidentTab.set(false);
     this.newIncidentFormState.set(null);
 
-    const fresh =
-      this.incidentService.incidents().find((i) => i.id === saved.id) ?? saved;
-    if (this.openIncidentTabs().some((tab) => tab.id === fresh.id)) {
+    if (this.openIncidentTabs().some((tab) => tab.id === saved.id)) {
       this.openIncidentTabs.update((tabs) =>
-        tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),
+        tabs.map((t) => (t.id === saved.id ? { ...t, ...saved } : t)),
       );
     } else if (this.openIncidentTabs().length < this.MAX_TABS) {
-      this.openIncidentTabs.update((tabs) => [...tabs, fresh]);
+      this.openIncidentTabs.update((tabs) => [...tabs, saved]);
     }
 
-    // Tras crear: cambiar de pestaña sin confirmación (el borrador ya se guardó).
-    this.applyActiveTab(fresh.id);
+    this.applyActiveTab(saved.id);
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    this.setupStatusDropdownForEdit(agency, saved.status);
+    this.populateFormWithState(saved, { trustCoords: true });
+    this.refreshWorkflowGestion(saved.id);
+    this.medidasPendingChanges.set(false);
+    this.medidasEngaged = false;
+    this.scheduleFormSyncAfterStable(saved.id);
     this.completePendingLeaveAfterSave();
     this.cdr.markForCheck();
   }
@@ -3303,7 +3867,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             this.cdr.markForCheck();
             return;
           }
-          this.commitIncidentUpdate(updatedData);
+          this.commitIncidentUpdate();
         },
         error: () => {
           if (this.requiresMedidasForSave(targetStatus, this.workflowGestion())) {
@@ -3315,7 +3879,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             this.abortLeaveAfterSave();
             this.cdr.markForCheck();
           } else {
-            this.commitIncidentUpdate(updatedData);
+            this.commitIncidentUpdate();
           }
         },
       });
@@ -3335,7 +3899,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
             this.cdr.markForCheck();
             return;
           }
-          this.commitIncidentUpdate(updatedData);
+          this.commitIncidentUpdate();
         },
         error: () => {
           this.detailTab.set('medidas');
@@ -3350,15 +3914,27 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.commitIncidentUpdate(updatedData);
+    this.commitIncidentUpdate();
   }
 
-  private commitIncidentUpdate(updatedData: ReturnType<typeof this.incidentForm.getRawValue>) {
+  private commitIncidentUpdate() {
+    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
+      if (!coordsOk) {
+        this.abortLeaveAfterSave();
+        this.cdr.markForCheck();
+        return;
+      }
+      this.doCommitIncidentUpdate();
+    });
+  }
+
+  private doCommitIncidentUpdate() {
     if (!this.hasPendingIncidentChanges()) {
       this.abortUpdateWithoutChanges();
       return;
     }
 
+    const updatedData = this.incidentForm.getRawValue();
     const incidentId = this.activeIncident()!.id;
     const base = this.activeIncident()!;
     const draftComment = String(updatedData.agregarComentario ?? '').trim();
@@ -3395,7 +3971,12 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       const agency = this.authService.currentUser()?.agency ?? 'CSJ';
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       this.setupStatusDropdownForEdit(agency, saved.status);
-      this.populateFormWithState(saved);
+      this.populateFormWithState(saved, { trustCoords: true });
+      const savedLat = Number(saved.lat);
+      const savedLng = Number(saved.lng);
+      if (hasValidIncidentCoords(savedLat, savedLng)) {
+        void this.syncMapToCoords(savedLat, savedLng);
+      }
       this.refreshWorkflowGestion(incidentId);
       this.configService.getAuditLogs().catch(() => void 0);
       const savedUiStatus = catalogStatusToUiStatus(String(saved.status ?? '').trim());
@@ -3418,13 +3999,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       this.notificationService.addNotification(notice.title, notice.message, incidentId);
       this.loadCommentsHistory(mergedComments);
       this.clearAgregarComentario();
-      this.incidentForm.markAsPristine();
+      this.markFormSyncedWithServer(incidentId);
       this.completePendingLeaveAfterSave();
       this.cdr.markForCheck();
     });
   }
 
   private resetFormForNewIncident() {
+    this.bumpFormSyncEpoch();
     this.selectedIncidentTypeName.set(null);
     this.lastIncidentTypeName = null;
     this.lastTypeDefaultPriority = null;
@@ -3438,8 +4020,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       location: '',
       departmentId: null,
       municipalityId: null,
+      lat: null,
+      lng: null,
       agregarComentario: '',
     });
+    const locationPhoneCtrl = this.incidentForm.get('locationPhoneNumber');
+    locationPhoneCtrl?.enable({ emitEvent: false });
+    locationPhoneCtrl?.setValue('', { emitEvent: false });
+    locationPhoneCtrl?.disable({ emitEvent: false });
     this.incidentMunicipalities.set([]);
     this.incidentMunicipalitiesLoaded.set(false);
     this.commentsHistory.set([]);
@@ -3451,9 +4039,14 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.detachPlaceDepartmentWatchers();
     this.incidentForm.enable();
     this.syncLastValidStatus();
+    this.locationCoordSync.clearSync();
   }
 
-  private populateFormWithState(state: Partial<Incident>) {
+  private populateFormWithState(
+    state: Partial<Incident>,
+    options?: { trustCoords?: boolean },
+  ) {
+    this.bumpFormSyncEpoch();
     this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.skipStatusNav = true;
     this.incidentForm.reset(undefined, { emitEvent: false });
@@ -3490,7 +4083,18 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       !!savedPriority &&
       !!this.lastTypeDefaultPriority &&
       savedPriority !== this.lastTypeDefaultPriority;
-    this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).catch(() => void 0);
+    const syncIfActiveTab = () => {
+      if (state.id && this.activeTabId() === state.id) {
+        this.scheduleFormSyncAfterStable(state.id);
+      }
+    };
+    if (state.departmentId) {
+      void this.loadIncidentMunicipalities(state.departmentId, state.municipalityId).finally(
+        syncIfActiveTab,
+      );
+    } else {
+      syncIfActiveTab();
+    }
     this.involvedPeople.clear();
     for (const p of involvedPeople ?? []) {
       this.involvedPeople.push(this.buildPersonGroup(p));
@@ -3518,8 +4122,15 @@ export class IncidentListComponent implements OnInit, OnDestroy {
       ),
     );
     this.incidentForm.enable();
-    this.incidentForm.markAsPristine();
     this.skipStatusNav = false;
+    if (options?.trustCoords && hasValidIncidentCoords(state.lat, state.lng)) {
+      this.markLocationCoordsSynced();
+    } else {
+      this.locationCoordSync.clearSync();
+    }
+    if (state.id && this.activeTabId() === state.id) {
+      this.scheduleFormSyncAfterStable(state.id);
+    }
   }
 
   openIncidentEmailModal(incident: Incident): void {
@@ -3640,6 +4251,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.incidentLeaveGuard.unregister();
+    if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();
     this.vehicleLastLookupPlate.clear();
@@ -3652,6 +4264,75 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     this.statusSub?.unsubscribe();
     this.formDirtySub?.unsubscribe();
     this.incidentDeptSub?.unsubscribe();
+    this.locationTextSub?.unsubscribe();
+    this.locationResolveSub?.unsubscribe();
     this.detachPlaceDepartmentWatchers();
   }
+}
+
+type FormFingerprint = Record<string, unknown>;
+
+function parseFormFingerprint(fp: string): FormFingerprint | null {
+  try {
+    return JSON.parse(fp) as FormFingerprint;
+  } catch {
+    return null;
+  }
+}
+
+function describeFormFingerprintChanges(
+  base: FormFingerprint,
+  current: FormFingerprint,
+  formatDelta: (before: string, after: string, maxEach?: number) => string,
+): string[] {
+  const items: string[] = [];
+
+  if (base['status'] !== current['status']) {
+    items.push(`Estado (${base['status']} → ${current['status']})`);
+  }
+  if (base['typeKey'] !== current['typeKey']) {
+    items.push(`Tipo de incidente (${String(current['typeKey'])})`);
+  }
+  if (base['priority'] !== current['priority']) {
+    items.push(`Prioridad (${base['priority']} → ${current['priority']})`);
+  }
+
+  for (const { key, label, maxEach } of [
+    { key: 'origin', label: 'Origen' },
+    { key: 'phone', label: 'Teléfono' },
+    { key: 'location', label: 'Dirección', maxEach: 28 },
+  ] as { key: string; label: string; maxEach?: number }[]) {
+    if (base[key] !== current[key]) {
+      items.push(
+        `${label} (${formatDelta(String(base[key] ?? ''), String(current[key] ?? ''), maxEach)})`,
+      );
+    }
+  }
+
+  if (base['lat'] !== current['lat'] || base['lng'] !== current['lng']) {
+    items.push('Pin en el mapa');
+  }
+
+  for (const { key, label } of [
+    { key: 'departmentId', label: 'Departamento' },
+    { key: 'municipalityId', label: 'Municipio' },
+  ]) {
+    if (base[key] !== current[key]) items.push(label);
+  }
+
+  if (base['locationPhone'] !== current['locationPhone']) {
+    items.push('Teléfono del enlace GPS');
+  }
+
+  for (const { key, label } of [
+    { key: 'people', label: 'Personas involucradas' },
+    { key: 'places', label: 'Lugares involucrados' },
+    { key: 'vehicles', label: 'Vehículos involucrados' },
+  ]) {
+    if (JSON.stringify(base[key]) !== JSON.stringify(current[key])) {
+      items.push(label);
+    }
+  }
+
+  return items;
 }

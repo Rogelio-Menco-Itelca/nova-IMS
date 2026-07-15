@@ -3,19 +3,27 @@
   @if (isAuthenticated() && mustChangePassword()) {
     <app-change-password />
   } @else if (isAuthenticated()) {
-    <div class="ims-layout flex h-screen font-sans bg-gray-900 text-gray-200">
+    <div class="ims-layout flex h-screen min-h-0 font-sans bg-gray-900 text-gray-200">
+      @if (isSidebarOpen()) {
+        <button
+          type="button"
+          class="fixed inset-0 z-20 bg-black/55 md:hidden"
+          aria-label="Cerrar menú"
+          (click)="toggleSidebar()"
+        ></button>
+      }
       <!-- Sidebar -->
       <aside
         [class]="
-          'ims-sidebar absolute md:relative inset-y-0 left-0 bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out z-30 ' +
+          'ims-sidebar-mobile absolute md:relative inset-y-0 left-0 z-30 flex min-h-0 w-64 flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out md:w-56 ' +
           (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full md:translate-x-0')
         "
-        class="w-64 md:w-56 flex flex-col border-r border-gray-700 md:my-2 lg:my-2 md:rounded-2xl"
+        class="shrink-0 border-r border-gray-700 md:my-2 md:rounded-2xl"
       >
-        <div class="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
-          <div class="flex items-center gap-3">
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-4">
+          <div class="flex min-w-0 items-center gap-3">
             <svg
-              class="h-12 w-12 text-indigo-400"
+              class="h-12 w-12 shrink-0 text-indigo-400"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -28,9 +36,9 @@
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
               />
             </svg>
-            <span class="text-3xl font-bold text-white tracking-wide">IMS</span>
+            <span class="text-3xl font-bold tracking-wide text-white">IMS</span>
           </div>
-          <button (click)="toggleSidebar()" class="text-gray-400 hover:text-white md:hidden">
+          <button type="button" (click)="toggleSidebar()" class="shrink-0 text-gray-400 hover:text-white md:hidden">
             <svg
               class="h-6 w-6"
               fill="none"
@@ -48,7 +56,7 @@
           </button>
         </div>
 
-        <nav class="mt-4 flex-grow px-3">
+        <nav class="mt-4 min-h-0 flex-1 overflow-y-auto px-3">
           @if (permissionService.canModuleAction('Dashboard', 'view')) {
           <button
             type="button"
@@ -170,7 +178,7 @@
         </nav>
 
         <!-- Quick Location Card -->
-        <div class="mt-4 p-4 border-t border-b border-gray-700">
+        <div class="mt-4 shrink-0 border-t border-b border-gray-700 p-4">
           @if (permissionService.canModuleAction('Incidentes', 'view')) {
           <div class="mb-3 pb-3 border-b border-gray-700">
             <h4 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -245,14 +253,16 @@
                 Estado del Sistema
               </p>
               <div
-                class="flex items-center justify-between gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-2.5 py-2"
+                class="ims-live-sync-card flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-2.5 py-2"
               >
-                <span class="text-xs text-gray-400">Sincronización en tiempo real</span>
+                <span class="min-w-0 flex-1 text-[11px] leading-snug text-gray-400">
+                  Sincronización en tiempo real
+                </span>
                 <span
                   class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5"
                 >
-                  <span class="pulse-red"></span>
-                  <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider"
+                  <span class="pulse-red shrink-0"></span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-red-400"
                     >En vivo</span
                   >
                 </span>
@@ -276,14 +286,13 @@
                   Sesión
                 </p>
                 <p
-                  class="text-xs font-medium truncate"
+                  class="truncate text-xs font-medium"
                   [class.text-sky-300]="authService.isDirectorySession()"
                   [class.text-amber-200]="!authService.isDirectorySession()"
                 >
                   {{ authService.authSourceLabel() }}
                   @if (authService.sessionAgencyLabel()) {
-                    <span class="text-gray-500 font-normal"> · </span>
-                    <span>{{ authService.sessionAgencyLabel() }}</span>
+                    <span class="font-normal text-gray-500"> · {{ authService.sessionAgencyLabel() }}</span>
                   }
                 </p>
               </div>
@@ -355,11 +364,12 @@
               }
 
               <button
+                type="button"
                 (click)="toggleProfile()"
-                class="w-full flex items-center p-2 rounded-md hover:bg-gray-700/50 transition-colors"
+                class="flex w-full min-w-0 items-center rounded-md p-2 transition-colors hover:bg-gray-700/50"
               >
                 <div
-                  class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-600"
                 >
                   @if (profilePhotoService.photoUrl(); as photo) {
                     <img [src]="photo" alt="" class="h-full w-full object-cover" />
@@ -369,9 +379,9 @@
                     </span>
                   }
                 </div>
-                <div class="ml-3 text-left">
-                  <p class="text-sm font-semibold text-white">{{ user.name }}</p>
-                  <p class="text-xs text-gray-400">{{ user.role }}</p>
+                <div class="ml-3 min-w-0 flex-1 text-left">
+                  <p class="truncate text-sm font-semibold text-white">{{ user.name }}</p>
+                  <p class="truncate text-xs text-gray-400">{{ user.role }}</p>
                 </div>
               </button>
             </div>
@@ -380,9 +390,9 @@
       </aside>
 
       <!-- Main content -->
-      <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <!-- Header -->
-        <header class="ims-header flex items-center justify-between px-4 py-2.5 bg-gray-800 border-b border-gray-700 mx-4 md:mt-2 md:rounded-2xl md:border md:border-gray-700">
+        <header class="ims-header mx-4 flex shrink-0 items-center justify-between border-b border-gray-700 bg-gray-800 px-4 py-2.5 md:mt-2 md:rounded-2xl md:border md:border-gray-700">
           <div class="flex items-center gap-3">
             <button
               (click)="toggleSidebar()"
@@ -406,7 +416,7 @@
             @if (activeViewLabel()) {
               <div class="leading-tight">
                 <h1 class="text-lg font-semibold text-white">{{ activeViewLabel() }}</h1>
-                <p class="text-xs text-gray-400 capitalize">{{ todayLabel() }}</p>
+                <p class="text-xs capitalize text-gray-400">{{ todayLabel() }}</p>
               </div>
             }
           </div>
@@ -444,7 +454,7 @@
 
               @if (isNotificationsOpen()) {
                 <div
-                  class="absolute top-0 right-10 w-80 bg-gray-700 rounded-lg shadow-2xl border border-gray-600 z-20 animate-fadeInUp"
+                  class="ims-notifications-panel absolute right-0 top-full z-20 mt-2 animate-fadeInUp rounded-lg border border-gray-600 bg-gray-700 shadow-2xl"
                 >
                   <div class="p-3 border-b border-gray-600">
                     <h3 class="font-semibold text-white">Notificaciones</h3>

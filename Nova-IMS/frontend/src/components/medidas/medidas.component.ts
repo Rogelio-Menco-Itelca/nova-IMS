@@ -16,6 +16,7 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import {
   hasMedidasPanelPendingChanges,
+  labelsForPendingMedidasSections,
   pendingMedidasSections,
   snapshotMedidasDraft,
   describeMedidasSaveDelta,
@@ -752,6 +753,14 @@ export class MedidasComponent implements OnInit, OnChanges {
     );
   }
 
+  pendingChangeLabels(): string[] {
+    return labelsForPendingMedidasSections(
+      snapshotMedidasDraft(this.form, this.medidasSeleccionadas()),
+      this.draftBaseline,
+      this.pendingContext(),
+    );
+  }
+
   discardPendingChanges(): void {
     if (!this.draftBaseline) return;
     this.form.tramite_destino = this.draftBaseline.tramite_destino;
@@ -1059,6 +1068,7 @@ export class MedidasComponent implements OnInit, OnChanges {
         next: (res) => {
           if (res.codigo_oficio) {
             this.form.codigo_oficio = res.codigo_oficio;
+            this.captureDraftBaseline();
           } else {
             this.loadGestion();
           }

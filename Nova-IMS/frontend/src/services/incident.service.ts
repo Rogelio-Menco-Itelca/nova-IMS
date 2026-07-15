@@ -2,6 +2,7 @@ import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { DashboardResponseMetrics, Incident, InvolvedVehicle } from '../models/incident.model';
+import { isValidCoordComponent } from '../utils/ims-geo.constants';
 import { SocketService } from './socket.service';
 import { NotificationService } from './notification.service';
 
@@ -38,9 +39,8 @@ export class IncidentService {
     const pickCoord = (a: number | null | undefined, b: number | null | undefined) => {
       const na = a == null ? Number.NaN : Number(a);
       const nb = b == null ? Number.NaN : Number(b);
-      const ok = (n: number) => Number.isFinite(n) && Math.abs(n) > 0.0001;
-      if (ok(na)) return na;
-      if (ok(nb)) return nb;
+      if (isValidCoordComponent(na)) return na;
+      if (isValidCoordComponent(nb)) return nb;
       return a ?? b ?? 0;
     };
 
@@ -53,8 +53,8 @@ export class IncidentService {
       byId.set(inc.id, {
         ...prev,
         location: prev.location || inc.location,
-        lat: pickCoord(prev.lat, inc.lat),
-        lng: pickCoord(prev.lng, inc.lng),
+        lat: pickCoord(inc.lat, prev.lat),
+        lng: pickCoord(inc.lng, prev.lng),
       });
     }
     return [...byId.values()];

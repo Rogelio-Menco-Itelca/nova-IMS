@@ -27,6 +27,7 @@
             "styles": [
               "src/animations.css",
               "src/typography.css",
+              "src/responsive.css",
               "src/theme-light.css"
             ]
           },
