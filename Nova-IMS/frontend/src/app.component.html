@@ -425,11 +425,11 @@
               <button
                 type="button"
                 (click)="toggleNotifications(); $event.stopPropagation()"
-                class="relative flex h-9 w-9 items-center justify-center text-gray-300 hover:text-white transition-colors"
+                class="relative flex h-11 w-11 items-center justify-center text-gray-300 hover:text-white transition-colors"
               >
                 <span class="sr-only">Notificaciones</span>
                 <svg
-                  class="h-6 w-6"
+                  class="h-8 w-8"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -454,7 +454,7 @@
 
               @if (isNotificationsOpen()) {
                 <div
-                  class="ims-notifications-panel absolute right-0 top-full z-20 mt-2 animate-fadeInUp rounded-lg border border-gray-600 bg-gray-700 shadow-2xl"
+                  class="ims-notifications-panel absolute right-0 top-full z-20 mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] animate-fadeInUp rounded-lg border border-gray-600 bg-gray-700 shadow-2xl"
                 >
                   <div class="p-3 border-b border-gray-600">
                     <h3 class="font-semibold text-white">Notificaciones</h3>
