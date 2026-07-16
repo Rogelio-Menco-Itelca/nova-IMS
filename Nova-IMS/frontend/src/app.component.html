@@ -7,18 +7,18 @@
       @if (isSidebarOpen()) {
         <button
           type="button"
-          class="fixed inset-0 z-20 bg-black/55 md:hidden"
+          class="fixed inset-0 z-20 bg-black/55 lg:hidden"
           aria-label="Cerrar menú"
           (click)="toggleSidebar()"
         ></button>
       }
-      <!-- Sidebar -->
+      <!-- Sidebar: drawer hasta tablet/iPad; fijo solo en escritorio (>=1024) -->
       <aside
         [class]="
-          'ims-sidebar-mobile absolute md:relative inset-y-0 left-0 z-30 flex min-h-0 w-64 flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out md:w-56 ' +
-          (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full md:translate-x-0')
+          'ims-sidebar-mobile absolute lg:relative inset-y-0 left-0 z-30 flex min-h-0 w-64 flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out lg:w-56 ' +
+          (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')
         "
-        class="shrink-0 border-r border-gray-700 md:my-2 md:rounded-2xl"
+        class="shrink-0 border-r border-gray-700 lg:my-2 lg:rounded-2xl"
       >
         <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-4">
           <div class="flex min-w-0 items-center gap-3">
@@ -38,7 +38,7 @@
             </svg>
             <span class="text-3xl font-bold tracking-wide text-white">IMS</span>
           </div>
-          <button type="button" (click)="toggleSidebar()" class="shrink-0 text-gray-400 hover:text-white md:hidden">
+          <button type="button" (click)="toggleSidebar()" class="shrink-0 text-gray-400 hover:text-white lg:hidden">
             <svg
               class="h-6 w-6"
               fill="none"
@@ -396,7 +396,7 @@
           <div class="flex items-center gap-3">
             <button
               (click)="toggleSidebar()"
-              class="text-gray-400 focus:outline-none focus:text-gray-200 md:hidden"
+              class="text-gray-400 focus:outline-none focus:text-gray-200 lg:hidden"
             >
               <svg
                 class="h-6 w-6"
@@ -488,17 +488,20 @@
         </header>
 
         <main
-          class="ims-main flex-1 min-h-0 overflow-x-hidden bg-gray-900"
-          [class.overflow-y-auto]="activeView() === 'reports'"
-          [class.flex]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
-          [class.flex-col]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
-          [class.overflow-hidden]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
+          class="ims-main min-h-0 flex-1 overflow-x-hidden bg-gray-900"
+          [ngClass]="{
+            'max-lg:overflow-y-auto': activeView() !== 'reports',
+            'overflow-y-auto': activeView() === 'reports',
+            'lg:overflow-hidden': activeView() !== 'reports',
+            flex: activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents',
+            'flex-col': activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'
+          }"
         >
           <div
             [class]="
               activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'
-                ? 'flex min-h-0 flex-1 flex-col p-4 md:py-2 lg:py-2'
-                : 'p-4 md:p-6 lg:p-8'
+                ? 'flex min-h-0 min-w-0 flex-1 flex-col p-2 md:p-3 lg:p-4 lg:py-2'
+                : 'p-2 md:p-6 lg:p-8'
             "
           >
             @if (activeView() === 'dashboard') {

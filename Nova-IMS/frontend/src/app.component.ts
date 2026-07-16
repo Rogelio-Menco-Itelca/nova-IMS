@@ -199,7 +199,8 @@ export class AppComponent implements OnInit {
 
     const navigate = () => {
       this.authService.currentView.set(view);
-      if (window.innerWidth < 768) {
+      // Drawer en móvil/tablet (< lg); cerrar al navegar
+      if (window.innerWidth < 1024) {
         this.isSidebarOpen.set(false);
         this.syncSidebarBodyClass();
       }
@@ -220,7 +221,7 @@ export class AppComponent implements OnInit {
   }
 
   private syncSidebarBodyClass(): void {
-    const lockScroll = this.isSidebarOpen() && window.innerWidth < 768;
+    const lockScroll = this.isSidebarOpen() && window.innerWidth < 1024;
     document.documentElement.classList.toggle('ims-sidebar-open', lockScroll);
   }
 

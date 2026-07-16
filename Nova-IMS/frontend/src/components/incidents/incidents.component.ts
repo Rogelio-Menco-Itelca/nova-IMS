@@ -97,8 +97,8 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, IncidentEmailModalComponent],
   templateUrl: './incidents.component.html',
+  styleUrl: './incidents.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
@@ -299,8 +299,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.incidentForm.get('lng')?.value ?? IMS_DEFAULT_MAP_CENTER.lng;
       this.initMap(lat, lng)
         .then(() => {
-          if (savedState?.lat != null && savedState?.lng != null) {
-            setTimeout(() => this.reverseGeocode(savedState.lat, savedState.lng), 300);
+          const savedLat = savedState?.lat;
+          const savedLng = savedState?.lng;
+          if (savedLat != null && savedLng != null) {
+            setTimeout(() => this.reverseGeocode(savedLat, savedLng), 300);
           }
         })
         .catch(() => void 0);
@@ -454,11 +456,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.ngZone.run(() => this.clearDashboardSelection());
     });
 
+    // En viewport estrecho el contenedor a veces aún mide 0 al init.
     setTimeout(() => {
-      google.maps.event.trigger(this.dashboardMap, 'resize');
+      if (!this.dashboardMap) return;
+      this.triggerDashboardMapResize();
       this.renderDashboardIncidents();
       this.attachDashboardMapResizeObserver();
     }, 100);
+    setTimeout(() => this.triggerDashboardMapResize(), 350);
   }
 
   private resetDashboardMapToColombia(): void {
@@ -1262,8 +1267,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   avgProteccionValueClass = computed(() =>
     this.avgProteccionLabel().length > 8
-      ? 'shrink-0 text-base font-bold leading-tight tabular-nums text-white sm:text-xl md:mr-4 md:text-2xl'
-      : 'shrink-0 text-xl font-bold tabular-nums text-white sm:text-2xl md:mr-4 md:text-3xl xl:text-4xl',
+      ? 'ims-dashboard-kpi__value ims-dashboard-kpi__value--muted text-white'
+      : 'ims-dashboard-kpi__value text-white',
   );
 
   private sortIncidents(incidents: Incident[]): Incident[] {

@@ -1,134 +1,75 @@
-<div class="ims-dashboard flex min-h-0 flex-1 flex-col gap-2">
-  <!-- KPI Cards -->
-  <div class="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-    <div
-      class="flex w-full items-center gap-4 rounded-xl border border-indigo-500/20 bg-gray-800 p-6 shadow-lg"
-    >
-      <div class="shrink-0 rounded-2xl bg-indigo-500/15 p-4 text-indigo-400">
-        <svg
-          class="h-8 w-8"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
+<div class="ims-dashboard">
+  <!-- KPIs: se expanden solos según el ancho disponible -->
+  <div class="ims-dashboard-kpis">
+    <div class="ims-dashboard-kpi border border-indigo-500/20 bg-gray-800">
+      <div class="ims-dashboard-kpi__icon-wrap bg-indigo-500/15 text-indigo-400">
+        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <div class="min-w-0 text-left">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">En curso</p>
-        <p class="mt-1 text-sm text-gray-400">Incidentes activos</p>
+      <div class="min-w-0 flex-1 text-left">
+        <p class="ims-dashboard-kpi__label">En curso</p>
+        <p class="ims-dashboard-kpi__hint">Incidentes activos</p>
       </div>
-      <p class="ml-auto mr-8 shrink-0 text-4xl font-bold tabular-nums text-white">{{ activeIncidentsCount() }}</p>
+      <p class="ims-dashboard-kpi__value text-white">{{ activeIncidentsCount() }}</p>
     </div>
 
-    <div
-      class="flex w-full items-center gap-4 rounded-xl border border-red-500/20 bg-gray-800 p-6 shadow-lg"
-    >
-      <div class="shrink-0 rounded-2xl bg-red-500/15 p-4 text-red-400">
-        <svg
-          class="h-8 w-8"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          />
+    <div class="ims-dashboard-kpi border border-red-500/20 bg-gray-800">
+      <div class="ims-dashboard-kpi__icon-wrap bg-red-500/15 text-red-400">
+        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       </div>
-      <div class="min-w-0 text-left">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Atención</p>
-        <p class="mt-1 text-sm text-gray-400">Prioridad crítica</p>
+      <div class="min-w-0 flex-1 text-left">
+        <p class="ims-dashboard-kpi__label">Atención</p>
+        <p class="ims-dashboard-kpi__hint">Prioridad crítica</p>
       </div>
-      <p class="ml-auto mr-8 shrink-0 text-4xl font-bold tabular-nums text-red-400">{{ criticalPriorityCount() }}</p>
+      <p class="ims-dashboard-kpi__value text-red-400">{{ criticalPriorityCount() }}</p>
     </div>
 
-    <div
-      class="flex w-full items-center gap-4 rounded-xl border border-sky-500/20 bg-gray-800 p-6 shadow-lg"
-    >
-      <div class="shrink-0 rounded-2xl bg-sky-500/15 p-4 text-sky-400">
-        <svg
-          class="h-8 w-8"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
-          />
+    <div class="ims-dashboard-kpi border border-sky-500/20 bg-gray-800">
+      <div class="ims-dashboard-kpi__icon-wrap bg-sky-500/15 text-sky-400">
+        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
         </svg>
       </div>
-      <div class="min-w-0 text-left">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Respuesta</p>
-        <p class="mt-1 text-sm text-gray-400" [title]="avgProteccionTitle()">
-          Tiempo medio de asignación
-        </p>
-        <p class="mt-0.5 text-[11px] text-gray-500">{{ avgProteccionHint() }}</p>
+      <div class="min-w-0 flex-1 text-left">
+        <p class="ims-dashboard-kpi__label">Respuesta</p>
+        <p class="ims-dashboard-kpi__hint" [title]="avgProteccionTitle()">Tiempo medio de asignación</p>
+        <p class="ims-dashboard-kpi__meta">{{ avgProteccionHint() }}</p>
       </div>
       <p [class]="avgProteccionValueClass()">{{ avgProteccionLabel() }}</p>
     </div>
 
-    <div
-      class="flex w-full items-center gap-4 rounded-xl border border-orange-500/20 bg-gray-800 p-6 shadow-lg"
-    >
-      <div class="shrink-0 rounded-2xl bg-orange-500/15 p-4 text-orange-400">
-        <svg
-          class="h-8 w-8"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
+    <div class="ims-dashboard-kpi border border-orange-500/20 bg-gray-800">
+      <div class="ims-dashboard-kpi__icon-wrap bg-orange-500/15 text-orange-400">
+        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </div>
-      <div class="min-w-0 text-left">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Seguimiento</p>
-        <p class="mt-1 text-sm text-gray-400">Casos en reiteración</p>
+      <div class="min-w-0 flex-1 text-left">
+        <p class="ims-dashboard-kpi__label">Seguimiento</p>
+        <p class="ims-dashboard-kpi__hint">Casos en reiteración</p>
       </div>
-      <p class="ml-auto mr-8 shrink-0 text-4xl font-bold tabular-nums text-orange-400">{{ reiteracionesActivasCount() }}</p>
+      <p class="ims-dashboard-kpi__value text-orange-400">{{ reiteracionesActivasCount() }}</p>
     </div>
   </div>
 
-  <!-- Incidents List and Map -->
-  <div class="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:items-stretch">
-    <div class="flex min-h-[320px] flex-1 flex-col rounded-lg bg-gray-800 p-2 shadow-lg sm:p-4 lg:min-h-0 lg:basis-0 lg:grow-[2]">
-      <div class="flex shrink-0 flex-col gap-3 px-2 pt-2 pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-lg font-semibold text-white">Incidentes Activos</h3>
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+  <!-- Paneles: se apilan o van en fila según el espacio real -->
+  <div class="ims-dashboard-panels">
+    <div class="ims-dashboard-panel ims-dashboard-panel--list">
+      <div class="ims-dashboard-panel__head">
+        <h3 class="ims-dashboard-panel__title">Incidentes Activos</h3>
+        <div class="ims-dashboard-panel__filters">
           <label for="dashboard-incident-search" class="sr-only">Buscar incidentes activos</label>
           <input
             id="dashboard-incident-search"
             (input)="onFilterText($event)"
             type="text"
             placeholder="Buscar por ID, tipo, operador..."
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-64 lg:w-72"
           />
           <label for="dashboard-incident-status-filter" class="sr-only">Filtrar por estado</label>
-          <select
-            id="dashboard-incident-status-filter"
-            (change)="onFilterStatus($event)"
-            class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-full sm:w-auto sm:min-w-[11rem]"
-          >
+          <select id="dashboard-incident-status-filter" (change)="onFilterStatus($event)">
             <option value="">Todos los activos</option>
             @for (st of dashboardStatusFilterOptions(); track st.id) {
               <option [value]="st.name">{{ st.name }}</option>
@@ -136,11 +77,72 @@
           </select>
         </div>
       </div>
-      <div class="ims-dashboard-table-wrap min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+
+      <!-- Cards cuando el panel es estrecho -->
+      <div class="ims-dashboard-cards">
+        @if (incidentService.isLoading()) {
+          <div class="px-2 py-6 text-center text-xs text-gray-400">Cargando incidentes...</div>
+        } @else {
+          @for (incident of paginatedDashboardIncidents(); track incident.id) {
+            <article
+              [attr.data-incident-id]="incident.id"
+              tabindex="0"
+              (click)="selectDashboardIncident(incident); $event.stopPropagation()"
+              (keydown.enter)="selectDashboardIncident(incident); $event.stopPropagation()"
+              (keydown.space)="selectDashboardIncident(incident); $event.preventDefault(); $event.stopPropagation()"
+              class="ims-dashboard-card"
+              [class.is-selected]="selectedDashboardIncidentId() === incident.id"
+            >
+              <div class="flex items-center gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5">
+                    <p class="truncate text-xs font-semibold text-white">{{ incident.id }}</p>
+                    <span
+                      [class]="
+                        'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium text-white ' +
+                        getStatusColor(incident.status)
+                      "
+                      >{{ incident.status }}</span
+                    >
+                  </div>
+                  <p class="mt-0.5 truncate text-[11px] leading-tight text-gray-300">
+                    {{ incident.type }}
+                    <span class="text-gray-500">·</span>
+                    {{ formatCreationDate(incident.timestamp) }}
+                    <span class="text-gray-500">·</span>
+                    <span [class]="'font-semibold ' + getPriorityColor(incident.priority)">{{
+                      incident.priority
+                    }}</span>
+                  </p>
+                  <p class="mt-0.5 truncate text-[10px] leading-tight text-gray-500">
+                    {{ incident.operator || '—' }}
+                  </p>
+                </div>
+                <div class="flex shrink-0 items-center gap-1">
+                  <ng-container
+                    *ngTemplateOutlet="dashboardIncidentActions; context: { $implicit: incident, compact: true }"
+                  />
+                </div>
+              </div>
+            </article>
+          } @empty {
+            <div class="px-2 py-6 text-center text-xs text-gray-400">
+              @if (filterText() || filterStatus()) {
+                No hay incidentes activos que coincidan con la búsqueda o el filtro.
+              } @else {
+                No hay incidentes activos para mostrar.
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Tabla cuando el panel es ancho -->
+      <div class="ims-dashboard-table-wrap">
         <table class="ims-dashboard-table w-full text-left text-sm text-gray-300">
-          <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
+          <thead class="bg-gray-700/50 text-xs uppercase text-gray-400">
             <tr>
-              <th scope="col" class="px-4 py-3 whitespace-nowrap">Fecha creación</th>
+              <th scope="col" class="whitespace-nowrap px-4 py-3">Fecha creación</th>
               <th scope="col" class="px-4 py-3">ID</th>
               <th scope="col" class="px-4 py-3">Tipo</th>
               <th scope="col" class="px-4 py-3">Prioridad</th>
@@ -152,7 +154,7 @@
           <tbody>
             @if (incidentService.isLoading()) {
               <tr class="border-b border-gray-700">
-                <td colspan="7" class="text-center py-8 text-gray-400">Cargando incidentes...</td>
+                <td colspan="7" class="py-8 text-center text-gray-400">Cargando incidentes...</td>
               </tr>
             } @else {
               @for (incident of paginatedDashboardIncidents(); track incident.id) {
@@ -169,12 +171,10 @@
                       : 'hover:bg-gray-700/50')
                   "
                 >
-                  <td class="px-4 py-3 whitespace-nowrap font-medium text-white">
+                  <td class="whitespace-nowrap px-4 py-3 font-medium text-white">
                     {{ formatCreationDate(incident.timestamp) }}
                   </td>
-                  <td class="px-4 py-3 font-medium text-white whitespace-nowrap">
-                    {{ incident.id }}
-                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 font-medium text-white">{{ incident.id }}</td>
                   <td class="px-4 py-3 font-medium text-white">{{ incident.type }}</td>
                   <td class="px-4 py-3">
                     <span [class]="'font-semibold ' + getPriorityColor(incident.priority)">{{
@@ -184,7 +184,7 @@
                   <td class="px-4 py-3">
                     <span
                       [class]="
-                        'text-xs font-medium px-2.5 py-1 rounded-full text-white ' +
+                        'rounded-full px-2.5 py-1 text-xs font-medium text-white ' +
                         getStatusColor(incident.status)
                       "
                       >{{ incident.status }}</span
@@ -193,59 +193,15 @@
                   <td class="px-4 py-3 font-medium text-white">{{ incident.operator || '—' }}</td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
-                      <button
-                        type="button"
-                        (click)="viewIncident(incident); $event.stopPropagation()"
-                        [disabled]="!canViewIncident()"
-                        [title]="canViewIncident() ? '' : 'Sin permiso para ver incidentes'"
-                        aria-label="Ver incidente"
-                        class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-500/10"
-                      >
-                        <svg
-                          class="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-                          />
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                        Ver
-                      </button>
-                      <button
-                        type="button"
-                        (click)="sendIncidentByEmail(incident); $event.stopPropagation()"
-                        [disabled]="!canNotify()"
-                        [title]="canNotify() ? 'Enviar por Email' : 'Sin permiso para enviar correos'"
-                        class="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-gray-600/40 bg-gray-700/40 text-gray-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-600/40 disabled:hover:bg-gray-700/40 disabled:hover:text-gray-400"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"
-                          ></path>
-                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
-                        </svg>
-                      </button>
+                      <ng-container
+                        *ngTemplateOutlet="dashboardIncidentActions; context: { $implicit: incident, compact: false }"
+                      />
                     </div>
                   </td>
                 </tr>
               } @empty {
                 <tr class="border-b border-gray-700">
-                  <td colspan="7" class="text-center py-8 text-gray-400">
+                  <td colspan="7" class="py-8 text-center text-gray-400">
                     @if (filterText() || filterStatus()) {
                       No hay incidentes activos que coincidan con la búsqueda o el filtro.
                     } @else {
@@ -258,11 +214,9 @@
           </tbody>
         </table>
       </div>
+
       @if (!incidentService.isLoading() && filteredIncidents().length > 0) {
-        <nav
-          class="flex shrink-0 justify-end px-2 pt-2 pb-1"
-          aria-label="Paginación de incidentes activos"
-        >
+        <nav class="flex shrink-0 justify-end px-2 pt-2 pb-1" aria-label="Paginación de incidentes activos">
           <div
             class="inline-flex items-center gap-0.5 rounded-full border border-gray-600/50 bg-gray-700/30 px-1 py-0.5 text-[11px] text-gray-400"
           >
@@ -275,11 +229,7 @@
               aria-label="Página anterior"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fill-rule="evenodd"
-                  d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                  clip-rule="evenodd"
-                />
+                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
             <span class="min-w-[2.75rem] px-1 text-center tabular-nums text-gray-300">
@@ -294,11 +244,7 @@
               aria-label="Página siguiente"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fill-rule="evenodd"
-                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                  clip-rule="evenodd"
-                />
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
           </div>
@@ -306,28 +252,26 @@
       }
     </div>
 
-    <div class="flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-lg bg-gray-800 shadow-lg lg:min-h-0 lg:basis-0 lg:grow">
-      <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-4">
-        <h3 class="text-lg font-semibold text-white">Geolocalización</h3>
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] text-gray-400">
-            {{ mapMarkersCount() }}/{{ activeIncidentsCount() }} en mapa
-          </span>
-        </div>
+    <div class="ims-dashboard-panel">
+      <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-3">
+        <h3 class="ims-dashboard-panel__title">Geolocalización</h3>
+        <span class="text-[10px] text-gray-400">
+          {{ mapMarkersCount() }}/{{ activeIncidentsCount() }} en mapa
+        </span>
       </div>
-      <div #dashboardMapHost class="relative min-h-0 w-full flex-1">
-        <div id="incident-map" class="absolute inset-0 h-full w-full bg-gray-900"></div>
+      <div #dashboardMapHost class="ims-dashboard-map-host">
+        <div id="incident-map" class="ims-dashboard-map"></div>
         @if (selectedDashboardIncident(); as selected) {
           <div
-            class="absolute bottom-0 left-0 right-0 z-10 px-3 py-2.5 bg-gray-900/95 border-t border-indigo-500/40 backdrop-blur-sm pointer-events-none"
+            class="pointer-events-none absolute bottom-0 left-0 right-0 z-10 border-t border-indigo-500/40 bg-gray-900/95 px-3 py-2 backdrop-blur-sm"
           >
-            <p class="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">
+            <p class="mb-0.5 text-[10px] uppercase tracking-wide text-gray-400">
               {{ selected.id }} · {{ selected.type }} · {{ selected.status }}
             </p>
             @if (isAddressLoading(selected.id)) {
-              <p class="text-sm text-gray-300 italic">Obteniendo dirección exacta…</p>
+              <p class="text-sm italic text-gray-300">Obteniendo dirección exacta…</p>
             } @else if (getExactAddress(selected); as addr) {
-              <p class="text-sm text-white leading-snug">{{ addr }}</p>
+              <p class="text-sm leading-snug text-white">{{ addr }}</p>
             } @else {
               <p class="text-sm text-gray-400">Sin dirección disponible</p>
             }
@@ -341,3 +285,57 @@
 @if (emailModalIncident(); as emailIncident) {
   <app-incident-email-modal [incident]="emailIncident" (closed)="closeIncidentEmailModal()" />
 }
+
+<!-- Acciones compartidas (cards + tabla): mismos permisos y handlers -->
+<ng-template #dashboardIncidentActions let-incident let-compact="compact">
+  <button
+    type="button"
+    (click)="viewIncident(incident); $event.stopPropagation()"
+    [disabled]="!canViewIncident()"
+    [title]="canViewIncident() ? 'Ver incidente' : 'Sin permiso para ver incidentes'"
+    aria-label="Ver incidente"
+    [class]="
+      compact
+        ? 'inline-flex h-7 items-center gap-0.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 text-[10px] font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-40'
+        : 'inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 whitespace-nowrap transition-colors hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-indigo-500/10'
+    "
+  >
+    <svg
+      [class]="compact ? 'h-3 w-3' : 'h-3.5 w-3.5'"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+      />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    Ver
+  </button>
+  <button
+    type="button"
+    (click)="sendIncidentByEmail(incident); $event.stopPropagation()"
+    [disabled]="!canNotify()"
+    [title]="canNotify() ? 'Enviar por Email' : 'Sin permiso para enviar correos'"
+    aria-label="Enviar por Email"
+    [class]="
+      compact
+        ? 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-600/40 bg-gray-700/40 text-gray-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-40'
+        : 'inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-gray-600/40 bg-gray-700/40 text-gray-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-600/40 disabled:hover:bg-gray-700/40 disabled:hover:text-gray-400'
+    "
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      [class]="compact ? 'h-3.5 w-3.5' : 'h-4 w-4'"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
+      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+    </svg>
+  </button>
+</ng-template>

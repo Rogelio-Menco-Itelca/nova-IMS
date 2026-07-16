@@ -193,14 +193,17 @@ body,
     line-height: 1.25;
   }
 
-  html.ims-sidebar-open,
-  html.ims-sidebar-open body {
-    overflow: hidden;
-  }
-
   .ims-layout input:not([type='checkbox']):not([type='radio']),
   .ims-layout select,
   .ims-layout textarea {
     font-size: 16px;
+  }
+}
+
+/* Drawer abierto: bloquear scroll de fondo en móvil y tablet */
+@media (max-width: 1023px) {
+  html.ims-sidebar-open,
+  html.ims-sidebar-open body {
+    overflow: hidden;
   }
 }
