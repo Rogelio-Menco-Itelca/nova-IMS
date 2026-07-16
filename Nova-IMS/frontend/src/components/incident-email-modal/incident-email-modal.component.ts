@@ -9,11 +9,8 @@ import {
   effect,
   OnInit,
   AfterViewInit,
-  OnDestroy,
   ElementRef,
   viewChild,
-  NgZone,
-  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -22,13 +19,8 @@ import { ConfigurationService } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
 import { NotificationService } from '../../services/notification.service';
 import { firstValueFrom } from 'rxjs';
-import {
-  DynamicTablePaginationService,
-  TABLE_PAGE_SIZE_MAX,
-  TABLE_PAGE_SIZE_MIN,
-} from '../../services/dynamic-table-pagination.service';
 
-const DEFAULT_EMAIL_PAGE_SIZE = 10;
+const PAGE_SIZE = 10;
 
 @Component({
   selector: 'app-incident-email-modal',
@@ -56,19 +48,14 @@ const DEFAULT_EMAIL_PAGE_SIZE = 10;
     `,
   ],
 })
-export class IncidentEmailModalComponent implements OnInit, AfterViewInit, OnDestroy {
+export class IncidentEmailModalComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('emailDialog');
-  private readonly emailListAreaRef = viewChild<ElementRef<HTMLElement>>('emailListArea');
   incident = input.required<Incident>();
   closed = output<void>();
 
   private readonly configService = inject(ConfigurationService);
   private readonly incidentService = inject(IncidentService);
   private readonly notificationService = inject(NotificationService);
-  private readonly tablePagination = inject(DynamicTablePaginationService);
-  private readonly ngZone = inject(NgZone);
-  private readonly cdr = inject(ChangeDetectorRef);
-  private detachEmailPaginationResize: (() => void) | null = null;
 
   searchTerm = signal('');
   currentPage = signal(1);
@@ -76,9 +63,7 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit, OnDes
   sending = signal(false);
   loadError = signal<string | null>(null);
 
-  readonly pageSizeMin = TABLE_PAGE_SIZE_MIN;
-  readonly pageSizeMax = TABLE_PAGE_SIZE_MAX;
-  pageSize = signal(DEFAULT_EMAIL_PAGE_SIZE);
+  readonly pageSize = PAGE_SIZE;
 
   allEmails = computed(() => this.configService.activeNotificationEmailAddresses());
 
@@ -91,28 +76,25 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit, OnDes
 
   totalPages = computed(() => {
     const total = this.filteredEmails().length;
-    const size = this.pageSize();
-    return total ? Math.ceil(total / size) : 0;
+    return total ? Math.ceil(total / PAGE_SIZE) : 0;
   });
 
   paginatedEmails = computed(() => {
     const list = this.filteredEmails();
     const pages = this.totalPages();
-    const size = this.pageSize();
     let page = this.currentPage();
     if (pages > 0 && page > pages) page = pages;
     if (page < 1) page = 1;
-    const start = (page - 1) * size;
-    return list.slice(start, start + size);
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
   });
 
   pageRangeLabel = computed(() => {
     const total = this.filteredEmails().length;
     if (!total) return '';
-    const size = this.pageSize();
     const page = Math.min(this.currentPage(), this.totalPages() || 1);
-    const start = (page - 1) * size + 1;
-    const end = Math.min(page * size, total);
+    const start = (page - 1) * PAGE_SIZE + 1;
+    const end = Math.min(page * PAGE_SIZE, total);
     return `${start}-${end} de ${total}`;
   });
 
@@ -141,13 +123,6 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit, OnDes
         this.currentPage.set(pages);
       }
     });
-
-    effect(() => {
-      const count = this.filteredEmails().length;
-      if (count > 0) {
-        queueMicrotask(() => this.recalcEmailPageSize());
-      }
-    });
   }
 
   ngOnInit(): void {
@@ -161,53 +136,6 @@ export class IncidentEmailModalComponent implements OnInit, AfterViewInit, OnDes
 
   ngAfterViewInit(): void {
     this.dialogRef().nativeElement.showModal();
-    this.detachEmailPaginationResize = this.tablePagination.bindResizeRecalc({
-      cacheKey: this,
-      getObserveTargets: () => [this.emailListAreaRef()?.nativeElement],
-      recalc: () => this.recalcEmailPageSize(),
-    });
-    queueMicrotask(() => this.recalcEmailPageSize());
-  }
-
-  ngOnDestroy(): void {
-    this.detachEmailPaginationResize?.();
-    this.detachEmailPaginationResize = null;
-  }
-
-  private applyEmailPageSize(size: number): void {
-    if (this.pageSize() === size) return;
-    this.pageSize.set(size);
-    const pages = this.totalPages();
-    if (pages > 0 && this.currentPage() > pages) {
-      this.currentPage.set(pages);
-    }
-    this.cdr.markForCheck();
-  }
-
-  private recalcEmailPageSize(): void {
-    this.tablePagination.recalc({
-      minSize: this.pageSizeMin,
-      maxSize: this.pageSizeMax,
-      getCurrentSize: () => this.pageSize(),
-      applySize: (size) => this.applyEmailPageSize(size),
-      ngZone: this.ngZone,
-      measure: () => this.measureEmailRows(),
-      getOverflowEl: () => this.emailListAreaRef()?.nativeElement?.querySelector('ul') ?? null,
-    });
-  }
-
-  private measureEmailRows(): number | null {
-    const area = this.emailListAreaRef()?.nativeElement;
-    if (!area) return null;
-
-    const pagination = area.querySelector('[aria-label="Paginación de correos"]') as HTMLElement | null;
-    const row = area.querySelector('ul li label') as HTMLElement | null;
-    const listArea = area.clientHeight - (pagination?.offsetHeight ?? 0) - 8;
-    if (listArea <= 0) return null;
-
-    const rowH = row?.getBoundingClientRect().height || 44;
-    const rows = Math.floor(listArea / rowH);
-    return Math.min(this.pageSizeMax, Math.max(this.pageSizeMin, rows));
   }
 
   onCancel(event: Event): void {
