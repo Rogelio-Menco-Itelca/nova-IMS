@@ -1117,8 +1117,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   avgProteccionValueClass = computed(() =>
     this.avgProteccionLabel().length > 8
-      ? 'ml-auto mr-4 shrink-0 text-2xl font-bold leading-tight tabular-nums text-white'
-      : 'ml-auto mr-8 shrink-0 text-4xl font-bold tabular-nums text-white',
+      ? 'shrink-0 text-base font-bold leading-tight tabular-nums text-white sm:text-xl md:mr-4 md:text-2xl'
+      : 'shrink-0 text-xl font-bold tabular-nums text-white sm:text-2xl md:mr-4 md:text-3xl xl:text-4xl',
   );
 
   private sortIncidents(incidents: Incident[]): Incident[] {

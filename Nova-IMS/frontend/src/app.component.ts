@@ -65,6 +65,9 @@ export class AppComponent implements OnInit {
   @ViewChild('profileContainer')
   profileContainer!: ElementRef;
 
+  @ViewChild('mobileProfileContainer')
+  mobileProfileContainer!: ElementRef;
+
   isAuthenticated = this.authService.isAuthenticated;
   currentUser = this.authService.currentUser;
   mustChangePassword = this.authService.mustChangePassword;
@@ -88,7 +91,7 @@ export class AppComponent implements OnInit {
     });
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  isSidebarOpen = signal(true);
+  isSidebarOpen = signal(false);
   isProfileOpen = signal(false);
   isProfileModalOpen = signal(false);
   isNotificationsOpen = signal(false);
@@ -139,6 +142,7 @@ export class AppComponent implements OnInit {
       this.isDarkTheme.set(false);
     }
     this.applyTheme(this.isDarkTheme());
+    this.syncSidebarBodyClass();
   }
 
   private async initAuthenticatedSession(): Promise<void> {
@@ -166,8 +170,14 @@ export class AppComponent implements OnInit {
       this.isNotificationsOpen.set(false);
     }
 
-    if (this.profileContainer && !this.profileContainer.nativeElement.contains(target)) {
-      this.isProfileOpen.set(false);
+    if (this.isProfileOpen()) {
+      const inSidebar =
+        this.profileContainer?.nativeElement.contains(target) ?? false;
+      const inMobile =
+        this.mobileProfileContainer?.nativeElement.contains(target) ?? false;
+      if (!inSidebar && !inMobile) {
+        this.isProfileOpen.set(false);
+      }
     }
   }
 
@@ -191,6 +201,7 @@ export class AppComponent implements OnInit {
       this.authService.currentView.set(view);
       if (window.innerWidth < 768) {
         this.isSidebarOpen.set(false);
+        this.syncSidebarBodyClass();
       }
     };
 
@@ -205,6 +216,12 @@ export class AppComponent implements OnInit {
 
   toggleSidebar(): void {
     this.isSidebarOpen.update((open) => !open);
+    this.syncSidebarBodyClass();
+  }
+
+  private syncSidebarBodyClass(): void {
+    const lockScroll = this.isSidebarOpen() && window.innerWidth < 768;
+    document.documentElement.classList.toggle('ims-sidebar-open', lockScroll);
   }
 
   toggleProfile(): void {
