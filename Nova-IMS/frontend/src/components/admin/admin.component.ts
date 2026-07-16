@@ -5,8 +5,14 @@ import {
   inject,
   computed,
   OnInit,
+  AfterViewInit,
+  OnDestroy,
   effect,
   ChangeDetectorRef,
+  NgZone,
+  ViewChild,
+  ElementRef,
+  WritableSignal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -14,6 +20,7 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormArray } from '@angula
 import { NotificationService } from '../../services/notification.service';
 import {
   IncidentPriority,
+  IncidentStatus,
   Person,
   PersonFormPayload,
   CatalogOption,
@@ -32,6 +39,12 @@ import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { Agency, RoleOption } from '../../models/user.model';
 import { AdminPaginationComponent } from './admin-pagination.component';
+import {
+  DynamicTablePaginationService,
+  TABLE_PAGE_SIZE_DEFAULT,
+  TABLE_PAGE_SIZE_MAX,
+  TABLE_PAGE_SIZE_MIN,
+} from '../../services/dynamic-table-pagination.service';
 import { AuditLog } from '../../models/admin.model';
 import { Incident, InvolvedPerson, InvolvedVehicle, joinPersonName } from '../../models/incident.model';
 import {
@@ -53,8 +66,6 @@ type AdminTab =
   | 'permissions'
   | 'incident_history';
 
-const ADMIN_PAGE_SIZE = 15;
-
 const PERMISSION_MODULE_HINTS: Record<string, string> = {
   Dashboard: 'Vista general y métricas del sistema',
   Incidentes: 'Registro y seguimiento de incidentes',
@@ -62,16 +73,16 @@ const PERMISSION_MODULE_HINTS: Record<string, string> = {
   Administración: 'Usuarios, catálogos y configuración',
 };
 
-function adminTotalPages(count: number): number {
-  return count > 0 ? Math.max(1, Math.ceil(count / ADMIN_PAGE_SIZE)) : 1;
+function adminTotalPages(count: number, pageSize: number): number {
+  return count > 0 ? Math.max(1, Math.ceil(count / pageSize)) : 1;
 }
 
-function adminSlicePage<T>(items: T[], page: number): T[] {
+function adminSlicePage<T>(items: T[], page: number, pageSize: number): T[] {
   if (!items.length) return items;
-  const totalPages = adminTotalPages(items.length);
+  const totalPages = adminTotalPages(items.length, pageSize);
   const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * ADMIN_PAGE_SIZE;
-  return items.slice(start, start + ADMIN_PAGE_SIZE);
+  const start = (safePage - 1) * pageSize;
+  return items.slice(start, start + pageSize);
 }
 
 interface IncidentHistoryGestion {
@@ -107,7 +118,7 @@ interface IncidentHistoryMedidasPayload {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
-export class AdminComponent implements OnInit {
+export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
   readonly configService = inject(ConfigurationService);
@@ -116,6 +127,11 @@ export class AdminComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
+  private readonly tablePagination = inject(DynamicTablePaginationService);
+  private detachAdminPaginationResize: (() => void) | null = null;
+
+  @ViewChild('adminTabContent') adminTabContent?: ElementRef<HTMLElement>;
 
   activeTab = signal<AdminTab>('users');
 
@@ -223,6 +239,7 @@ export class AdminComponent implements OnInit {
   allIncidents = this.incidentService.incidents;
   selectedIncidentIdForHistory = signal<string>('all');
   incidentHistorySearchTerm = signal('');
+  incidentHistoryStatusFilter = signal('');
   historySubTab = signal<'details' | 'history'>('details');
   incidentHistoryMedidasPayload = signal<IncidentHistoryMedidasPayload | null>(null);
   incidentHistoryMedidasLoading = signal(false);
@@ -276,7 +293,9 @@ export class AdminComponent implements OnInit {
   responseProtocolsPage = signal(1);
   adminLogsPage = signal(1);
   incidentHistoryPage = signal(1);
-  readonly adminPageSize = ADMIN_PAGE_SIZE;
+  readonly adminPageSizeMin = TABLE_PAGE_SIZE_MIN;
+  readonly adminPageSizeMax = TABLE_PAGE_SIZE_MAX;
+  adminPageSize = signal(TABLE_PAGE_SIZE_DEFAULT);
 
   operatorForm = this.fb.group({
     primerNombre: ['', Validators.required],
@@ -321,7 +340,7 @@ export class AdminComponent implements OnInit {
     message: string;
   } | null>(null);
 
-  readonly notificationEmailPageSize = ADMIN_PAGE_SIZE;
+  readonly notificationEmailPageSize = computed(() => this.adminPageSize());
 
   displayedNotificationEmails = computed(() => {
     const term = this.notificationEmailFilter().trim().toLowerCase();
@@ -331,11 +350,11 @@ export class AdminComponent implements OnInit {
   });
 
   notificationEmailTotalPages = computed(() =>
-    adminTotalPages(this.displayedNotificationEmails().length),
+    adminTotalPages(this.displayedNotificationEmails().length, this.adminPageSize()),
   );
 
   paginatedNotificationEmails = computed(() =>
-    adminSlicePage(this.displayedNotificationEmails(), this.notificationEmailPage()),
+    adminSlicePage(this.displayedNotificationEmails(), this.notificationEmailPage(), this.adminPageSize()),
   );
 
   searchedOperators = computed(() => {
@@ -350,42 +369,42 @@ export class AdminComponent implements OnInit {
     );
   });
 
-  operatorsTotalPages = computed(() => adminTotalPages(this.searchedOperators().length));
+  operatorsTotalPages = computed(() => adminTotalPages(this.searchedOperators().length, this.adminPageSize()));
 
   paginatedOperators = computed(() =>
-    adminSlicePage(this.searchedOperators(), this.operatorsPage()),
+    adminSlicePage(this.searchedOperators(), this.operatorsPage(), this.adminPageSize()),
   );
 
-  incidentTypesTotalPages = computed(() => adminTotalPages(this.incidentTypes().length));
+  incidentTypesTotalPages = computed(() => adminTotalPages(this.incidentTypes().length, this.adminPageSize()));
 
   paginatedIncidentTypes = computed(() =>
-    adminSlicePage(this.incidentTypes(), this.incidentTypesPage()),
+    adminSlicePage(this.incidentTypes(), this.incidentTypesPage(), this.adminPageSize()),
   );
 
-  peopleTotalPages = computed(() => adminTotalPages(this.people().length));
+  peopleTotalPages = computed(() => adminTotalPages(this.people().length, this.adminPageSize()));
 
-  paginatedPeople = computed(() => adminSlicePage(this.people(), this.peoplePage()));
+  paginatedPeople = computed(() => adminSlicePage(this.people(), this.peoplePage(), this.adminPageSize()));
 
   responseProtocolsTotalPages = computed(() =>
-    adminTotalPages(this.responseProtocols().length),
+    adminTotalPages(this.responseProtocols().length, this.adminPageSize()),
   );
 
   paginatedResponseProtocols = computed(() =>
-    adminSlicePage(this.responseProtocols(), this.responseProtocolsPage()),
+    adminSlicePage(this.responseProtocols(), this.responseProtocolsPage(), this.adminPageSize()),
   );
 
-  adminLogsTotalPages = computed(() => adminTotalPages(this.filteredAdminLogs().length));
+  adminLogsTotalPages = computed(() => adminTotalPages(this.filteredAdminLogs().length, this.adminPageSize()));
 
   paginatedAdminLogs = computed(() =>
-    adminSlicePage(this.filteredAdminLogs(), this.adminLogsPage()),
+    adminSlicePage(this.filteredAdminLogs(), this.adminLogsPage(), this.adminPageSize()),
   );
 
   incidentHistoryTotalPages = computed(() =>
-    adminTotalPages(this.filteredIncidentsForHistory().length),
+    adminTotalPages(this.filteredIncidentsForHistory().length, this.adminPageSize()),
   );
 
   paginatedIncidentsForHistory = computed(() =>
-    adminSlicePage(this.filteredIncidentsForHistory(), this.incidentHistoryPage()),
+    adminSlicePage(this.filteredIncidentsForHistory(), this.incidentHistoryPage(), this.adminPageSize()),
   );
 
   constructor() {
@@ -425,6 +444,89 @@ export class AdminComponent implements OnInit {
       this.permissionsDraft.set(copy);
       this.permissionsSnapshot.set(JSON.stringify(copy));
     });
+
+    effect(() => {
+      this.activeTab();
+      queueMicrotask(() => this.recalcAdminPageSize());
+    });
+  }
+
+  ngAfterViewInit(): void {
+    this.detachAdminPaginationResize = this.tablePagination.bindResizeRecalc({
+      cacheKey: this,
+      getObserveTargets: () => [
+        this.adminTabContent?.nativeElement,
+        this.getActiveAdminTabPanel(),
+      ],
+      recalc: () => this.recalcAdminPageSize(),
+    });
+    queueMicrotask(() => this.recalcAdminPageSize());
+  }
+
+  ngOnDestroy(): void {
+    this.detachAdminPaginationResize?.();
+    this.detachAdminPaginationResize = null;
+  }
+
+  private applyAdminPageSize(size: number): void {
+    if (this.adminPageSize() === size) return;
+    this.adminPageSize.set(size);
+    this.clampAdminPages();
+    this.cdr.markForCheck();
+  }
+
+  private clampAdminPages(): void {
+    const size = this.adminPageSize();
+    const clamp = (count: number, page: WritableSignal<number>) => {
+      const pages = adminTotalPages(count, size);
+      if (page() > pages) page.set(pages);
+    };
+    clamp(this.searchedOperators().length, this.operatorsPage);
+    clamp(this.incidentTypes().length, this.incidentTypesPage);
+    clamp(this.people().length, this.peoplePage);
+    clamp(this.responseProtocols().length, this.responseProtocolsPage);
+    clamp(this.filteredAdminLogs().length, this.adminLogsPage);
+    clamp(this.filteredIncidentsForHistory().length, this.incidentHistoryPage);
+    clamp(this.displayedNotificationEmails().length, this.notificationEmailPage);
+  }
+
+  private recalcAdminPageSize(): void {
+    this.tablePagination.recalc({
+      minSize: this.adminPageSizeMin,
+      maxSize: this.adminPageSizeMax,
+      getCurrentSize: () => this.adminPageSize(),
+      applySize: (size) => this.applyAdminPageSize(size),
+      ngZone: this.ngZone,
+      measure: () => this.measureAdminRows(),
+      getOverflowEl: () => this.getActiveAdminOverflowEl(),
+    });
+  }
+
+  private getActiveAdminTabPanel(): HTMLElement | null {
+    const root = this.adminTabContent?.nativeElement;
+    return (root?.querySelector('.ims-admin-tab-panel') as HTMLElement | null) ?? null;
+  }
+
+  private measureAdminRows(): number | null {
+    const panel = this.getActiveAdminTabPanel();
+    if (!panel) return null;
+
+    const hasTable = !!panel.querySelector('table tbody tr');
+
+    return this.tablePagination.measureRows({
+      panel,
+      tableWrapSelector: '.ims-admin-table-wrap',
+      theadSelector: 'table thead',
+      tableRowSelector: 'table tbody tr',
+      layout: hasTable ? 'table' : 'cards',
+      minSize: this.adminPageSizeMin,
+      maxSize: this.adminPageSizeMax,
+    });
+  }
+
+  private getActiveAdminOverflowEl(): HTMLElement | null {
+    const panel = this.getActiveAdminTabPanel();
+    return (panel?.querySelector('.ims-admin-table-wrap') as HTMLElement | null) ?? null;
   }
 
   ngOnInit() {
@@ -670,14 +772,28 @@ export class AdminComponent implements OnInit {
   });
 
   filteredIncidentsForHistory = computed(() => {
-    const term = this.incidentHistorySearchTerm().toLowerCase();
-    if (!term) return this.allIncidents();
-    return this.allIncidents().filter(
+    const term = this.incidentHistorySearchTerm().toLowerCase().trim();
+    const status = this.incidentHistoryStatusFilter();
+    let rows = this.allIncidents();
+    if (status) {
+      rows = rows.filter((i) => i.status === status);
+    }
+    if (!term) return rows;
+    return rows.filter(
       (i) =>
         i.id.toLowerCase().includes(term) ||
         i.type.toLowerCase().includes(term) ||
         i.location.toLowerCase().includes(term),
     );
+  });
+
+  incidentHistoryStatusOptions = computed(() => {
+    const seen = new Set<string>();
+    for (const incident of this.allIncidents()) {
+      const status = String(incident.status ?? '').trim();
+      if (status) seen.add(status);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b, 'es'));
   });
 
   setTab(tab: AdminTab) {
@@ -825,6 +941,12 @@ export class AdminComponent implements OnInit {
     this.refreshIncidentHistoryView().catch(() => void 0);
   }
 
+  onIncidentHistoryStatusFilter(event: Event): void {
+    this.incidentHistoryStatusFilter.set((event.target as HTMLSelectElement).value);
+    this.incidentHistoryPage.set(1);
+    this.selectedIncidentIdForHistory.set('all');
+  }
+
   onPermissionsRoleSelect(event: Event): void {
     this.selectedPermissionsRoleId.set((event.target as HTMLSelectElement).value);
   }
@@ -910,6 +1032,58 @@ export class AdminComponent implements OnInit {
   clearIncidentHistorySelection(): void {
     this.selectedIncidentIdForHistory.set('all');
     this.historySubTab.set('details');
+  }
+
+  openIncidentHistory(incident: Incident): void {
+    this.selectedIncidentIdForHistory.set(incident.id);
+    this.historySubTab.set('details');
+    this.refreshIncidentHistoryView().catch(() => void 0);
+  }
+
+  getStatusColor(status: IncidentStatus): string {
+    switch (status) {
+      case 'Nuevo':
+        return 'bg-blue-600/80 text-blue-100';
+      case 'En gestión OSEG':
+        return 'bg-indigo-600/80 text-indigo-100';
+      case 'Reiteraciones':
+        return 'bg-red-600/80 text-red-100';
+      case 'Enviado a CERREM':
+        return 'bg-violet-600/80 text-violet-100';
+      case 'En evaluación CERREM':
+        return 'bg-purple-600/80 text-purple-100';
+      case 'Medidas asignadas':
+        return 'bg-orange-600/80 text-orange-100';
+      case 'Asignado':
+        return 'bg-indigo-600/80 text-indigo-100';
+      case 'En camino':
+        return 'bg-yellow-600/80 text-yellow-100';
+      case 'En proceso':
+        return 'bg-orange-600/80 text-orange-100';
+      case 'Resuelto':
+        return 'bg-green-600/80 text-green-100';
+      case 'Cerrado':
+        return 'bg-gray-600/80 text-gray-200';
+      case 'Cancelado':
+        return 'bg-red-800/80 text-red-200';
+      default:
+        return 'bg-gray-500/80 text-gray-100';
+    }
+  }
+
+  getPriorityColor(priority: IncidentPriority): string {
+    switch (priority) {
+      case 'Baja':
+        return 'text-green-400';
+      case 'Media':
+        return 'text-yellow-400';
+      case 'Alta':
+        return 'text-orange-400';
+      case 'Crítica':
+        return 'text-red-500';
+      default:
+        return 'text-gray-400';
+    }
   }
 
   historyAuthorName(raw: string | null | undefined, incident?: Incident | null): string {

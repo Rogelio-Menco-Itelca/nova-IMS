@@ -69,6 +69,12 @@ import {
   IMS_MAP_ZOOM,
   googleMapsCountryRestriction,
 } from '../../utils/ims-geo.constants';
+import {
+  DynamicTablePaginationService,
+  TABLE_PAGE_SIZE_DEFAULT,
+  TABLE_PAGE_SIZE_MAX,
+  TABLE_PAGE_SIZE_MIN,
+} from '../../services/dynamic-table-pagination.service';
 
 function isDocumentType(value: string): value is DocumentType {
   return (DOCUMENT_TYPE_OPTIONS as readonly string[]).includes(value);
@@ -128,6 +134,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly tablePagination = inject(DynamicTablePaginationService);
   private readonly auditClient = inject(AuditClientService);
   private readonly http = inject(HttpClient);
 
@@ -172,8 +179,11 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   private geocoder: google.maps.Geocoder | null = null;
   private autocomplete: PlaceAutocompleteControl | null = null;
   private dashboardMapResizeObserver: ResizeObserver | null = null;
+  private detachDashboardPaginationResize: (() => void) | null = null;
 
   @ViewChild('dashboardMapHost') dashboardMapHost?: ElementRef<HTMLElement>;
+  @ViewChild('dashboardListPanel') dashboardListPanel?: ElementRef<HTMLElement>;
+  @ViewChild('dashboardPanels') dashboardPanels?: ElementRef<HTMLElement>;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -198,7 +208,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       return ui !== 'Cerrado' && ui !== 'Cancelado' && ui !== 'Resuelto';
     }),
   );
-  readonly dashboardPageSize = 10;
+  readonly dashboardPageSizeMin = TABLE_PAGE_SIZE_MIN;
+  readonly dashboardPageSizeMax = TABLE_PAGE_SIZE_MAX;
+  dashboardPageSize = signal(TABLE_PAGE_SIZE_DEFAULT);
   dashboardCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   statuses: IncidentStatus[] = [...DASHBOARD_ACTIVE_STATUSES];
@@ -273,6 +285,16 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         if (!this.dashboardMap || !resizeKey) return;
         this.triggerDashboardMapResize();
       });
+    });
+
+    effect(() => {
+      const loading = this.incidentService.isLoading();
+      const rows = this.filteredIncidents().length;
+      this.filterText();
+      this.filterStatus();
+      if (!loading && rows > 0) {
+        queueMicrotask(() => this.recalcDashboardPageSize());
+      }
     });
   }
 
@@ -1230,14 +1252,15 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   dashboardTotalPages = computed(() => {
     const total = this.filteredIncidents().length;
-    return Math.max(1, Math.ceil(total / this.dashboardPageSize));
+    return Math.max(1, Math.ceil(total / this.dashboardPageSize()));
   });
 
   paginatedDashboardIncidents = computed(() => {
     const all = this.filteredIncidents();
     const page = Math.min(this.dashboardCurrentPage(), this.dashboardTotalPages());
-    const start = (page - 1) * this.dashboardPageSize;
-    return all.slice(start, start + this.dashboardPageSize);
+    const size = this.dashboardPageSize();
+    const start = (page - 1) * size;
+    return all.slice(start, start + size);
   });
 
   activeIncidentsCount = computed(() => this.dashboardActiveIncidents().length);
@@ -1333,6 +1356,67 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.attachDashboardMapResizeObserver();
+    this.detachDashboardPaginationResize = this.tablePagination.bindResizeRecalc({
+      cacheKey: this,
+      getObserveTargets: () => [
+        this.dashboardListPanel?.nativeElement,
+        this.dashboardPanels?.nativeElement,
+      ],
+      recalc: () => this.recalcDashboardPageSize(),
+    });
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this.recalcDashboardPageSize());
+      });
+    });
+  }
+
+  private applyDashboardPageSize(size: number): void {
+    if (this.dashboardPageSize() === size) return;
+    this.dashboardPageSize.set(size);
+    const totalPages = Math.max(1, Math.ceil(this.filteredIncidents().length / size));
+    if (this.dashboardCurrentPage() > totalPages) {
+      this.dashboardCurrentPage.set(totalPages);
+    }
+    this.cdr.markForCheck();
+  }
+
+  private recalcDashboardPageSize(): void {
+    this.tablePagination.recalc({
+      minSize: this.dashboardPageSizeMin,
+      maxSize: this.dashboardPageSizeMax,
+      getCurrentSize: () => this.dashboardPageSize(),
+      applySize: (size) => this.applyDashboardPageSize(size),
+      ngZone: this.ngZone,
+      measure: () => this.measureDashboardRows(),
+      getOverflowEl: () => this.getDashboardOverflowEl(),
+    });
+  }
+
+  private measureDashboardRows(): number | null {
+    const panel = this.dashboardListPanel?.nativeElement;
+    if (!panel) return null;
+
+    return this.tablePagination.measureRows({
+      panel,
+      chromeSelectors: ['.ims-dashboard-panel__head', '.ims-dashboard-pagination'],
+      theadSelector: '.ims-dashboard-table thead',
+      tableRowSelector: '.ims-dashboard-table tbody tr',
+      cardRowSelector: '.ims-dashboard-card',
+      layout: 'table',
+      minSize: this.dashboardPageSizeMin,
+      maxSize: this.dashboardPageSizeMax,
+    });
+  }
+
+  private getDashboardOverflowEl(): HTMLElement | null {
+    const panel = this.dashboardListPanel?.nativeElement;
+    if (!panel) return null;
+
+    const tableWrap = panel.querySelector('.ims-dashboard-table-wrap') as HTMLElement | null;
+    const cardsWrap = panel.querySelector('.ims-dashboard-cards') as HTMLElement | null;
+    const useTable = panel.clientWidth >= 576 && !!tableWrap;
+    return useTable ? tableWrap : cardsWrap;
   }
 
   private normalizePhone(phone: string): string {
@@ -1681,6 +1765,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     const total = this.dashboardTotalPages();
     if (page >= 1 && page <= total) {
       this.dashboardCurrentPage.set(page);
+      this.cdr.markForCheck();
     }
   }
 
@@ -1739,6 +1824,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.detachDashboardPaginationResize?.();
+    this.detachDashboardPaginationResize = null;
     this.dashboardMapResizeObserver?.disconnect();
     this.dashboardMapResizeObserver = null;
     if (this.dashboardMapClickListener) {

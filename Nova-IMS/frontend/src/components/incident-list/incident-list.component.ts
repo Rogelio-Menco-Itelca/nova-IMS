@@ -7,6 +7,7 @@ import {
   inject,
   OnDestroy,
   OnInit,
+  AfterViewInit,
   effect,
   untracked,
   NgZone,
@@ -122,6 +123,12 @@ import {
   roundCoord,
   toLocalColombianPhone,
 } from '../../utils/ims-geo.constants';
+import {
+  DynamicTablePaginationService,
+  TABLE_PAGE_SIZE_DEFAULT,
+  TABLE_PAGE_SIZE_MAX,
+  TABLE_PAGE_SIZE_MIN,
+} from '../../services/dynamic-table-pagination.service';
 
 export interface LeaveConfirmChangeItem {
   label: string;
@@ -136,9 +143,11 @@ export interface LeaveConfirmChangeItem {
   styleUrls: ['./incident-list.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentListComponent implements OnInit, OnDestroy {
+export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(MedidasComponent) medidasPanel?: MedidasComponent;
   @ViewChild('agregarComentarioField') agregarComentarioField?: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('incidentListPanel') incidentListPanel?: ElementRef<HTMLElement>;
+  @ViewChild('incidentListScroll') incidentListScroll?: ElementRef<HTMLElement>;
 
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
@@ -206,6 +215,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly tablePagination = inject(DynamicTablePaginationService);
+  private detachListPaginationResize: (() => void) | null = null;
   private readonly colombiaGeo = inject(ColombiaGeoService);
   private readonly http = inject(HttpClient);
   private readonly auditClient = inject(AuditClientService);
@@ -214,6 +225,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
   activeTabId = signal<string | null>(null);
+  /** Sin formulario abierto: tabla llena el alto; con formulario: un solo scroll del bloque. */
+  hasFormPanel = computed(() => !!this.activeTabId() || this.showNewIncidentTab());
   detailTab = signal<'detalle' | 'medidas'>('detalle');
   mapReady = signal(false);
   mapsError = signal<string | null>(null);
@@ -284,7 +297,9 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   auditLogs = this.configService.auditLogs;
   filterText = signal('');
   filterStatus = signal('');
-  readonly listPageSize = 15;
+  readonly listPageSizeMin = TABLE_PAGE_SIZE_MIN;
+  readonly listPageSizeMax = TABLE_PAGE_SIZE_MAX;
+  listPageSize = signal(TABLE_PAGE_SIZE_DEFAULT);
   listCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   incidentTypes = this.configService.incidentTypes;
@@ -382,6 +397,23 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     effect(() => {
       this.auditLogs();
       this.cdr.markForCheck();
+    });
+
+    effect(() => {
+      const loading = this.incidentService.isLoading();
+      const rows = this.filteredIncidents().length;
+      this.filterText();
+      this.filterStatus();
+      if (!loading && rows > 0) {
+        queueMicrotask(() => this.recalcListPageSize());
+      }
+    });
+
+    effect(() => {
+      this.hasFormPanel();
+      this.activeTabId();
+      this.showNewIncidentTab();
+      queueMicrotask(() => this.recalcListPageSize());
     });
 
     effect(() => {
@@ -2359,20 +2391,78 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   listTotalPages = computed(() => {
     const total = this.filteredIncidents().length;
-    return Math.max(1, Math.ceil(total / this.listPageSize));
+    return Math.max(1, Math.ceil(total / this.listPageSize()));
   });
 
   paginatedListIncidents = computed(() => {
     const all = this.filteredIncidents();
     const page = Math.min(this.listCurrentPage(), this.listTotalPages());
-    const start = (page - 1) * this.listPageSize;
-    return all.slice(start, start + this.listPageSize);
+    const size = this.listPageSize();
+    const start = (page - 1) * size;
+    return all.slice(start, start + size);
   });
 
   private sortIncidents(incidents: Incident[]): Incident[] {
     return incidents
       .slice()
       .sort((a, b) => incidentIdSortKey(b.id) - incidentIdSortKey(a.id));
+  }
+
+  ngAfterViewInit(): void {
+    this.detachListPaginationResize = this.tablePagination.bindResizeRecalc({
+      cacheKey: this,
+      getObserveTargets: () => [
+        this.incidentListPanel?.nativeElement,
+        this.incidentListScroll?.nativeElement,
+      ],
+      recalc: () => this.recalcListPageSize(),
+    });
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this.recalcListPageSize());
+      });
+    });
+  }
+
+  private applyListPageSize(size: number): void {
+    if (this.listPageSize() === size) return;
+    this.listPageSize.set(size);
+    const totalPages = Math.max(1, Math.ceil(this.filteredIncidents().length / size));
+    if (this.listCurrentPage() > totalPages) {
+      this.listCurrentPage.set(totalPages);
+    }
+    this.cdr.markForCheck();
+  }
+
+  private recalcListPageSize(): void {
+    this.tablePagination.recalc({
+      minSize: this.listPageSizeMin,
+      maxSize: this.listPageSizeMax,
+      getCurrentSize: () => this.listPageSize(),
+      applySize: (size) => this.applyListPageSize(size),
+      ngZone: this.ngZone,
+      measure: () => this.measureListRows(),
+      getOverflowEl: () =>
+        (this.incidentListPanel?.nativeElement?.querySelector(
+          '.ims-incident-list-table-wrap',
+        ) as HTMLElement | null) ?? null,
+    });
+  }
+
+  private measureListRows(): number | null {
+    const panel = this.incidentListPanel?.nativeElement;
+    if (!panel || panel.clientHeight <= 0) return null;
+
+    return this.tablePagination.measureRows({
+      panel,
+      chromeSelectors: ['.ims-incident-list-filters', '.ims-incident-list-pagination'],
+      tableWrapSelector: '.ims-incident-list-table-wrap',
+      theadSelector: '.ims-incident-list-table thead',
+      tableRowSelector: '.ims-incident-list-table tbody tr',
+      layout: 'table',
+      minSize: this.listPageSizeMin,
+      maxSize: this.listPageSizeMax,
+    });
   }
 
   ngOnInit() {
@@ -4192,6 +4282,7 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     const total = this.listTotalPages();
     if (page >= 1 && page <= total) {
       this.listCurrentPage.set(page);
+      this.cdr.markForCheck();
     }
   }
 
@@ -4250,6 +4341,8 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.detachListPaginationResize?.();
+    this.detachListPaginationResize = null;
     this.incidentLeaveGuard.unregister();
     if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));

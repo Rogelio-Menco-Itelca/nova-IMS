@@ -9,7 +9,7 @@
   display: flex;
   min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   flex-direction: column;
 }
 
@@ -20,10 +20,16 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   flex-direction: column;
   gap: 0.5rem;
   overflow: auto;
+}
+
+@container dashboard (min-width: 48rem) {
+  .ims-dashboard {
+    overflow: hidden;
+  }
 }
 
 /* —— KPIs —— */
@@ -118,9 +124,10 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.5rem;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
   min-height: min(28rem, 70vh);
+  align-items: stretch;
   align-content: stretch;
 }
 
@@ -128,6 +135,14 @@
 @container dashboard (min-width: 48rem) {
   .ims-dashboard-panels {
     grid-template-columns: minmax(0, 6fr) minmax(0, 4fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+
+  .ims-dashboard-panel {
+    min-height: 0;
+    height: 100%;
   }
 }
 
@@ -145,7 +160,12 @@
 .ims-dashboard-panel--list {
   container-type: inline-size;
   container-name: dashlist;
-  padding: clamp(0.5rem, 1vw, 1rem);
+  padding: clamp(0.5rem, 1vw, 1rem) clamp(0.5rem, 1vw, 1rem) 0;
+  min-height: 0;
+}
+
+.ims-dashboard-panel--map {
+  min-height: 0;
 }
 
 .ims-dashboard-panel__head {
@@ -210,14 +230,16 @@
   gap: 0.375rem;
   min-height: 0;
   flex: 1 1 auto;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .ims-dashboard-table-wrap {
   display: none;
   min-height: 0;
-  flex: 1 1 auto;
-  overflow: auto;
+  flex: 1 1 0%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 @container dashlist (min-width: 36rem) {
@@ -226,7 +248,9 @@
   }
 
   .ims-dashboard-table-wrap {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 }
 
@@ -247,8 +271,8 @@
 .ims-dashboard-map-host {
   position: relative;
   width: 100%;
-  min-height: 14rem;
-  flex: 1 1 auto;
+  min-height: 0;
+  flex: 1 1 0%;
 }
 
 .ims-dashboard-map {

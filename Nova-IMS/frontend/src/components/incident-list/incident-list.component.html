@@ -1,5 +1,9 @@
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-  <div class="h-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+  <div
+    #incidentListScroll
+    class="ims-incident-list-top shrink-0 overflow-x-hidden"
+    [class.ims-incident-list-top--form]="hasFormPanel()"
+  >
     <div class="flex flex-col gap-6 pb-1">
   <!-- Header -->
   <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
@@ -1468,10 +1472,15 @@
       </div>
     </div>
   }
+    </div>
+  </div>
 
   <!-- Filters and Incident List -->
-  <div class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col shrink-0">
-    <div class="p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+  <div
+    class="ims-incident-list-panel bg-gray-800 rounded-lg shadow-lg px-2 pt-2 sm:px-4 sm:pt-4 pb-1 flex flex-col flex-1 min-h-0"
+    #incidentListPanel
+  >
+    <div class="ims-incident-list-filters p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 shrink-0">
       <label for="incident-list-search" class="sr-only">Buscar incidentes</label>
       <input
         id="incident-list-search"
@@ -1492,8 +1501,8 @@
         }
       </select>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm text-left text-gray-300">
+    <div class="ims-incident-list-table-wrap">
+      <table class="ims-incident-list-table w-full text-sm text-left text-gray-300">
         <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
           <tr>
             <th scope="col" class="px-4 py-3 whitespace-nowrap">Fecha creación</th>
@@ -1592,7 +1601,7 @@
       </table>
     </div>
     @if (filteredIncidents().length > 0) {
-      <nav class="flex justify-end px-2 pt-2 pb-1 mt-auto" aria-label="Paginación de incidentes">
+      <nav class="ims-incident-list-pagination flex justify-end px-2 pt-2 pb-1 mt-auto" aria-label="Paginación de incidentes">
         <div
           class="inline-flex items-center gap-0.5 rounded-full border border-gray-600/50 bg-gray-700/30 px-1 py-0.5 text-[11px] text-gray-400"
         >
@@ -1634,8 +1643,6 @@
         </div>
       </nav>
     }
-  </div>
-    </div>
   </div>
 </div>
 
