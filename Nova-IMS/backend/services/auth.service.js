@@ -218,8 +218,27 @@ async function completeLocalLogin(dbUser, password, agencia, rememberUser, logSu
   return buildTokenResponse(dbUser);
 }
 
+async function assertSelectedRoleForUser(selectedRol, user, agencyCode, rememberUser = false) {
+  const rol = String(selectedRol ?? '').trim();
+  if (!rol) {
+    throw new HttpError(400, 'rol es requerido');
+  }
+  const selectedRoleId = await giUsers.findRoleIdByName(rol, agencyCode);
+  const userRoleId = String(user.role_id ?? '').trim();
+  const resolvedRoleId = String(selectedRoleId ?? '').trim();
+  if (!resolvedRoleId || resolvedRoleId !== userRoleId) {
+    await recordFailedLogin(
+      user,
+      agencyCode,
+      'Rol seleccionado no coincide con el asignado al usuario',
+      rememberUser,
+    );
+    throw new HttpError(401, INVALID_MSG);
+  }
+}
+
 async function login(credentials, options = {}) {
-  const { agencia, usuario, password, rememberMe } = credentials;
+  const { agencia, usuario, password, rememberMe, rol } = credentials;
   const rememberUser = !!rememberMe;
   const logSuccess = options.logSuccess !== false;
   if (!usuario || !password || !agencia) {
@@ -227,6 +246,10 @@ async function login(credentials, options = {}) {
   }
 
   const dbUser = await findDbUser(usuario, agencia);
+  if (dbUser) {
+    await assertSelectedRoleForUser(rol, dbUser, agencia, rememberUser);
+  }
+
   const directoryResult = await ldapService.tryAuthenticate(usuario, password);
 
   if (directoryResult.ok) {
@@ -347,4 +370,5 @@ module.exports = {
   changePassword,
   recordFailedLogin,
   recordSuccessfulLogin,
+  assertSelectedRoleForUser,
 };

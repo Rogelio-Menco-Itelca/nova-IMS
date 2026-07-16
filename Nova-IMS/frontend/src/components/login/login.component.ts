@@ -160,7 +160,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       next: (list) => {
         this.roles.set(list);
         this.rolesLoading.set(false);
-        // Evita que el navegador preseleccione el primer rol (p. ej. Administrador)
         queueMicrotask(() => this.resetRolSelection());
       },
       error: () => {
