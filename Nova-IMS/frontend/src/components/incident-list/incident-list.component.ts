@@ -7,6 +7,7 @@ import {
   inject,
   OnDestroy,
   OnInit,
+  AfterViewInit,
   effect,
   untracked,
   NgZone,
@@ -136,9 +137,10 @@ export interface LeaveConfirmChangeItem {
   styleUrls: ['./incident-list.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentListComponent implements OnInit, OnDestroy {
+export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(MedidasComponent) medidasPanel?: MedidasComponent;
   @ViewChild('agregarComentarioField') agregarComentarioField?: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('incidentListPanel') incidentListPanel?: ElementRef<HTMLElement>;
 
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
@@ -284,7 +286,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
   auditLogs = this.configService.auditLogs;
   filterText = signal('');
   filterStatus = signal('');
-  readonly listPageSize = 15;
+  readonly listPageSizeMin = 5;
+  readonly listPageSizeMax = 30;
+  readonly listPageSizeFixed = 15;
+  listPageSize = signal(15);
   listCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   incidentTypes = this.configService.incidentTypes;
@@ -382,6 +387,23 @@ export class IncidentListComponent implements OnInit, OnDestroy {
     effect(() => {
       this.auditLogs();
       this.cdr.markForCheck();
+    });
+
+    effect(() => {
+      const loading = this.incidentService.isLoading();
+      const rows = this.filteredIncidents().length;
+      this.filterText();
+      this.filterStatus();
+      if (!loading && rows > 0 && !this.activeTabId()) {
+        queueMicrotask(() => this.recalcListPageSize());
+      }
+    });
+
+    effect(() => {
+      this.activeTabId();
+      if (!this.activeTabId()) {
+        queueMicrotask(() => this.recalcListPageSize());
+      }
     });
 
     effect(() => {
@@ -2359,20 +2381,83 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   listTotalPages = computed(() => {
     const total = this.filteredIncidents().length;
-    return Math.max(1, Math.ceil(total / this.listPageSize));
+    const size = this.activeTabId() ? this.listPageSizeFixed : this.listPageSize();
+    return Math.max(1, Math.ceil(total / size));
   });
 
   paginatedListIncidents = computed(() => {
     const all = this.filteredIncidents();
     const page = Math.min(this.listCurrentPage(), this.listTotalPages());
-    const start = (page - 1) * this.listPageSize;
-    return all.slice(start, start + this.listPageSize);
+    const size = this.activeTabId() ? this.listPageSizeFixed : this.listPageSize();
+    const start = (page - 1) * size;
+    return all.slice(start, start + size);
   });
+
+  private listPanelResizeObserver: ResizeObserver | null = null;
 
   private sortIncidents(incidents: Incident[]): Incident[] {
     return incidents
       .slice()
       .sort((a, b) => incidentIdSortKey(b.id) - incidentIdSortKey(a.id));
+  }
+
+  ngAfterViewInit(): void {
+    const recalc = () => this.recalcListPageSize();
+    this.listPanelResizeObserver = new ResizeObserver(() => recalc());
+    queueMicrotask(() => {
+      const panel = this.incidentListPanel?.nativeElement;
+      if (panel) this.listPanelResizeObserver?.observe(panel);
+      requestAnimationFrame(() => requestAnimationFrame(recalc));
+    });
+    window.addEventListener('resize', recalc);
+    this.ngOnDestroyListPageResize = () => window.removeEventListener('resize', recalc);
+  }
+
+  private ngOnDestroyListPageResize: (() => void) | null = null;
+
+  private recalcListPageSize(): void {
+    if (this.activeTabId()) return;
+    const size = this.measureListPageSize();
+    if (size === null || size === this.listPageSize()) return;
+    this.listPageSize.set(size);
+    const totalPages = Math.max(1, Math.ceil(this.filteredIncidents().length / size));
+    if (this.listCurrentPage() > totalPages) {
+      this.listCurrentPage.set(totalPages);
+    }
+    this.cdr.markForCheck();
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        const refined = this.measureListPageSize();
+        if (refined !== null && refined < this.listPageSize()) {
+          this.listPageSize.set(refined);
+          this.cdr.markForCheck();
+        }
+      });
+    });
+  }
+
+  private measureListPageSize(): number | null {
+    const panel = this.incidentListPanel?.nativeElement;
+    if (!panel || panel.clientHeight <= 0) return null;
+
+    const tableWrap = panel.querySelector('.ims-incident-list-table-wrap') as HTMLElement | null;
+    const thead = panel.querySelector('thead') as HTMLElement | null;
+    if (!tableWrap || tableWrap.clientHeight <= 0) return null;
+
+    const listArea = tableWrap.clientHeight - (thead?.offsetHeight ?? 40);
+    if (listArea <= 0) return null;
+
+    const rows = Array.from(panel.querySelectorAll('tbody tr')).filter(
+      (row) => !row.querySelector('td[colspan]'),
+    );
+    let rowH = 43;
+    for (let i = 0; i < Math.min(rows.length, 3); i++) {
+      const h = rows[i].getBoundingClientRect().height;
+      if (h > rowH) rowH = h;
+    }
+
+    const count = Math.floor((listArea - 8) / rowH);
+    return Math.min(this.listPageSizeMax, Math.max(this.listPageSizeMin, count));
   }
 
   ngOnInit() {
@@ -4251,6 +4336,10 @@ export class IncidentListComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.incidentLeaveGuard.unregister();
+    this.listPanelResizeObserver?.disconnect();
+    this.listPanelResizeObserver = null;
+    this.ngOnDestroyListPageResize?.();
+    this.ngOnDestroyListPageResize = null;
     if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();

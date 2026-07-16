@@ -8,6 +8,13 @@
   overflow: hidden;
 }
 
+.ims-incident-list-table-wrap {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .incident-form-map {
   contain: layout paint style;
   isolation: isolate;
