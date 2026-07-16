@@ -54,6 +54,21 @@ import {
   PlaceAutocompleteControl,
 } from '../../utils/google-maps-legacy';
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
+import {
+  buildGeocodeQuery,
+  geocodeAddressQuery,
+  hasValidIncidentCoords,
+  IncidentLocationCoordSync,
+} from '../../utils/incident-location-coords';
+import {
+  clampLatLngToColombia,
+  clampMapZoomAfterCountryFit,
+  colombiaMapViewportOptions,
+  fitMapToColombia,
+  IMS_DEFAULT_MAP_CENTER,
+  IMS_MAP_ZOOM,
+  googleMapsCountryRestriction,
+} from '../../utils/ims-geo.constants';
 
 function isDocumentType(value: string): value is DocumentType {
   return (DOCUMENT_TYPE_OPTIONS as readonly string[]).includes(value);
@@ -76,19 +91,6 @@ function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isInvolvedVehicle);
 }
-
-/** Vista inicial del mapa del dashboard (Bogotá D.C.) */
-const BOGOTA_CENTER = { lat: 4.651, lng: -74.072 };
-const BOGOTA_DEFAULT_ZOOM = 11;
-const DASHBOARD_SINGLE_MARKER_ZOOM = 13;
-const DASHBOARD_FIT_MAX_ZOOM = 15;
-/** Límite de pan del mapa: territorio colombiano completo */
-const COLOMBIA_BOUNDS = {
-  north: 13.5,
-  south: -4.5,
-  east: -66.5,
-  west: -79.5,
-};
 
 @Component({
   selector: 'app-incidents',
@@ -175,6 +177,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
+  private locationTextSub: Subscription | undefined;
+  private locationResolveSub: Subscription | undefined;
+  private readonly locationCoordSync = new IncidentLocationCoordSync();
   /** Evita pisar la prioridad que el operador eligió manualmente. */
   private lastIncidentTypeName: string | null = null;
   private lastTypeDefaultPriority: IncidentPriority | null = null;
@@ -245,7 +250,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       } else if (tabId) {
         const incident = this.openIncidentTabs().find((inc) => inc.id === tabId);
         if (incident) {
-          this.populateFormWithState(incident);
+          this.populateFormWithState(incident, { trustCoords: true });
           setTimeout(() => this.initMap(incident.lat, incident.lng), 350);
         }
       }
@@ -288,8 +293,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private scheduleNewIncidentMapInit(savedState: Partial<Incident> | null): void {
     setTimeout(() => {
-      const lat = this.incidentForm.get('lat')?.value || 4.645368;
-      const lng = this.incidentForm.get('lng')?.value || -74.1131;
+      const lat =
+        this.incidentForm.get('lat')?.value ?? IMS_DEFAULT_MAP_CENTER.lat;
+      const lng =
+        this.incidentForm.get('lng')?.value ?? IMS_DEFAULT_MAP_CENTER.lng;
       this.initMap(lat, lng)
         .then(() => {
           if (savedState?.lat != null && savedState?.lng != null) {
@@ -347,7 +354,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private async initMap(lat = 4.645368, lng = -74.1131): Promise<void> {
+  private async initMap(
+    lat: number = IMS_DEFAULT_MAP_CENTER.lat,
+    lng: number = IMS_DEFAULT_MAP_CENTER.lng,
+  ): Promise<void> {
     const mapsOk = await this.waitForGoogleMaps();
     if (!mapsOk) return;
 
@@ -362,15 +372,26 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.map = new google.maps.Map(mapEl, {
       center: { lat, lng },
-      zoom: 17,
+      zoom: hasValidIncidentCoords(lat, lng) ? 17 : IMS_MAP_ZOOM.countryMin,
       disableDefaultUI: false,
       mapTypeControl: false,
       streetViewControl: false,
+      ...colombiaMapViewportOptions(),
     });
+
+    if (!hasValidIncidentCoords(lat, lng)) {
+      fitMapToColombia(this.map);
+      google.maps.event.addListenerOnce(this.map, 'idle', () => {
+        clampMapZoomAfterCountryFit(this.map!);
+      });
+    }
+
+    const markerLat = hasValidIncidentCoords(lat, lng) ? lat : IMS_DEFAULT_MAP_CENTER.lat;
+    const markerLng = hasValidIncidentCoords(lat, lng) ? lng : IMS_DEFAULT_MAP_CENTER.lng;
 
     this.marker = createMapPin({
       map: this.map,
-      position: { lat, lng },
+      position: { lat: markerLat, lng: markerLng },
       draggable: true,
       title: 'Ubicación del incidente',
     });
@@ -381,21 +402,22 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
-      marker.setPosition(e.latLng);
-      const clickLat = e.latLng.lat();
-      const clickLng = e.latLng.lng();
+      const clamped = clampLatLngToColombia(e.latLng.lat(), e.latLng.lng());
+      marker.setPosition(clamped);
       this.ngZone.run(() => {
-        this.updateFormCoords(clickLat, clickLng);
-        this.reverseGeocode(clickLat, clickLng);
+        this.updateFormCoords(clamped.lat, clamped.lng);
+        this.reverseGeocode(clamped.lat, clamped.lng);
       });
     });
 
     marker.addListener('dragend', () => {
       const pos = marker.getPosition();
       if (!pos) return;
+      const clamped = clampLatLngToColombia(pos.lat(), pos.lng());
+      marker.setPosition(clamped);
       this.ngZone.run(() => {
-        this.updateFormCoords(pos.lat(), pos.lng());
-        this.reverseGeocode(pos.lat(), pos.lng());
+        this.updateFormCoords(clamped.lat, clamped.lng);
+        this.reverseGeocode(clamped.lat, clamped.lng);
       });
     });
 
@@ -412,17 +434,18 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.dashboardMap = new google.maps.Map(mapEl, {
-      center: BOGOTA_CENTER,
-      zoom: BOGOTA_DEFAULT_ZOOM,
-      minZoom: 5,
+      center: IMS_DEFAULT_MAP_CENTER,
+      zoom: IMS_MAP_ZOOM.countryMin,
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: true,
       zoomControl: true,
-      restriction: {
-        latLngBounds: COLOMBIA_BOUNDS,
-        strictBounds: false,
-      },
+      ...colombiaMapViewportOptions(),
+    });
+
+    fitMapToColombia(this.dashboardMap);
+    google.maps.event.addListenerOnce(this.dashboardMap, 'idle', () => {
+      clampMapZoomAfterCountryFit(this.dashboardMap!);
     });
 
     this.dashboardInfoWindow = new google.maps.InfoWindow();
@@ -438,14 +461,16 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 100);
   }
 
-  private resetDashboardMapToBogota(): void {
+  private resetDashboardMapToColombia(): void {
     if (!this.dashboardMap) return;
-    this.dashboardMap.setCenter(BOGOTA_CENTER);
-    this.dashboardMap.setZoom(BOGOTA_DEFAULT_ZOOM);
+    fitMapToColombia(this.dashboardMap);
+    google.maps.event.addListenerOnce(this.dashboardMap, 'idle', () => {
+      clampMapZoomAfterCountryFit(this.dashboardMap!);
+    });
   }
 
   /** Tras fitBounds con varios marcadores cercanos, evita acercar de más. */
-  private clampDashboardMapZoom(maxZoom = DASHBOARD_FIT_MAX_ZOOM): void {
+  private clampDashboardMapZoom(maxZoom = IMS_MAP_ZOOM.dashboardFitMax): void {
     if (!this.dashboardMap) return;
     const z = this.dashboardMap.getZoom();
     if (z != null && z > maxZoom) {
@@ -458,7 +483,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const placable = this.getDashboardActiveIncidents().filter((inc) => this.hasValidCoords(inc));
     if (placable.length === 0) {
-      this.resetDashboardMapToBogota();
+      this.resetDashboardMapToColombia();
       return;
     }
 
@@ -481,7 +506,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       });
     } else {
       this.dashboardMap.setCenter(bounds.getCenter());
-      this.dashboardMap.setZoom(DASHBOARD_SINGLE_MARKER_ZOOM);
+      this.dashboardMap.setZoom(IMS_MAP_ZOOM.dashboardSingleMarker);
     }
   }
 
@@ -512,18 +537,13 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getIncidentPosition(incident: Incident): { lat: number; lng: number } | null {
+    if (hasValidIncidentCoords(incident.lat, incident.lng)) {
+      return { lat: Number(incident.lat), lng: Number(incident.lng) };
+    }
+
     const resolved = this.resolvedCoords()[incident.id];
     if (resolved) return resolved;
 
-    const lat = Number(incident.lat);
-    const lng = Number(incident.lng);
-    if (
-      Number.isFinite(lat) &&
-      Number.isFinite(lng) &&
-      !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001)
-    ) {
-      return { lat, lng };
-    }
     return null;
   }
 
@@ -698,7 +718,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       .then(() => {
         this.geocoder ??= new google.maps.Geocoder();
         this.geocoder.geocode(
-          { address, componentRestrictions: { country: 'co' } },
+          { address, componentRestrictions: googleMapsCountryRestriction() },
           (results, status) => {
             this.ngZone.run(() => this.applyCoordsGeocodeResult(incident, results, status));
           },
@@ -829,7 +849,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
 
     if (!hasCoords) {
-      this.resetDashboardMapToBogota();
+      this.resetDashboardMapToColombia();
       return;
     }
 
@@ -938,7 +958,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!(locationInput instanceof HTMLInputElement)) return;
 
     this.autocomplete = createPlaceAutocomplete(locationInput, {
-      componentRestrictions: { country: 'co' },
+      componentRestrictions: googleMapsCountryRestriction(),
       fields: ['geometry', 'formatted_address'],
     });
 
@@ -950,6 +970,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.ngZone.run(() => {
         this.updateFormCoords(lat, lng);
         this.incidentForm.patchValue({ location: place.formatted_address });
+        this.locationCoordSync.markSynced(this.getLocationSnapshot());
         this.map?.setCenter({ lat, lng });
         this.map?.setZoom(17);
         this.marker?.setPosition({ lat, lng });
@@ -958,10 +979,134 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private updateFormCoords(lat: number, lng: number) {
-    this.incidentForm.patchValue({
-      lat: Number(lat.toFixed(6)),
-      lng: Number(lng.toFixed(6)),
+    const clamped = clampLatLngToColombia(lat, lng);
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue({
+        lat: clamped.lat,
+        lng: clamped.lng,
+      });
     });
+    this.locationCoordSync.markSynced(this.getLocationSnapshot());
+  }
+
+  private getLocationSnapshot() {
+    const raw = this.incidentForm.getRawValue();
+    return {
+      location: String(raw.location ?? ''),
+      departmentId: null,
+      municipalityId: null,
+    };
+  }
+
+  private async prepareIncidentCoordsForSave(): Promise<boolean> {
+    const lat = this.incidentForm.get('lat')?.value;
+    const lng = this.incidentForm.get('lng')?.value;
+    const snapshot = this.getLocationSnapshot();
+    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
+      return true;
+    }
+
+    const address = String(snapshot.location ?? '').trim();
+    if (!address) {
+      this.notificationService.addNotification(
+        'Ubicación incompleta',
+        'Indique la dirección de referencia antes de guardar.',
+      );
+      return false;
+    }
+
+    const mapsOk = await this.waitForGoogleMaps();
+    if (!mapsOk) {
+      this.notificationService.addNotification(
+        'Mapa no disponible',
+        'No se pudo validar la ubicación en el mapa. Intente de nuevo.',
+      );
+      return false;
+    }
+
+    this.geocoder ??= new google.maps.Geocoder();
+    const query = buildGeocodeQuery(snapshot);
+    const geocoded = await geocodeAddressQuery(this.geocoder, query);
+    if (!geocoded) {
+      this.notificationService.addNotification(
+        'Dirección no ubicada',
+        'No se pudo ubicar la dirección en el mapa. Use el buscador, Enter o el pin del mapa.',
+      );
+      return false;
+    }
+
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue({
+        lat: geocoded.lat,
+        lng: geocoded.lng,
+        location: geocoded.formattedAddress ?? snapshot.location,
+      });
+    });
+    this.locationCoordSync.markSynced(this.getLocationSnapshot());
+    this.map?.setCenter({ lat: geocoded.lat, lng: geocoded.lng });
+    this.map?.setZoom(17);
+    this.marker?.setPosition({ lat: geocoded.lat, lng: geocoded.lng });
+    return true;
+  }
+
+  private async resolveLocationFromForm(): Promise<void> {
+    if (this.locationCoordSync.isPatching()) return;
+    const snapshot = this.getLocationSnapshot();
+    if (!String(snapshot.location ?? '').trim()) return;
+
+    const lat = this.incidentForm.get('lat')?.value;
+    const lng = this.incidentForm.get('lng')?.value;
+    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
+      return;
+    }
+
+    const mapsOk = await this.waitForGoogleMaps();
+    if (!mapsOk) return;
+
+    this.geocoder ??= new google.maps.Geocoder();
+    const geocoded = await geocodeAddressQuery(this.geocoder, buildGeocodeQuery(snapshot));
+    if (!geocoded) return;
+
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue({
+        lat: geocoded.lat,
+        lng: geocoded.lng,
+        location: geocoded.formattedAddress ?? snapshot.location,
+      });
+    });
+    this.locationCoordSync.markSynced(this.getLocationSnapshot());
+    this.map?.setCenter({ lat: geocoded.lat, lng: geocoded.lng });
+    this.marker?.setPosition({ lat: geocoded.lat, lng: geocoded.lng });
+  }
+
+  private setupLocationTextGuard(): void {
+    this.locationTextSub?.unsubscribe();
+    const locationControl = this.incidentForm.get('location');
+    if (!locationControl) return;
+
+    this.locationTextSub = locationControl.valueChanges.subscribe(() => {
+      if (this.locationCoordSync.isPatching()) return;
+      const lat = this.incidentForm.get('lat')?.value;
+      const lng = this.incidentForm.get('lng')?.value;
+      const hasCoords = hasValidIncidentCoords(lat, lng);
+      if (!this.locationCoordSync.shouldInvalidate(this.getLocationSnapshot(), hasCoords)) {
+        return;
+      }
+      this.locationCoordSync.clearSync();
+      this.incidentForm.patchValue({ lat: null, lng: null }, { emitEvent: false });
+    });
+  }
+
+  private setupLocationGeoResolve(): void {
+    this.locationResolveSub?.unsubscribe();
+    const locationControl = this.incidentForm.get('location');
+    if (!locationControl) return;
+
+    this.locationResolveSub = locationControl.valueChanges
+      .pipe(debounceTime(800), distinctUntilChanged())
+      .subscribe(() => {
+        void this.resolveLocationFromForm();
+      });
   }
 
   private reverseGeocode(lat: number, lng: number) {
@@ -1176,6 +1321,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
 
     this.setupPhoneLookup();
+    this.setupLocationTextGuard();
+    this.setupLocationGeoResolve();
     setTimeout(() => this.initDashboardMap(), 300);
   }
 
@@ -1311,82 +1458,94 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.incidentForm.markAllAsTouched();
       return;
     }
-    const formValue = this.incidentForm.getRawValue();
-    const newIncident: Incident = {
-      id: '',
-      timestamp: new Date().toLocaleString('es-CO', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }),
-      status: formValue.status ?? 'Nuevo',
-      event_id: formValue.event_id ?? '',
-      priority_id: formValue.priority_id ?? '',
-      origin: formValue.origin ?? '',
-      phone: formValue.phone ?? '',
-      location: formValue.location ?? '',
-      lat: formValue.lat ?? 0,
-      lng: formValue.lng ?? 0,
-      details: formValue.details ?? '',
-      comments: formValue.comments ?? '',
-      type: formValue.event_id ?? '',
-      priority: coerceIncidentPriority(formValue.priority_id ?? formValue.priority),
-      operator: this.authService.currentUser()?.name ?? 'Sistema',
-      ani: formValue.phone ?? 'N/A',
-      locationPhoneNumber: formValue.locationPhoneNumber ?? '',
-      involvedPeople: formValue.involvedPeople ?? [],
-      involvedVehicles: coerceInvolvedVehicles(formValue.involvedVehicles),
-    };
-    this.incidentService.addIncident(newIncident);
+    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
+      if (!coordsOk) return;
+      const formValue = this.incidentForm.getRawValue();
+      const newIncident: Incident = {
+        id: '',
+        timestamp: new Date().toLocaleString('es-CO', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        }),
+        status: formValue.status ?? 'Nuevo',
+        event_id: formValue.event_id ?? '',
+        priority_id: formValue.priority_id ?? '',
+        origin: formValue.origin ?? '',
+        phone: formValue.phone ?? '',
+        location: formValue.location ?? '',
+        lat: formValue.lat ?? 0,
+        lng: formValue.lng ?? 0,
+        details: formValue.details ?? '',
+        comments: formValue.comments ?? '',
+        type: formValue.event_id ?? '',
+        priority: coerceIncidentPriority(formValue.priority_id ?? formValue.priority),
+        operator: this.authService.currentUser()?.name ?? 'Sistema',
+        ani: formValue.phone ?? 'N/A',
+        locationPhoneNumber: formValue.locationPhoneNumber ?? '',
+        involvedPeople: formValue.involvedPeople ?? [],
+        involvedVehicles: coerceInvolvedVehicles(formValue.involvedVehicles),
+      };
+      this.incidentService.addIncident(newIncident);
 
-    setTimeout(() => {
-      this.renderDashboardIncidents();
-    }, 200);
-    this.notificationService.addNotification(
-      'Incidente Registrado',
-      `Se creó el incidente #${newIncident.id}.`,
-      newIncident.id,
-    );
-    this.closeNewIncidentTab();
-    this.openIncidentTab(newIncident);
+      setTimeout(() => {
+        this.renderDashboardIncidents();
+      }, 200);
+      this.notificationService.addNotification(
+        'Incidente Registrado',
+        `Se creó el incidente #${newIncident.id}.`,
+        newIncident.id,
+      );
+      this.closeNewIncidentTab();
+      this.openIncidentTab(newIncident);
+    });
   }
 
   updateIncident() {
     if (this.incidentForm.invalid || !this.activeIncident()) return;
-    const updatedData = this.incidentForm.getRawValue();
-    const incidentId = this.activeIncident()!.id;
-    const finalData: Incident = {
-      ...this.activeIncident()!,
-      status: updatedData.status ?? 'Nuevo',
-      event_id: updatedData.event_id ?? '',
-      priority_id: updatedData.priority_id ?? '',
-      origin: updatedData.origin ?? '',
-      phone: updatedData.phone ?? '',
-      location: updatedData.location ?? '',
-      lat: updatedData.lat ?? 0,
-      lng: updatedData.lng ?? 0,
-      details: updatedData.details ?? '',
-      comments: updatedData.comments ?? '',
-      type: updatedData.event_id ?? '',
-      priority: coerceIncidentPriority(updatedData.priority_id ?? updatedData.priority),
-      involvedPeople: updatedData.involvedPeople ?? [],
-      involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
-    };
-    this.incidentService.updateIncident(finalData, (saved) => {
-      this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
-      this.configService.getAuditLogs().catch(() => void 0);
-      this.cdr.markForCheck();
+    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
+      if (!coordsOk) return;
+      const updatedData = this.incidentForm.getRawValue();
+      const incidentId = this.activeIncident()!.id;
+      const finalData: Incident = {
+        ...this.activeIncident()!,
+        status: updatedData.status ?? 'Nuevo',
+        event_id: updatedData.event_id ?? '',
+        priority_id: updatedData.priority_id ?? '',
+        origin: updatedData.origin ?? '',
+        phone: updatedData.phone ?? '',
+        location: updatedData.location ?? '',
+        lat: updatedData.lat ?? 0,
+        lng: updatedData.lng ?? 0,
+        details: updatedData.details ?? '',
+        comments: updatedData.comments ?? '',
+        type: updatedData.event_id ?? '',
+        priority: coerceIncidentPriority(updatedData.priority_id ?? updatedData.priority),
+        involvedPeople: updatedData.involvedPeople ?? [],
+        involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
+      };
+      this.incidentService.updateIncident(finalData, (saved) => {
+        this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
+        this.populateFormWithState(saved, { trustCoords: true });
+        if (hasValidIncidentCoords(saved.lat, saved.lng)) {
+          this.map?.setCenter({ lat: Number(saved.lat), lng: Number(saved.lng) });
+          this.marker?.setPosition({ lat: Number(saved.lat), lng: Number(saved.lng) });
+        }
+        this.configService.getAuditLogs().catch(() => void 0);
+        this.cdr.markForCheck();
+      });
+      this.notificationService.addNotification(
+        'Incidente Actualizado',
+        `Se guardaron los cambios para #${incidentId}.`,
+        incidentId,
+      );
     });
-    this.notificationService.addNotification(
-      'Incidente Actualizado',
-      `Se guardaron los cambios para #${incidentId}.`,
-      incidentId,
-    );
   }
 
   private resetFormForNewIncident() {
     this.selectedIncidentTypeName.set(null);
     this.lastIncidentTypeName = null;
     this.lastTypeDefaultPriority = null;
+    this.locationCoordSync.clearSync();
     this.incidentForm.reset({
       event_id: '',
       priority_id: 'Media',
@@ -1394,6 +1553,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       origin: '',
       phone: '',
       location: '',
+      lat: null,
+      lng: null,
+      locationPhoneNumber: '',
       details: '',
       comments: '',
     });
@@ -1402,7 +1564,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incidentForm.enable();
   }
 
-  private populateFormWithState(state: Partial<Incident>) {
+  private populateFormWithState(
+    state: Partial<Incident>,
+    options?: { trustCoords?: boolean },
+  ) {
     this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.incidentForm.reset(undefined, { emitEvent: false });
     this.incidentForm.patchValue(state, { emitEvent: false });
@@ -1439,6 +1604,11 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       ),
     );
     this.incidentForm.enable();
+    if (options?.trustCoords && hasValidIncidentCoords(state.lat, state.lng)) {
+      this.locationCoordSync.markSynced(this.getLocationSnapshot());
+    } else {
+      this.locationCoordSync.clearSync();
+    }
   }
 
   openIncidentEmailModal(incident: Incident): void {
@@ -1580,5 +1750,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroyMap();
     this.typeSub?.unsubscribe();
     this.phoneSub?.unsubscribe();
+    this.locationTextSub?.unsubscribe();
+    this.locationResolveSub?.unsubscribe();
   }
 }

@@ -7,6 +7,12 @@ import {
   isMobileShareUrl,
   buildLocationShareMessage,
 } from '../utils/public-share-url';
+import {
+  toInternationalColombianPhone,
+  toLocalColombianPhone,
+  validateColombianPhone as checkColombianPhone,
+  IMS_DEFAULT_MAP_CENTER,
+} from '../utils/ims-geo.constants';
 
 export interface LocationData {
   lat: number;
@@ -44,8 +50,7 @@ export class LocationRequestService {
 
   openNewIncidentForm(phone?: string): void {
     if (phone) {
-      const digits = phone.replace(/\D/g, '');
-      const localNumber = digits.startsWith('57') && digits.length > 10 ? digits.slice(2) : digits;
+      const localNumber = toLocalColombianPhone(phone);
       this.pendingPhone.set(localNumber);
       this.lastRequestedNumber.set(localNumber);
     }
@@ -90,45 +95,12 @@ export class LocationRequestService {
     });
   }
 
-  // ── Validación: solo números colombianos ─────────────────────────────────
-  // Formatos aceptados:
-  //   "3026172447"      → 10 dígitos locales           ✓
-  //   "+573026172447"   → indicativo completo con +     ✓
-  //   "573026172447"    → indicativo sin +              ✓
-  // Cualquier otro formato se rechaza con notificación de error.
   validateColombianPhone(phone: string): { valid: boolean; error?: string } {
-    const digits = phone.replace(/\D/g, '');
-
-    if (digits.startsWith('57')) {
-      // Formato internacional: "57" + 10 dígitos = 12 total
-      if (digits.length !== 12) {
-        return {
-          valid: false,
-          error: `Después de +57 deben ir exactamente 10 dígitos (tiene ${digits.length - 2}).`,
-        };
-      }
-      return { valid: true };
-    }
-
-    // Formato local: exactamente 10 dígitos
-    if (digits.length !== 10) {
-      return {
-        valid: false,
-        error: `El número colombiano debe tener 10 dígitos (tiene ${digits.length}).`,
-      };
-    }
-
-    return { valid: true };
+    return checkColombianPhone(phone);
   }
 
-  // ── Utilidad: normalizar a formato internacional sin + ───────────────────
-  // "3026172447"    → "573026172447"
-  // "+573026172447" → "573026172447"
-  // "573026172447"  → "573026172447"  (ya correcto, no duplicar)
   private toInternationalCo(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('57')) return digits;
-    return `57${digits}`;
+    return toInternationalColombianPhone(phone);
   }
 
   private async createLocationRequest(phone: string, channel: 'whatsapp' | 'sms'): Promise<string> {
@@ -197,17 +169,14 @@ export class LocationRequestService {
     );
   }
 
-  // ── WHATSAPP ──────────────────────────────────────────────────────────────
   async requestLocation(phoneNumber: string): Promise<boolean> {
-    // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
       this.notificationService.addNotification('Número Inválido', validation.error ?? 'Número inválido');
       return false;
     }
 
-    const digits = phoneNumber.replace(/\D/g, '');
-    const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
+    const localNumber = toLocalColombianPhone(phoneNumber);
     this.lastRequestedNumber.set(localNumber);
     this.lastRequestChannel.set('whatsapp');
 
@@ -237,17 +206,14 @@ export class LocationRequestService {
     }
   }
 
-  // ── SMS ───────────────────────────────────────────────────────────────────
   async requestLocationViaSms(phoneNumber: string): Promise<boolean> {
-    // Validar número colombiano
     const validation = this.validateColombianPhone(phoneNumber);
     if (!validation.valid) {
       this.notificationService.addNotification('Número Inválido', validation.error ?? 'Número inválido');
       return false;
     }
 
-    const digits = phoneNumber.replace(/\D/g, '');
-    const localNumber = digits.startsWith('57') ? digits.slice(2) : digits;
+    const localNumber = toLocalColombianPhone(phoneNumber);
     this.lastRequestedNumber.set(localNumber);
     this.lastRequestChannel.set('sms');
 
@@ -277,11 +243,10 @@ export class LocationRequestService {
     }
   }
 
-  // ── SIMULACIÓN (para pruebas) ─────────────────────────────────────────────
   simulateLocationReception(): void {
     const phoneNumber = this.lastRequestedNumber();
-    const lat = 4.60971 + (Math.random() - 0.5) * 0.1;
-    const lng = -74.08175 + (Math.random() - 0.5) * 0.1;
+    const lat = IMS_DEFAULT_MAP_CENTER.lat + (Math.random() - 0.5) * 0.1;
+    const lng = IMS_DEFAULT_MAP_CENTER.lng + (Math.random() - 0.5) * 0.1;
     this.locationReceived.set({
       lat,
       lng,

@@ -8,6 +8,7 @@ import {
   CatalogOption,
   DocumentTypeOption,
 } from '../models/incident.model';
+import { toLocalColombianPhone } from '../utils/ims-geo.constants';
 
 @Injectable({ providedIn: 'root' })
 export class PersonService {
@@ -108,10 +109,6 @@ export class PersonService {
   }
 
   private normalizePhoneDigits(phone: string): string {
-    let digits = String(phone ?? '').replace(/\D/g, '');
-    if (digits.startsWith('57') && digits.length > 10) {
-      digits = digits.slice(2);
-    }
-    return digits;
+    return toLocalColombianPhone(phone);
   }
 }

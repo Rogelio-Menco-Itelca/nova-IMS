@@ -14,7 +14,7 @@ const { requireAgencyInput } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
-const { linkLocationToIncident } = require('./location');
+const { linkLocationToIncident, syncLinkedLocationCoords } = require('./location');
 const { isFinalState, requiresMedidas, isForwardStatusTransition, isTransitionAllowed, requiresComment } = require('./transitions');
 const { hasAssignedMedidas, getGestionByIncidente, validateGestionForStatus } = require('./medidas');
 const {
@@ -293,16 +293,7 @@ async function latestLocationForIncident(internalId, visibleId, reader = pool) {
      LIMIT 1`,
     [internalId],
   );
-  if (rows.length) return rows[0];
-  const [byUrl] = await reader.query(
-    `SELECT lat AS received_lat, \`long\` AS received_lng,
-            FechaHora_recibido AS received_at, Numero_ubicacion AS location_phone
-     FROM ubicacion
-     WHERE ID_incidente IS NULL
-     ORDER BY ID_solicitud DESC
-     LIMIT 1`,
-  );
-  return byUrl[0] || null;
+  return rows[0] || null;
 }
 
 async function loadInvolvedPeople(internalIds, reader = pool) {
@@ -824,6 +815,7 @@ async function createIncident(body, user) {
       },
       conn,
     );
+    await syncLinkedLocationCoords(internalId, body.lat, body.lng, conn);
     await conn.commit();
     return visibleId;
   } catch (e) {
@@ -1027,6 +1019,7 @@ async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
     userCtx,
     cats.agency,
   );
+  await syncLinkedLocationCoords(internalId, body.lat, body.lng, conn);
 }
 
 async function updateIncident(visibleId, body, user) {

@@ -109,6 +109,12 @@ export function hasMedidasPanelPendingChanges(
 
 export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
 
+export const MEDIDAS_PENDING_SECTION_LABELS: Record<MedidasPendingSection, string> = {
+  oseg: 'Gestión OSEG (trámite / destino)',
+  cerrem: 'Decisión CERREM',
+  medidas: 'Medidas de protección',
+};
+
 type MedidaEntry = MedidasDraftSnapshot['medidas'][number];
 
 function describeSingleMedidaDelta(
@@ -143,7 +149,6 @@ function describeEsquemaDelta(
   return null;
 }
 
-/** Texto de lo que cambió en este guardado (solo delta, no el listado completo). */
 export function describeMedidasSaveDelta(
   before: MedidasDraftSnapshot | null,
   after: MedidasDraftSnapshot,
@@ -194,4 +199,12 @@ export function pendingMedidasSections(
     sections.push('medidas');
   }
   return sections;
+}
+
+export function labelsForPendingMedidasSections(
+  current: MedidasDraftSnapshot,
+  baseline: MedidasDraftSnapshot | null,
+  ctx: MedidasPendingContext,
+): string[] {
+  return pendingMedidasSections(current, baseline, ctx).map((s) => MEDIDAS_PENDING_SECTION_LABELS[s]);
 }

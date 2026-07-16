@@ -3,11 +3,11 @@
   @if (isAuthenticated() && mustChangePassword()) {
     <app-change-password />
   } @else if (isAuthenticated()) {
-    <div class="ims-layout relative flex h-screen min-h-0 overflow-hidden font-sans bg-gray-900 text-gray-200">
+    <div class="ims-layout flex h-screen min-h-0 font-sans bg-gray-900 text-gray-200">
       @if (isSidebarOpen()) {
         <button
           type="button"
-          class="fixed inset-0 z-20 border-0 bg-black/55 p-0 md:hidden"
+          class="fixed inset-0 z-20 bg-black/55 md:hidden"
           aria-label="Cerrar menú"
           (click)="toggleSidebar()"
         ></button>
@@ -15,17 +15,15 @@
       <!-- Sidebar -->
       <aside
         [class]="
-          'ims-sidebar fixed inset-y-0 left-0 z-30 flex h-full min-h-0 w-[min(18rem,88vw)] max-w-[88vw] flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out ' +
-          'pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] ' +
-          'md:static md:my-2 md:h-full md:min-h-0 md:w-56 md:max-w-none md:shrink-0 md:rounded-2xl md:translate-x-0 ' +
-          (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full')
+          'ims-sidebar-mobile absolute md:relative inset-y-0 left-0 z-30 flex min-h-0 w-64 flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out md:w-56 ' +
+          (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full md:translate-x-0')
         "
-        class="border-r border-gray-700 md:border-r"
+        class="shrink-0 border-r border-gray-700 md:my-2 md:rounded-2xl"
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-3 md:p-4">
-          <div class="flex min-w-0 items-center gap-2 md:gap-3">
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-4">
+          <div class="flex min-w-0 items-center gap-3">
             <svg
-              class="h-9 w-9 shrink-0 text-indigo-400 md:h-12 md:w-12"
+              class="h-12 w-12 shrink-0 text-indigo-400"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -38,7 +36,7 @@
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
               />
             </svg>
-            <span class="text-xl font-bold tracking-wide text-white md:text-3xl">IMS</span>
+            <span class="text-3xl font-bold tracking-wide text-white">IMS</span>
           </div>
           <button type="button" (click)="toggleSidebar()" class="shrink-0 text-gray-400 hover:text-white md:hidden">
             <svg
@@ -58,8 +56,7 @@
           </button>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col max-md:overflow-y-auto max-md:overscroll-contain md:min-w-0 md:overflow-hidden">
-        <nav class="mt-2 shrink-0 px-3 md:mt-4 md:min-h-0 md:flex-1 md:overflow-hidden">
+        <nav class="mt-4 min-h-0 flex-1 overflow-y-auto px-3">
           @if (permissionService.canModuleAction('Dashboard', 'view')) {
           <button
             type="button"
@@ -69,7 +66,7 @@
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex w-full items-center mt-1.5 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200 text-sm md:mt-2"
+            class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -97,7 +94,7 @@
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex w-full items-center mt-1.5 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200 text-sm md:mt-2"
+            class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -125,7 +122,7 @@
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex w-full items-center mt-1.5 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200 text-sm md:mt-2"
+            class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -153,7 +150,7 @@
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             "
-            class="flex w-full items-center mt-1.5 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200 text-sm md:mt-2"
+            class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
             <svg
               class="h-5 w-5 mr-3"
@@ -180,21 +177,21 @@
           }
         </nav>
 
-        <!-- Quick Location Card (abajo del menú en escritorio; scroll en móvil) -->
-        <div class="mt-2 min-w-0 shrink-0 overflow-hidden border-t border-b border-gray-700 p-3 md:mt-0 md:p-4">
+        <!-- Quick Location Card -->
+        <div class="mt-4 shrink-0 border-t border-b border-gray-700 p-4">
           @if (permissionService.canModuleAction('Incidentes', 'view')) {
-          <div class="mb-3 min-w-0 border-b border-gray-700 pb-3">
-            <h4 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div class="mb-3 pb-3 border-b border-gray-700">
+            <h4 class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
               Ubicación Rápida
             </h4>
             <div
-              class="min-w-0 space-y-3"
+              class="space-y-3"
               [class.opacity-60]="!permissionService.canModuleAction('Incidentes', 'create')"
             >
-              <p class="text-xs leading-snug text-gray-400">
+              <p class="text-xs text-gray-400">
                 Envía un enlace a un número de teléfono para solicitar su ubicación.
               </p>
-              <div class="min-w-0">
+              <div>
                 <label for="phone-number" class="sr-only">Número de Teléfono</label>
                 <input
                   id="phone-number"
@@ -203,20 +200,20 @@
                   (input)="onQuickLocationPhoneInput($event)"
                   [disabled]="!permissionService.canModuleAction('Incidentes', 'create')"
                   placeholder="Ej: 573001234567"
-                  class="w-full min-w-0 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  class="bg-gray-700 border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:cursor-not-allowed disabled:opacity-70"
                 />
               </div>
-              <div class="grid min-w-0 grid-cols-2 gap-1.5">
+              <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   (click)="sendLocationRequest()"
                   [disabled]="!phoneNumber() || !permissionService.canModuleAction('Incidentes', 'create')"
                   [title]="permissionService.canModuleAction('Incidentes', 'create') ? '' : 'Sin permiso para crear incidentes'"
-                  class="flex w-full min-w-0 items-center justify-center gap-1 rounded bg-green-600 px-1.5 py-2 text-xs font-bold text-white transition-colors duration-200 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-500"
+                  class="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 shrink-0"
+                    class="h-5 w-5"
                     viewBox="0 0 24 24"
                     fill="currentColor"
                   >
@@ -224,18 +221,18 @@
                       d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.269.655 4.505 1.905 6.331l-.213.362-1.245 4.525 4.66-1.225.353-.215z"
                     />
                   </svg>
-                  <span class="truncate">WhatsApp</span>
+                  <span>WhatsApp</span>
                 </button>
                 <button
                   type="button"
                   (click)="sendLocationRequestViaSms()"
                   [disabled]="!phoneNumber() || !permissionService.canModuleAction('Incidentes', 'create')"
                   [title]="permissionService.canModuleAction('Incidentes', 'create') ? '' : 'Sin permiso para crear incidentes'"
-                  class="flex w-full min-w-0 items-center justify-center gap-1 rounded bg-blue-600 px-1.5 py-2 text-xs font-bold text-white transition-colors duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-500"
+                  class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded transition-colors duration-200 text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 shrink-0"
+                    class="h-5 w-5"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                   >
@@ -243,37 +240,37 @@
                       d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h13a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0016.5 2h-13zM1 3.5C1 2.67 1.67 2 2.5 2h15C18.33 2 19 2.67 19 3.5v9c0 .83-.67 1.5-1.5 1.5h-4.012l-2.7 2.7a.75.75 0 01-1.06 0l-2.7-2.7H2.5A1.5 1.5 0 011 12.5v-9z"
                     />
                   </svg>
-                  <span class="truncate">SMS</span>
+                  <span>SMS</span>
                 </button>
               </div>
             </div>
           </div>
           }
 
-          <div class="min-w-0 space-y-3">
-            <div class="min-w-0 border-t border-gray-700 pt-3">
-              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div class="space-y-3">
+            <div class="pt-3 border-t border-gray-700">
+              <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Estado del Sistema
               </p>
               <div
-                class="min-w-0 overflow-hidden rounded-lg border border-red-500/20 bg-red-500/5 px-2.5 py-2"
+                class="ims-live-sync-card flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-2.5 py-2"
               >
-                <div class="flex min-w-0 flex-col gap-1.5">
-                  <span class="text-[11px] leading-snug text-gray-400">Sincronización en tiempo real</span>
-                  <span
-                    class="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5"
+                <span class="min-w-0 flex-1 text-[11px] leading-snug text-gray-400">
+                  Sincronización en tiempo real
+                </span>
+                <span
+                  class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5"
+                >
+                  <span class="pulse-red shrink-0"></span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-red-400"
+                    >En vivo</span
                   >
-                    <span class="pulse-red shrink-0"></span>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-red-400"
-                      >En vivo</span
-                    >
-                  </span>
-                </div>
+                </span>
               </div>
             </div>
 
             <div
-              class="mt-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border px-2.5 py-2"
+              class="mt-2 flex items-center gap-2 rounded-md border px-2.5 py-2"
               [class.border-sky-500/40]="authService.isDirectorySession()"
               [class.bg-sky-950/50]="authService.isDirectorySession()"
               [class.border-gray-600]="!authService.isDirectorySession()"
@@ -289,25 +286,23 @@
                   Sesión
                 </p>
                 <p
-                  class="text-xs font-medium truncate"
+                  class="truncate text-xs font-medium"
                   [class.text-sky-300]="authService.isDirectorySession()"
                   [class.text-amber-200]="!authService.isDirectorySession()"
                 >
                   {{ authService.authSourceLabel() }}
                   @if (authService.sessionAgencyLabel()) {
-                    <span class="text-gray-500 font-normal"> · </span>
-                    <span>{{ authService.sessionAgencyLabel() }}</span>
+                    <span class="font-normal text-gray-500"> · {{ authService.sessionAgencyLabel() }}</span>
                   }
                 </p>
               </div>
             </div>
           </div>
         </div>
-        </div>
 
         @if (currentUser(); as user) {
-          <div class="mt-auto hidden shrink-0 md:block">
-            <div class="relative border-t border-gray-700 p-2 pb-3 md:pb-4" #profileContainer>
+          <div class="mt-auto flex-shrink-0">
+            <div class="relative p-2 pb-3 md:pb-4 border-t border-gray-700" #profileContainer>
               <!-- Profile Pop-up -->
               @if (isProfileOpen()) {
                 <div
@@ -374,7 +369,7 @@
                 class="flex w-full min-w-0 items-center rounded-md p-2 transition-colors hover:bg-gray-700/50"
               >
                 <div
-                  class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-600"
                 >
                   @if (profilePhotoService.photoUrl(); as photo) {
                     <img [src]="photo" alt="" class="h-full w-full object-cover" />
@@ -384,7 +379,7 @@
                     </span>
                   }
                 </div>
-                <div class="ml-3 min-w-0 text-left">
+                <div class="ml-3 min-w-0 flex-1 text-left">
                   <p class="truncate text-sm font-semibold text-white">{{ user.name }}</p>
                   <p class="truncate text-xs text-gray-400">{{ user.role }}</p>
                 </div>
@@ -397,12 +392,11 @@
       <!-- Main content -->
       <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <!-- Header -->
-        <header class="ims-header mx-2 flex shrink-0 items-center justify-between border-b border-gray-700 bg-gray-800 px-3 py-2 md:mx-4 md:mt-2 md:rounded-2xl md:border md:px-4 md:py-2.5">
-          <div class="flex min-w-0 items-center gap-2 md:gap-3">
+        <header class="ims-header mx-4 flex shrink-0 items-center justify-between border-b border-gray-700 bg-gray-800 px-4 py-2.5 md:mt-2 md:rounded-2xl md:border md:border-gray-700">
+          <div class="flex items-center gap-3">
             <button
-              type="button"
               (click)="toggleSidebar()"
-              class="shrink-0 text-gray-400 focus:outline-none focus:text-gray-200 md:hidden"
+              class="text-gray-400 focus:outline-none focus:text-gray-200 md:hidden"
             >
               <svg
                 class="h-6 w-6"
@@ -420,46 +414,13 @@
               </svg>
             </button>
             @if (activeViewLabel()) {
-              <div class="min-w-0 leading-tight">
-                <h1 class="truncate text-base font-semibold text-white md:text-lg">{{ activeViewLabel() }}</h1>
-                <p class="truncate text-[11px] text-gray-400 capitalize md:text-xs">{{ todayLabel() }}</p>
+              <div class="leading-tight">
+                <h1 class="text-lg font-semibold text-white">{{ activeViewLabel() }}</h1>
+                <p class="text-xs capitalize text-gray-400">{{ todayLabel() }}</p>
               </div>
             }
           </div>
-          <div class="flex shrink-0 items-center gap-1 md:gap-2">
-            @if (currentUser(); as user) {
-              <div class="relative md:hidden" #mobileProfileContainer>
-                <button
-                  type="button"
-                  (click)="toggleProfile()"
-                  class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gray-600"
-                  aria-label="Menú de perfil"
-                >
-                  @if (profilePhotoService.photoUrl(); as photo) {
-                    <img [src]="photo" alt="" class="h-full w-full object-cover" />
-                  } @else {
-                    <span class="text-xs font-semibold text-indigo-200">
-                      {{ profilePhotoService.initials(user.name) }}
-                    </span>
-                  }
-                </button>
-                @if (isProfileOpen()) {
-                  <div class="absolute right-0 top-full z-30 mt-2 w-56 rounded-lg border border-gray-600 bg-gray-700 shadow-lg">
-                    <div class="border-b border-gray-600 p-3">
-                      <p class="truncate font-semibold text-white">{{ user.name }}</p>
-                      <p class="truncate text-xs text-gray-400">{{ user.email }}</p>
-                    </div>
-                    <div class="p-2">
-                      <button type="button" (click)="openProfileModal()" class="block w-full rounded-md px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-600">Mi Perfil</button>
-                      <button type="button" (click)="toggleTheme()" class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-600">
-                        <span>{{ isDarkTheme() ? 'Modo Claro' : 'Modo Oscuro' }}</span>
-                      </button>
-                      <button type="button" (click)="logout()" class="block w-full rounded-md px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-600">Cerrar Sesión</button>
-                    </div>
-                  </div>
-                }
-              </div>
-            }
+          <div class="flex h-full items-center mr-2 mt-0.5">
             <div class="relative flex items-center" #notificationContainer>
               <button
                 type="button"
@@ -493,7 +454,7 @@
 
               @if (isNotificationsOpen()) {
                 <div
-                  class="absolute top-0 right-10 z-30 w-[min(20rem,calc(100vw-3rem))] rounded-lg border border-gray-600 bg-gray-700 shadow-2xl animate-fadeInUp"
+                  class="ims-notifications-panel absolute right-0 top-full z-20 mt-2 animate-fadeInUp rounded-lg border border-gray-600 bg-gray-700 shadow-2xl"
                 >
                   <div class="p-3 border-b border-gray-600">
                     <h3 class="font-semibold text-white">Notificaciones</h3>
@@ -527,20 +488,17 @@
         </header>
 
         <main
-          class="ims-main min-h-0 flex-1 overflow-x-hidden bg-gray-900"
-          [ngClass]="{
-            'max-md:overflow-y-auto': activeView() !== 'reports',
-            'overflow-y-auto': activeView() === 'reports',
-            'md:overflow-hidden': activeView() !== 'reports',
-            flex: activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents',
-            'flex-col': activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'
-          }"
+          class="ims-main flex-1 min-h-0 overflow-x-hidden bg-gray-900"
+          [class.overflow-y-auto]="activeView() === 'reports'"
+          [class.flex]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
+          [class.flex-col]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
+          [class.overflow-hidden]="activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'"
         >
           <div
             [class]="
               activeView() === 'admin' || activeView() === 'dashboard' || activeView() === 'incidents'
-                ? 'flex min-h-0 flex-1 flex-col p-2 max-md:flex-none md:p-4 md:py-2 lg:py-2'
-                : 'p-2 md:p-6 lg:p-8'
+                ? 'flex min-h-0 flex-1 flex-col p-4 md:py-2 lg:py-2'
+                : 'p-4 md:p-6 lg:p-8'
             "
           >
             @if (activeView() === 'dashboard') {
