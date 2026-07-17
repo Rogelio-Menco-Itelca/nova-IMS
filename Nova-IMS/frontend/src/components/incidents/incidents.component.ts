@@ -16,52 +16,27 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormGroup } from '@angular/forms';
 import {
   Incident,
   IncidentStatus,
   IncidentPriority,
   isVisibleInActiveViews,
   isHiddenByDefaultInIncidentList,
-  DASHBOARD_ACTIVE_STATUSES,
   catalogStatusToUiStatus,
   incidentMatchesCatalogStatus,
   incidentIdSortKey,
   type CatalogOption,
-  PersonRole,
-  VehicleRole,
-  InvolvedVehicle,
-  Person,
-  DocumentType,
-  DOCUMENT_TYPE_OPTIONS,
-  PersonGender,
 } from '../../models/incident.model';
-import { Subscription, of } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
-import { ConfigurationService } from '../../services/configuration.service';
 import { IncidentService } from '../../services/incident.service';
-import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
 import { PermissionService } from '../../services/permission.service';
 import { AuditClientService } from '../../services/audit-client.service';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
-import {
-  createMapPin,
-  createPlaceAutocomplete,
-  isGoogleMapsLoaded,
-  MapPin,
-  PlaceAutocompleteControl,
-} from '../../utils/google-maps-legacy';
+import { createMapPin, isGoogleMapsLoaded, MapPin } from '../../utils/google-maps-legacy';
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
+import { hasValidIncidentCoords } from '../../utils/incident-location-coords';
 import {
-  buildGeocodeQuery,
-  geocodeAddressQuery,
-  hasValidIncidentCoords,
-  IncidentLocationCoordSync,
-} from '../../utils/incident-location-coords';
-import {
-  clampLatLngToColombia,
   clampMapZoomAfterCountryFit,
   colombiaMapViewportOptions,
   fitMapToColombia,
@@ -70,75 +45,24 @@ import {
   googleMapsCountryRestriction,
 } from '../../utils/ims-geo.constants';
 
-function isDocumentType(value: string): value is DocumentType {
-  return (DOCUMENT_TYPE_OPTIONS as readonly string[]).includes(value);
-}
-
-function coerceIncidentPriority(value: string | null | undefined): IncidentPriority {
-  if (value === 'Baja' || value === 'Media' || value === 'Alta' || value === 'Crítica') {
-    return value;
-  }
-  return 'Media';
-}
-
-function isInvolvedVehicle(value: unknown): value is InvolvedVehicle {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as InvolvedVehicle;
-  return typeof v.plate === 'string' && typeof v.role === 'string';
-}
-
-function coerceInvolvedVehicles(value: unknown): InvolvedVehicle[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isInvolvedVehicle);
-}
-
 @Component({
   selector: 'app-incidents',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, IncidentEmailModalComponent],
+  imports: [CommonModule, IncidentEmailModalComponent],
   templateUrl: './incidents.component.html',
   styleUrl: './incidents.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
-  private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
-
-  private inferDocumentType(documentId: string): DocumentType | '' {
-    const id = String(documentId || '').trim();
-    if (!id) return '';
-    if (/[A-Za-z]/.test(id)) return 'Pasaporte';
-    const digits = id.replaceAll(/\D/g, '');
-    if (digits.length >= 6 && digits.length <= 11) return 'Cédula de Ciudadanía';
-    return '';
-  }
-
-  private resolveDocumentTypeFromPerson(person: Person): DocumentType | '' {
-    const raw = String(person.documentType || '').trim();
-    if (raw && isDocumentType(raw)) {
-      return raw;
-    }
-    return this.inferDocumentType(person.documentId);
-  }
-
-  private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
-  private readonly configService = inject(ConfigurationService);
   readonly incidentService = inject(IncidentService);
   private readonly authService = inject(AuthService);
-  readonly permissionService = inject(PermissionService);
+  private readonly permissionService = inject(PermissionService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly auditClient = inject(AuditClientService);
   private readonly http = inject(HttpClient);
-
-  // Tab Management
-  openIncidentTabs = signal<Incident[]>([]);
-  showNewIncidentTab = signal(false);
-  activeTabId = signal<string | null>(null);
-  selectedIncidentTypeName = signal<string | null>(null);
-  isProtocolVisible = signal(true);
-  newIncidentFormState = signal<Partial<Incident> | null>(null);
-  readonly MAX_TABS = 5;
+  private readonly host = inject(ElementRef<HTMLElement>);
 
   emailModalIncident = signal<Incident | null>(null);
 
@@ -150,14 +74,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.permissionService.canViewIncident();
   }
 
-  canCreate(): boolean {
-    return this.permissionService.canModuleAction('Incidentes', 'create');
-  }
-
-  // Google Maps
-  private map: google.maps.Map | null = null;
-  private marker: MapPin | null = null;
-
   private dashboardMap: google.maps.Map | null = null;
   private readonly dashboardMarkers = new Map<
     string,
@@ -168,26 +84,14 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   >();
   private dashboardInfoWindow: google.maps.InfoWindow | null = null;
   private dashboardMapClickListener: google.maps.MapsEventListener | null = null;
-
   private geocoder: google.maps.Geocoder | null = null;
-  private autocomplete: PlaceAutocompleteControl | null = null;
   private dashboardMapResizeObserver: ResizeObserver | null = null;
+  private dashboardListResizeObserver: ResizeObserver | null = null;
+  private onDestroyDashboardListResize: (() => void) | null = null;
 
   @ViewChild('dashboardMapHost') dashboardMapHost?: ElementRef<HTMLElement>;
 
-  private typeSub: Subscription | undefined;
-  private phoneSub: Subscription | undefined;
-  private locationTextSub: Subscription | undefined;
-  private locationResolveSub: Subscription | undefined;
-  private readonly locationCoordSync = new IncidentLocationCoordSync();
-  /** Evita pisar la prioridad que el operador eligió manualmente. */
-  private lastIncidentTypeName: string | null = null;
-  private lastTypeDefaultPriority: IncidentPriority | null = null;
-  private priorityManuallyOverridden = false;
-  private readonly personLookupNotified = new Set<string>();
-
   incidents = this.incidentService.incidents;
-  auditLogs = this.configService.auditLogs;
   filterText = signal('');
   filterStatus = signal('');
   incidentStatuses = signal<CatalogOption[]>([]);
@@ -198,13 +102,11 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       return ui !== 'Cerrado' && ui !== 'Cancelado' && ui !== 'Resuelto';
     }),
   );
-  readonly dashboardPageSize = 10;
+  private static readonly DASHBOARD_PAGE_MIN = 3;
+  private static readonly DASHBOARD_PAGE_MAX = 30;
+  /** Filas/cards visibles según alto del panel; el resto va a la siguiente página. */
+  dashboardPageSize = signal(10);
   dashboardCurrentPage = signal(1);
-  priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
-  statuses: IncidentStatus[] = [...DASHBOARD_ACTIVE_STATUSES];
-  incidentTypes = this.configService.incidentTypes;
-  personRoles: PersonRole[] = ['Víctima', 'Victimario', 'Testigo'];
-  vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
   selectedDashboardIncidentId = signal<string | null>(null);
   /** Dirección exacta por geocodificación inversa (id → formatted_address) */
   resolvedAddresses = signal<Record<string, string>>({});
@@ -212,50 +114,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   resolvedCoords = signal<Record<string, { lat: number; lng: number }>>({});
   private readonly resolvingAddressIds = new Set<string>();
   private readonly resolvingCoordIds = new Set<string>();
-  personService = inject(PersonService);
-
-  incidentForm = this.fb.group({
-    event_id: ['', Validators.required],
-    priority_id: ['', Validators.required],
-    status: ['Nuevo' as IncidentStatus, Validators.required],
-    origin: ['', Validators.required],
-    phone: ['', [Validators.required, Validators.pattern('^[0-9+ ]*$')]],
-    location: ['', Validators.required],
-    lat: [null as number | null, Validators.required],
-    lng: [null as number | null, Validators.required],
-    details: ['', Validators.required],
-    comments: [''],
-    type: [''],
-    priority: ['Media' satisfies IncidentPriority],
-    locationPhoneNumber: [{ value: '', disabled: true }],
-    involvedPeople: this.fb.array([]),
-    involvedVehicles: this.fb.array([]),
-  });
 
   constructor() {
-    effect(() => {
-      const tabId = this.activeTabId();
-
-      this.releaseMap();
-
-      if (tabId === 'new') {
-        const savedState = this.newIncidentFormState();
-        if (savedState) {
-          this.populateFormWithState(savedState);
-        } else {
-          this.resetFormForNewIncident();
-        }
-
-        this.scheduleNewIncidentMapInit(savedState);
-      } else if (tabId) {
-        const incident = this.openIncidentTabs().find((inc) => inc.id === tabId);
-        if (incident) {
-          this.populateFormWithState(incident, { trustCoords: true });
-          setTimeout(() => this.initMap(incident.lat, incident.lng), 350);
-        }
-      }
-    });
-
     effect(() => {
       const list = this.incidents();
       const selectedId = this.selectedDashboardIncidentId();
@@ -274,6 +134,16 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.triggerDashboardMapResize();
       });
     });
+
+    effect(() => {
+      this.filteredIncidents().length;
+      this.dashboardPageSize();
+      const pages = this.dashboardTotalPages();
+      if (this.dashboardCurrentPage() > pages) {
+        this.dashboardCurrentPage.set(pages);
+      }
+      queueMicrotask(() => this.connectDashboardListObserver());
+    });
   }
 
   private triggerDashboardMapResize(): void {
@@ -289,44 +159,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.triggerDashboardMapResize();
     });
     this.dashboardMapResizeObserver.observe(el);
-  }
-
-  private scheduleNewIncidentMapInit(savedState: Partial<Incident> | null): void {
-    setTimeout(() => {
-      const lat =
-        this.incidentForm.get('lat')?.value ?? IMS_DEFAULT_MAP_CENTER.lat;
-      const lng =
-        this.incidentForm.get('lng')?.value ?? IMS_DEFAULT_MAP_CENTER.lng;
-      this.initMap(lat, lng)
-        .then(() => {
-          const savedLat = savedState?.lat;
-          const savedLng = savedState?.lng;
-          if (savedLat != null && savedLng != null) {
-            setTimeout(() => this.reverseGeocode(savedLat, savedLng), 300);
-          }
-        })
-        .catch(() => void 0);
-    }, 350);
-  }
-
-  private releaseMap() {
-    if (this.marker) {
-      google.maps.event.clearInstanceListeners(this.marker);
-      this.marker.setMap(null);
-    }
-    if (this.map) {
-      google.maps.event.clearInstanceListeners(this.map);
-    }
-    this.map = null;
-    this.marker = null;
-    this.geocoder = null;
-    this.autocomplete = null;
-  }
-
-  private destroyMap() {
-    this.releaseMap();
-    const mapEl = document.getElementById('map');
-    if (mapEl) mapEl.replaceChildren();
   }
 
   private async waitForGoogleMaps(): Promise<boolean> {
@@ -354,76 +186,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         }
       }, 200);
     });
-  }
-
-  private async initMap(
-    lat: number = IMS_DEFAULT_MAP_CENTER.lat,
-    lng: number = IMS_DEFAULT_MAP_CENTER.lng,
-  ): Promise<void> {
-    const mapsOk = await this.waitForGoogleMaps();
-    if (!mapsOk) return;
-
-    const mapEl = document.getElementById('map');
-    if (!mapEl) {
-      return;
-    }
-
-    this.releaseMap();
-
-    this.geocoder = new google.maps.Geocoder();
-
-    this.map = new google.maps.Map(mapEl, {
-      center: { lat, lng },
-      zoom: hasValidIncidentCoords(lat, lng) ? 17 : IMS_MAP_ZOOM.countryMin,
-      disableDefaultUI: false,
-      mapTypeControl: false,
-      streetViewControl: false,
-      ...colombiaMapViewportOptions(),
-    });
-
-    if (!hasValidIncidentCoords(lat, lng)) {
-      fitMapToColombia(this.map);
-      google.maps.event.addListenerOnce(this.map, 'idle', () => {
-        clampMapZoomAfterCountryFit(this.map!);
-      });
-    }
-
-    const markerLat = hasValidIncidentCoords(lat, lng) ? lat : IMS_DEFAULT_MAP_CENTER.lat;
-    const markerLng = hasValidIncidentCoords(lat, lng) ? lng : IMS_DEFAULT_MAP_CENTER.lng;
-
-    this.marker = createMapPin({
-      map: this.map,
-      position: { lat: markerLat, lng: markerLng },
-      draggable: true,
-      title: 'Ubicación del incidente',
-    });
-
-    const map = this.map;
-    const marker = this.marker;
-    if (!map || !marker) return;
-
-    map.addListener('click', (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const clamped = clampLatLngToColombia(e.latLng.lat(), e.latLng.lng());
-      marker.setPosition(clamped);
-      this.ngZone.run(() => {
-        this.updateFormCoords(clamped.lat, clamped.lng);
-        this.reverseGeocode(clamped.lat, clamped.lng);
-      });
-    });
-
-    marker.addListener('dragend', () => {
-      const pos = marker.getPosition();
-      if (!pos) return;
-      const clamped = clampLatLngToColombia(pos.lat(), pos.lng());
-      marker.setPosition(clamped);
-      this.ngZone.run(() => {
-        this.updateFormCoords(clamped.lat, clamped.lng);
-        this.reverseGeocode(clamped.lat, clamped.lng);
-      });
-    });
-
-    this.initAutocomplete();
   }
 
   private async initDashboardMap(): Promise<void> {
@@ -958,259 +720,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private initAutocomplete() {
-    const locationInput = document.getElementById('location');
-    if (!(locationInput instanceof HTMLInputElement)) return;
-
-    this.autocomplete = createPlaceAutocomplete(locationInput, {
-      componentRestrictions: googleMapsCountryRestriction(),
-      fields: ['geometry', 'formatted_address'],
-    });
-
-    this.autocomplete.addListener('place_changed', () => {
-      const place = this.autocomplete!.getPlace();
-      if (!place.geometry?.location) return;
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      this.ngZone.run(() => {
-        this.updateFormCoords(lat, lng);
-        this.incidentForm.patchValue({ location: place.formatted_address });
-        this.locationCoordSync.markSynced(this.getLocationSnapshot());
-        this.map?.setCenter({ lat, lng });
-        this.map?.setZoom(17);
-        this.marker?.setPosition({ lat, lng });
-      });
-    });
-  }
-
-  private updateFormCoords(lat: number, lng: number) {
-    const clamped = clampLatLngToColombia(lat, lng);
-    this.locationCoordSync.runPatch(() => {
-      this.incidentForm.patchValue({
-        lat: clamped.lat,
-        lng: clamped.lng,
-      });
-    });
-    this.locationCoordSync.markSynced(this.getLocationSnapshot());
-  }
-
-  private getLocationSnapshot() {
-    const raw = this.incidentForm.getRawValue();
-    return {
-      location: String(raw.location ?? ''),
-      departmentId: null,
-      municipalityId: null,
-    };
-  }
-
-  private async prepareIncidentCoordsForSave(): Promise<boolean> {
-    const lat = this.incidentForm.get('lat')?.value;
-    const lng = this.incidentForm.get('lng')?.value;
-    const snapshot = this.getLocationSnapshot();
-    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
-      return true;
-    }
-
-    const address = String(snapshot.location ?? '').trim();
-    if (!address) {
-      this.notificationService.addNotification(
-        'Ubicación incompleta',
-        'Indique la dirección de referencia antes de guardar.',
-      );
-      return false;
-    }
-
-    const mapsOk = await this.waitForGoogleMaps();
-    if (!mapsOk) {
-      this.notificationService.addNotification(
-        'Mapa no disponible',
-        'No se pudo validar la ubicación en el mapa. Intente de nuevo.',
-      );
-      return false;
-    }
-
-    this.geocoder ??= new google.maps.Geocoder();
-    const query = buildGeocodeQuery(snapshot);
-    const geocoded = await geocodeAddressQuery(this.geocoder, query);
-    if (!geocoded) {
-      this.notificationService.addNotification(
-        'Dirección no ubicada',
-        'No se pudo ubicar la dirección en el mapa. Use el buscador, Enter o el pin del mapa.',
-      );
-      return false;
-    }
-
-    this.locationCoordSync.runPatch(() => {
-      this.incidentForm.patchValue({
-        lat: geocoded.lat,
-        lng: geocoded.lng,
-        location: geocoded.formattedAddress ?? snapshot.location,
-      });
-    });
-    this.locationCoordSync.markSynced(this.getLocationSnapshot());
-    this.map?.setCenter({ lat: geocoded.lat, lng: geocoded.lng });
-    this.map?.setZoom(17);
-    this.marker?.setPosition({ lat: geocoded.lat, lng: geocoded.lng });
-    return true;
-  }
-
-  private async resolveLocationFromForm(): Promise<void> {
-    if (this.locationCoordSync.isPatching()) return;
-    const snapshot = this.getLocationSnapshot();
-    if (!String(snapshot.location ?? '').trim()) return;
-
-    const lat = this.incidentForm.get('lat')?.value;
-    const lng = this.incidentForm.get('lng')?.value;
-    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
-      return;
-    }
-
-    const mapsOk = await this.waitForGoogleMaps();
-    if (!mapsOk) return;
-
-    this.geocoder ??= new google.maps.Geocoder();
-    const geocoded = await geocodeAddressQuery(this.geocoder, buildGeocodeQuery(snapshot));
-    if (!geocoded) return;
-
-    this.locationCoordSync.runPatch(() => {
-      this.incidentForm.patchValue({
-        lat: geocoded.lat,
-        lng: geocoded.lng,
-        location: geocoded.formattedAddress ?? snapshot.location,
-      });
-    });
-    this.locationCoordSync.markSynced(this.getLocationSnapshot());
-    this.map?.setCenter({ lat: geocoded.lat, lng: geocoded.lng });
-    this.marker?.setPosition({ lat: geocoded.lat, lng: geocoded.lng });
-  }
-
-  private setupLocationTextGuard(): void {
-    this.locationTextSub?.unsubscribe();
-    const locationControl = this.incidentForm.get('location');
-    if (!locationControl) return;
-
-    this.locationTextSub = locationControl.valueChanges.subscribe(() => {
-      if (this.locationCoordSync.isPatching()) return;
-      const lat = this.incidentForm.get('lat')?.value;
-      const lng = this.incidentForm.get('lng')?.value;
-      const hasCoords = hasValidIncidentCoords(lat, lng);
-      if (!this.locationCoordSync.shouldInvalidate(this.getLocationSnapshot(), hasCoords)) {
-        return;
-      }
-      this.locationCoordSync.clearSync();
-      this.incidentForm.patchValue({ lat: null, lng: null }, { emitEvent: false });
-    });
-  }
-
-  private setupLocationGeoResolve(): void {
-    this.locationResolveSub?.unsubscribe();
-    const locationControl = this.incidentForm.get('location');
-    if (!locationControl) return;
-
-    this.locationResolveSub = locationControl.valueChanges
-      .pipe(debounceTime(800), distinctUntilChanged())
-      .subscribe(() => {
-        void this.resolveLocationFromForm();
-      });
-  }
-
-  private reverseGeocode(lat: number, lng: number) {
-    if (globalThis.google === undefined) return;
-    this.geocoder ??= new google.maps.Geocoder();
-    this.geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      this.ngZone.run(() => {
-        if (status === 'OK' && results?.[0]) {
-          this.incidentForm.patchValue({
-            location: results[0].formatted_address,
-          });
-          this.cdr.detectChanges();
-        }
-      });
-    });
-  }
-
-  activeIncident = computed(() => {
-    const tabId = this.activeTabId();
-    if (!tabId || tabId === 'new') return null;
-    return this.openIncidentTabs().find((inc) => inc.id === tabId) ?? null;
-  });
-
-  incidentAuditLogs = computed(() => {
-    const incident = this.activeIncident();
-    if (!incident) return [];
-    return this.auditLogs().filter((log) => log.incidentId === incident.id);
-  });
-
-  get involvedPeople(): FormArray {
-    return this.incidentForm.get('involvedPeople') as FormArray;
-  }
-  get involvedVehicles(): FormArray {
-    return this.incidentForm.get('involvedVehicles') as FormArray;
-  }
-
-  createPersonGroup(): FormGroup {
-    return this.fb.group({
-      name: ['', Validators.required],
-      role: ['Testigo' as PersonRole, Validators.required],
-      contact: [''],
-      details: [''],
-      phone: [''],
-      documentType: ['' as DocumentType | '', Validators.required],
-      documentId: [''],
-      gender: ['' as PersonGender | '', Validators.required],
-    });
-  }
-  addPerson(): void {
-    if (this.involvedPeople.length < 4) this.involvedPeople.push(this.createPersonGroup());
-  }
-  removePerson(index: number): void {
-    this.involvedPeople.removeAt(index);
-  }
-
-  createVehicleGroup(): FormGroup {
-    return this.fb.group({
-      plate: ['', [Validators.required, Validators.pattern(this.platePattern)]],
-      role: ['Vehículo Involucrado' as VehicleRole, Validators.required],
-      make: [''],
-      model: [''],
-      color: [''],
-      details: [''],
-    });
-  }
-  addVehicle(): void {
-    if (this.involvedVehicles.length < 4) this.involvedVehicles.push(this.createVehicleGroup());
-  }
-  removeVehicle(index: number): void {
-    this.involvedVehicles.removeAt(index);
-  }
-
-  normalizeVehiclePlate(index: number): void {
-    const control = this.involvedVehicles.at(index)?.get('plate');
-    if (!control) return;
-    const cleaned = String(control.value || '')
-      .toUpperCase()
-      .replaceAll(/\s+/g, '')
-      .replaceAll(/[^A-Z0-9-]/g, '');
-    control.setValue(cleaned, { emitEvent: false });
-    control.markAsTouched();
-  }
-
-  selectedIncidentType = computed(() => {
-    const typeName = this.selectedIncidentTypeName();
-    if (!typeName) return null;
-    return this.incidentTypes().find((t) => t.name === typeName) || null;
-  });
-
-  recommendedProtocol = computed(() => {
-    const incidentType = this.selectedIncidentType();
-    if (!incidentType) return null;
-    return (
-      this.configService
-        .responseProtocols()
-        .find((p) => p.incidentTypeName === incidentType.name) || null
-    );
-  });
-
   filteredIncidents = computed(() => {
     const text = this.filterText().toLowerCase();
     const statusFilter = this.filterStatus();
@@ -1230,14 +739,17 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   dashboardTotalPages = computed(() => {
     const total = this.filteredIncidents().length;
-    return Math.max(1, Math.ceil(total / this.dashboardPageSize));
+    const size = this.dashboardPageSize();
+    return total > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
   });
 
   paginatedDashboardIncidents = computed(() => {
     const all = this.filteredIncidents();
+    if (!all.length) return all;
+    const size = this.dashboardPageSize();
     const page = Math.min(this.dashboardCurrentPage(), this.dashboardTotalPages());
-    const start = (page - 1) * this.dashboardPageSize;
-    return all.slice(start, start + this.dashboardPageSize);
+    const start = (page - 1) * size;
+    return all.slice(start, start + size);
   });
 
   activeIncidentsCount = computed(() => this.dashboardActiveIncidents().length);
@@ -1288,332 +800,116 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit() {
     if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
     this.loadDashboardStatusCatalog();
-
-    this.typeSub = this.incidentForm.get('event_id')?.valueChanges.subscribe((typeName) => {
-      this.selectedIncidentTypeName.set(typeName || null);
-      const selectedType = this.incidentTypes().find((t) => t.name === typeName);
-      if (!selectedType) return;
-
-      const currentPriority = String(this.incidentForm.get('priority_id')?.value ?? '').trim();
-      const typeChanged = typeName !== this.lastIncidentTypeName;
-      const priorityEmpty = !currentPriority;
-      const priorityMatchesPreviousDefault =
-        !!this.lastTypeDefaultPriority && currentPriority === this.lastTypeDefaultPriority;
-      const applyDefaultPriority =
-        typeChanged &&
-        !this.priorityManuallyOverridden &&
-        (priorityEmpty || priorityMatchesPreviousDefault);
-
-      const patch: { type: string; priority_id?: IncidentPriority; priority?: IncidentPriority } = {
-        type: selectedType.name,
-      };
-      if (applyDefaultPriority) {
-        patch.priority_id = selectedType.defaultPriority;
-        patch.priority = selectedType.defaultPriority;
-      }
-
-      this.lastIncidentTypeName = typeName;
-      this.lastTypeDefaultPriority = selectedType.defaultPriority;
-
-      this.incidentForm.patchValue(patch, { emitEvent: false });
-    });
-
-    this.incidentForm.get('priority_id')?.valueChanges.subscribe((priority) => {
-      const value = String(priority ?? '').trim();
-      if (!value) return;
-      this.priorityManuallyOverridden = true;
-      this.incidentForm.patchValue({ priority: value as IncidentPriority }, { emitEvent: false });
-    });
-
-    this.setupPhoneLookup();
-    this.setupLocationTextGuard();
-    this.setupLocationGeoResolve();
     setTimeout(() => this.initDashboardMap(), 300);
   }
 
   ngAfterViewInit(): void {
     this.attachDashboardMapResizeObserver();
+    const recalc = () => this.recalcDashboardPageSize();
+    this.dashboardListResizeObserver = new ResizeObserver(() => recalc());
+    window.addEventListener('resize', recalc);
+    this.onDestroyDashboardListResize = () => window.removeEventListener('resize', recalc);
+    this.connectDashboardListObserver();
   }
 
-  private normalizePhone(phone: string): string {
-    return phone.replaceAll(/\D/g, '');
-  }
-
-  private setupPhoneLookup(): void {
-    this.phoneSub?.unsubscribe();
-    const phoneControl = this.incidentForm.get('phone');
-    if (!phoneControl) return;
-
-    this.phoneSub = phoneControl.valueChanges
-      .pipe(
-        debounceTime(400),
-        distinctUntilChanged(),
-        filter((phone): phone is string => !!phone && this.normalizePhone(phone).length >= 7),
-        switchMap((phone) =>
-          this.personService.lookupByPhone(phone).pipe(catchError(() => of(null))),
-        ),
-      )
-      .subscribe((person) => this.applyPersonLookupResult(person));
-  }
-
-  private applyPersonLookupResult(person: Person | null): void {
-    if (!person) return;
-
-    const phone = String(this.incidentForm.get('phone')?.value ?? '');
-    const notifyKey = `${this.normalizePhone(phone)}:${person.id}`;
-    if (!this.personLookupNotified.has(notifyKey)) {
-      this.personLookupNotified.add(notifyKey);
-      this.notificationService.addNotification(
-        'Persona Identificada',
-        `${person.name} reconocido por el sistema.`,
-      );
-    }
-
-    if (!this.involvedPeople.length) {
-      this.addRegisteredPersonToInvolved(person);
-    }
-  }
-
-  addRegisteredPersonToInvolved(person: Person) {
-    const documentType = this.resolveDocumentTypeFromPerson(person);
-    const group = this.createPersonGroup();
-    group.patchValue({
-      name: person.name,
-      role: 'Víctima',
-      contact: person.phone,
-      phone: person.phone,
-      documentType,
-      documentId: person.documentId,
-    });
-    this.involvedPeople.push(group);
-  }
-
-  toggleRegistrationForm() {
-    if (this.showNewIncidentTab()) {
-      this.closeNewIncidentTab();
-    } else {
-      this.showNewIncidentTab.set(true);
-      this.setActiveTab('new');
-    }
-  }
-
-  openIncidentTab(incident: Incident) {
-    this.selectDashboardIncident(incident);
-
-    const alreadyOpen = this.openIncidentTabs().some((tab) => tab.id === incident.id);
-
-    if (alreadyOpen) {
-      this.setActiveTab(incident.id);
-      return;
-    }
-
-    if (this.openIncidentTabs().length >= this.MAX_TABS) {
-      this.notificationService.addNotification(
-        'Límite Alcanzado',
-        'Cierre una pestaña para abrir una nueva.',
-      );
-      return;
-    }
-
-    this.openIncidentTabs.update((tabs) => [...tabs, incident]);
-
-    this.setActiveTab(incident.id);
-
-    this.notificationService.addNotification(
-      'Pestaña Abierta',
-      `Se abrió el incidente #${incident.id}.`,
-      incident.id,
-    );
-  }
-
-  setActiveTab(tabId: string) {
-    if (this.activeTabId() === tabId) {
-      this.activeTabId.set(null);
-      setTimeout(() => this.activeTabId.set(tabId), 50);
-      return;
-    }
-    if (this.activeTabId() === 'new') {
-      this.newIncidentFormState.set(this.incidentForm.getRawValue() as Partial<Incident>);
-    }
-    this.activeTabId.set(tabId);
-  }
-
-  closeIncidentTab(idToClose: string, event: MouseEvent) {
-    event.stopPropagation();
-    const tabs = this.openIncidentTabs();
-    const index = tabs.findIndex((t) => t.id === idToClose);
-    if (this.activeTabId() === idToClose) {
-      const nextTabId =
-        tabs[index - 1]?.id ?? tabs[index + 1]?.id ?? (this.showNewIncidentTab() ? 'new' : null);
-      this.activeTabId.set(nextTabId);
-    }
-    this.openIncidentTabs.update((t) => t.filter((tab) => tab.id !== idToClose));
-  }
-
-  closeNewIncidentTab(event?: MouseEvent) {
-    event?.stopPropagation();
-    this.showNewIncidentTab.set(false);
-    this.newIncidentFormState.set(null);
-    if (this.activeTabId() === 'new')
-      this.activeTabId.set(this.openIncidentTabs().at(-1)?.id ?? null);
-  }
-
-  registerIncident() {
-    if (this.incidentForm.invalid) {
-      this.incidentForm.markAllAsTouched();
-      return;
-    }
-    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
-      if (!coordsOk) return;
-      const formValue = this.incidentForm.getRawValue();
-      const newIncident: Incident = {
-        id: '',
-        timestamp: new Date().toLocaleString('es-CO', {
-          dateStyle: 'short',
-          timeStyle: 'short',
-        }),
-        status: formValue.status ?? 'Nuevo',
-        event_id: formValue.event_id ?? '',
-        priority_id: formValue.priority_id ?? '',
-        origin: formValue.origin ?? '',
-        phone: formValue.phone ?? '',
-        location: formValue.location ?? '',
-        lat: formValue.lat ?? 0,
-        lng: formValue.lng ?? 0,
-        details: formValue.details ?? '',
-        comments: formValue.comments ?? '',
-        type: formValue.event_id ?? '',
-        priority: coerceIncidentPriority(formValue.priority_id ?? formValue.priority),
-        operator: this.authService.currentUser()?.name ?? 'Sistema',
-        ani: formValue.phone ?? 'N/A',
-        locationPhoneNumber: formValue.locationPhoneNumber ?? '',
-        involvedPeople: formValue.involvedPeople ?? [],
-        involvedVehicles: coerceInvolvedVehicles(formValue.involvedVehicles),
-      };
-      this.incidentService.addIncident(newIncident);
-
-      setTimeout(() => {
-        this.renderDashboardIncidents();
-      }, 200);
-      this.notificationService.addNotification(
-        'Incidente Registrado',
-        `Se creó el incidente #${newIncident.id}.`,
-        newIncident.id,
-      );
-      this.closeNewIncidentTab();
-      this.openIncidentTab(newIncident);
+  private connectDashboardListObserver(): void {
+    queueMicrotask(() => {
+      const panel = this.host.nativeElement.querySelector(
+        '.ims-dashboard-panel--list',
+      ) as HTMLElement | null;
+      if (panel && this.dashboardListResizeObserver) {
+        this.dashboardListResizeObserver.disconnect();
+        this.dashboardListResizeObserver.observe(panel);
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => this.recalcDashboardPageSize()));
     });
   }
 
-  updateIncident() {
-    if (this.incidentForm.invalid || !this.activeIncident()) return;
-    void this.prepareIncidentCoordsForSave().then((coordsOk) => {
-      if (!coordsOk) return;
-      const updatedData = this.incidentForm.getRawValue();
-      const incidentId = this.activeIncident()!.id;
-      const finalData: Incident = {
-        ...this.activeIncident()!,
-        status: updatedData.status ?? 'Nuevo',
-        event_id: updatedData.event_id ?? '',
-        priority_id: updatedData.priority_id ?? '',
-        origin: updatedData.origin ?? '',
-        phone: updatedData.phone ?? '',
-        location: updatedData.location ?? '',
-        lat: updatedData.lat ?? 0,
-        lng: updatedData.lng ?? 0,
-        details: updatedData.details ?? '',
-        comments: updatedData.comments ?? '',
-        type: updatedData.event_id ?? '',
-        priority: coerceIncidentPriority(updatedData.priority_id ?? updatedData.priority),
-        involvedPeople: updatedData.involvedPeople ?? [],
-        involvedVehicles: coerceInvolvedVehicles(updatedData.involvedVehicles),
-      };
-      this.incidentService.updateIncident(finalData, (saved) => {
-        this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
-        this.populateFormWithState(saved, { trustCoords: true });
-        if (hasValidIncidentCoords(saved.lat, saved.lng)) {
-          this.map?.setCenter({ lat: Number(saved.lat), lng: Number(saved.lng) });
-          this.marker?.setPosition({ lat: Number(saved.lat), lng: Number(saved.lng) });
+  private recalcDashboardPageSize(): void {
+    const size = this.measureDashboardPageSize();
+    if (size === null || size === this.dashboardPageSize()) return;
+
+    this.dashboardPageSize.set(size);
+    const pages = Math.max(1, Math.ceil(this.filteredIncidents().length / size));
+    if (this.dashboardCurrentPage() > pages) this.dashboardCurrentPage.set(pages);
+    this.cdr.markForCheck();
+
+    // Segunda pasada: si las filas reales son más altas (badge/operador), bajar el page size.
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        const refined = this.measureDashboardPageSize();
+        if (refined !== null && refined < this.dashboardPageSize()) {
+          this.dashboardPageSize.set(refined);
+          const refinedPages = Math.max(
+            1,
+            Math.ceil(this.filteredIncidents().length / refined),
+          );
+          if (this.dashboardCurrentPage() > refinedPages) {
+            this.dashboardCurrentPage.set(refinedPages);
+          }
+          this.cdr.markForCheck();
         }
-        this.configService.getAuditLogs().catch(() => void 0);
-        this.cdr.markForCheck();
       });
-      this.notificationService.addNotification(
-        'Incidente Actualizado',
-        `Se guardaron los cambios para #${incidentId}.`,
-        incidentId,
-      );
     });
   }
 
-  private resetFormForNewIncident() {
-    this.selectedIncidentTypeName.set(null);
-    this.lastIncidentTypeName = null;
-    this.lastTypeDefaultPriority = null;
-    this.locationCoordSync.clearSync();
-    this.incidentForm.reset({
-      event_id: '',
-      priority_id: 'Media',
-      status: 'Nuevo',
-      origin: '',
-      phone: '',
-      location: '',
-      lat: null,
-      lng: null,
-      locationPhoneNumber: '',
-      details: '',
-      comments: '',
-    });
-    this.involvedPeople.clear();
-    this.involvedVehicles.clear();
-    this.incidentForm.enable();
-  }
+  private measureDashboardPageSize(): number | null {
+    const panel = this.host.nativeElement.querySelector(
+      '.ims-dashboard-panel--list',
+    ) as HTMLElement | null;
+    if (!panel || panel.clientHeight <= 0) return null;
 
-  private populateFormWithState(
-    state: Partial<Incident>,
-    options?: { trustCoords?: boolean },
-  ) {
-    this.selectedIncidentTypeName.set(state.type || state.event_id || null);
-    this.incidentForm.reset(undefined, { emitEvent: false });
-    this.incidentForm.patchValue(state, { emitEvent: false });
-    const typeName = state.type || state.event_id || null;
-    this.lastIncidentTypeName = typeName;
-    const selectedType = this.incidentTypes().find((t) => t.name === typeName);
-    this.lastTypeDefaultPriority = selectedType?.defaultPriority ?? null;
-    this.involvedPeople.clear();
-    state.involvedPeople?.forEach((p) =>
-      this.involvedPeople.push(
-        this.fb.group({
-          name: [p.name ?? '', Validators.required],
-          role: [p.role ?? 'Testigo', Validators.required],
-          contact: [p.contact],
-          details: [p.details ?? p.comentarios],
-          phone: [p.phone],
-          documentType: [(p.documentType || '') as DocumentType | '', Validators.required],
-          documentId: [p.documentId],
-          gender: [(p.gender ?? '') as PersonGender | '', Validators.required],
-        }),
-      ),
-    );
-    this.involvedVehicles.clear();
-    state.involvedVehicles?.forEach((v) =>
-      this.involvedVehicles.push(
-        this.fb.group({
-          plate: [v.plate, [Validators.required, Validators.pattern(this.platePattern)]],
-          role: [v.role, Validators.required],
-          make: [v.make],
-          model: [v.model],
-          color: [v.color],
-          details: [v.details],
-        }),
-      ),
-    );
-    this.incidentForm.enable();
-    if (options?.trustCoords && hasValidIncidentCoords(state.lat, state.lng)) {
-      this.locationCoordSync.markSynced(this.getLocationSnapshot());
+    const head = panel.querySelector('.ims-dashboard-panel__head') as HTMLElement | null;
+    const nav = panel.querySelector('nav[aria-label]') as HTMLElement | null;
+    const cards = panel.querySelector('.ims-dashboard-cards') as HTMLElement | null;
+    const tableWrap = panel.querySelector('.ims-dashboard-table-wrap') as HTMLElement | null;
+    const cardsVisible = !!cards && getComputedStyle(cards).display !== 'none';
+    const listEl = cardsVisible ? cards : tableWrap;
+    if (!listEl) return null;
+
+    const panelH = panel.clientHeight || panel.getBoundingClientRect().height;
+    const headH = head?.getBoundingClientRect().height ?? 48;
+    const navH = nav?.getBoundingClientRect().height || 36;
+    const panelStyle = getComputedStyle(panel);
+    const gap = Number.parseFloat(panelStyle.rowGap || panelStyle.gap || '0') || 8;
+    const thead = !cardsVisible
+      ? (tableWrap?.querySelector('thead') as HTMLElement | null)
+      : null;
+    const theadH = thead?.getBoundingClientRect().height ?? (cardsVisible ? 0 : 40);
+
+    // Alto útil = panel menos cabecera/filtros y paginación.
+    // Preferir clientHeight del listado (ya descuenta la paginación en el flex).
+    const wrapH = listEl.clientHeight || listEl.getBoundingClientRect().height;
+    const fromWrap = wrapH > 0 ? wrapH - theadH : 0;
+    const fromPanel = panelH - headH - navH - gap * 2 - theadH;
+    const listArea =
+      fromWrap > 40 && fromPanel > 40
+        ? Math.min(fromWrap, fromPanel)
+        : Math.max(fromWrap, fromPanel);
+    if (listArea < 40) return null;
+
+    let rowH = cardsVisible ? 64 : 48;
+    if (cardsVisible) {
+      const card = cards?.querySelector('.ims-dashboard-card') as HTMLElement | null;
+      const h = card?.getBoundingClientRect().height ?? 0;
+      if (h > 24) rowH = h + 6;
     } else {
-      this.locationCoordSync.clearSync();
+      const rows = Array.from(tableWrap?.querySelectorAll('tbody tr') ?? []).filter(
+        (row) => !row.querySelector('td[colspan]'),
+      );
+      let measured = 0;
+      for (let i = 0; i < Math.min(rows.length, 3); i++) {
+        measured = Math.max(measured, rows[i].getBoundingClientRect().height);
+      }
+      if (measured > 24) rowH = measured;
     }
+
+    const count = Math.floor((listArea - 4) / rowH);
+    if (count < 1) return IncidentsComponent.DASHBOARD_PAGE_MIN;
+    return Math.min(
+      IncidentsComponent.DASHBOARD_PAGE_MAX,
+      Math.max(IncidentsComponent.DASHBOARD_PAGE_MIN, count),
+    );
   }
 
   openIncidentEmailModal(incident: Incident): void {
@@ -1624,28 +920,11 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.emailModalIncident.set(null);
   }
 
-  sendNewIncidentByEmail(): void {
-    const tabId = this.activeTabId();
-    if (tabId && tabId !== 'new') {
-      const inc = this.openIncidentTabs().find((i) => i.id === tabId);
-      if (inc) {
-        this.openIncidentEmailModal(inc);
-        return;
-      }
-    }
-    this.notificationService.addNotification(
-      'Guarde el incidente',
-      'Debe guardar el incidente antes de enviar la notificación por correo.',
-    );
-  }
 
   sendIncidentByEmail(incident: Incident) {
     this.openIncidentEmailModal(incident);
   }
 
-  sendSingleIncidentByEmail(incident: Incident) {
-    this.openIncidentEmailModal(incident);
-  }
 
   viewIncident(incident: Incident): void {
     if (!this.canViewIncident()) return;
@@ -1739,6 +1018,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.dashboardListResizeObserver?.disconnect();
+    this.dashboardListResizeObserver = null;
+    this.onDestroyDashboardListResize?.();
+    this.onDestroyDashboardListResize = null;
     this.dashboardMapResizeObserver?.disconnect();
     this.dashboardMapResizeObserver = null;
     if (this.dashboardMapClickListener) {
@@ -1752,10 +1035,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardMarkers.clear();
     this.dashboardInfoWindow?.close();
     this.dashboardMap = null;
-    this.destroyMap();
-    this.typeSub?.unsubscribe();
-    this.phoneSub?.unsubscribe();
-    this.locationTextSub?.unsubscribe();
-    this.locationResolveSub?.unsubscribe();
+    this.geocoder = null;
   }
 }

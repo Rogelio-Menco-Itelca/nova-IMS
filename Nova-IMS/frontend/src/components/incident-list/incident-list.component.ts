@@ -288,7 +288,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   filterStatus = signal('');
   readonly listPageSizeMin = 5;
   readonly listPageSizeMax = 30;
-  readonly listPageSizeFixed = 15;
   listPageSize = signal(15);
   listCurrentPage = signal(1);
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
@@ -2381,14 +2380,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   listTotalPages = computed(() => {
     const total = this.filteredIncidents().length;
-    const size = this.activeTabId() ? this.listPageSizeFixed : this.listPageSize();
+    const size = this.listPageSize();
     return Math.max(1, Math.ceil(total / size));
   });
 
   paginatedListIncidents = computed(() => {
     const all = this.filteredIncidents();
     const page = Math.min(this.listCurrentPage(), this.listTotalPages());
-    const size = this.activeTabId() ? this.listPageSizeFixed : this.listPageSize();
+    const size = this.listPageSize();
     const start = (page - 1) * size;
     return all.slice(start, start + size);
   });

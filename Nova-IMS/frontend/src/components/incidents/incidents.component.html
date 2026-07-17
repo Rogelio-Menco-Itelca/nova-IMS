@@ -99,9 +99,10 @@
                     <p class="truncate text-xs font-semibold text-white">{{ incident.id }}</p>
                     <span
                       [class]="
-                        'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium text-white ' +
+                        'ims-status-badge ims-status-badge--compact ' +
                         getStatusColor(incident.status)
                       "
+                      [title]="incident.status"
                       >{{ incident.status }}</span
                     >
                   </div>
@@ -181,16 +182,16 @@
                       incident.priority
                     }}</span>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-3 whitespace-nowrap">
                     <span
-                      [class]="
-                        'rounded-full px-2.5 py-1 text-xs font-medium text-white ' +
-                        getStatusColor(incident.status)
-                      "
+                      [class]="'ims-status-badge ' + getStatusColor(incident.status)"
+                      [title]="incident.status"
                       >{{ incident.status }}</span
                     >
                   </td>
-                  <td class="px-4 py-3 font-medium text-white">{{ incident.operator || '—' }}</td>
+                  <td class="px-4 py-3 font-medium text-white max-w-[10rem] truncate" [title]="incident.operator || ''">
+                    {{ incident.operator || '—' }}
+                  </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
                       <ng-container

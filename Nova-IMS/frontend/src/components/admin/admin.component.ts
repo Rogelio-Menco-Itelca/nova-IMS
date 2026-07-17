@@ -5,6 +5,9 @@ import {
   inject,
   computed,
   OnInit,
+  AfterViewInit,
+  OnDestroy,
+  ElementRef,
   effect,
   ChangeDetectorRef,
 } from '@angular/core';
@@ -14,6 +17,7 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormArray } from '@angula
 import { NotificationService } from '../../services/notification.service';
 import {
   IncidentPriority,
+  IncidentStatus,
   Person,
   PersonFormPayload,
   CatalogOption,
@@ -53,7 +57,18 @@ type AdminTab =
   | 'permissions'
   | 'incident_history';
 
-const ADMIN_PAGE_SIZE = 15;
+const ADMIN_PAGE_SIZE_DEFAULT = 15;
+const ADMIN_PAGE_SIZE_MIN = 3;
+const ADMIN_PAGE_SIZE_MAX = 30;
+
+const ADAPTIVE_PAGE_TABS: ReadonlySet<AdminTab> = new Set([
+  'users',
+  'incidents',
+  'responses',
+  'notifications',
+  'incident_history',
+  'people',
+]);
 
 const PERMISSION_MODULE_HINTS: Record<string, string> = {
   Dashboard: 'Vista general y métricas del sistema',
@@ -62,16 +77,16 @@ const PERMISSION_MODULE_HINTS: Record<string, string> = {
   Administración: 'Usuarios, catálogos y configuración',
 };
 
-function adminTotalPages(count: number): number {
-  return count > 0 ? Math.max(1, Math.ceil(count / ADMIN_PAGE_SIZE)) : 1;
+function adminTotalPages(count: number, pageSize: number): number {
+  return count > 0 ? Math.max(1, Math.ceil(count / pageSize)) : 1;
 }
 
-function adminSlicePage<T>(items: T[], page: number): T[] {
+function adminSlicePage<T>(items: T[], page: number, pageSize: number): T[] {
   if (!items.length) return items;
-  const totalPages = adminTotalPages(items.length);
+  const totalPages = adminTotalPages(items.length, pageSize);
   const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * ADMIN_PAGE_SIZE;
-  return items.slice(start, start + ADMIN_PAGE_SIZE);
+  const start = (safePage - 1) * pageSize;
+  return items.slice(start, start + pageSize);
 }
 
 interface IncidentHistoryGestion {
@@ -107,7 +122,8 @@ interface IncidentHistoryMedidasPayload {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
-export class AdminComponent implements OnInit {
+export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
+  private readonly host = inject(ElementRef<HTMLElement>);
   private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
   readonly configService = inject(ConfigurationService);
@@ -274,9 +290,13 @@ export class AdminComponent implements OnInit {
   incidentTypesPage = signal(1);
   peoplePage = signal(1);
   responseProtocolsPage = signal(1);
+  responseProtocolSearch = signal('');
   adminLogsPage = signal(1);
   incidentHistoryPage = signal(1);
-  readonly adminPageSize = ADMIN_PAGE_SIZE;
+  /** Filas visibles según alto de pantalla; el resto pasa a la siguiente página. */
+  adminListPageSize = signal(ADMIN_PAGE_SIZE_DEFAULT);
+  private adminListResizeObserver: ResizeObserver | null = null;
+  private onDestroyAdminListResize: (() => void) | null = null;
 
   operatorForm = this.fb.group({
     primerNombre: ['', Validators.required],
@@ -321,8 +341,6 @@ export class AdminComponent implements OnInit {
     message: string;
   } | null>(null);
 
-  readonly notificationEmailPageSize = ADMIN_PAGE_SIZE;
-
   displayedNotificationEmails = computed(() => {
     const term = this.notificationEmailFilter().trim().toLowerCase();
     const all = this.notificationEmails();
@@ -331,11 +349,15 @@ export class AdminComponent implements OnInit {
   });
 
   notificationEmailTotalPages = computed(() =>
-    adminTotalPages(this.displayedNotificationEmails().length),
+    adminTotalPages(this.displayedNotificationEmails().length, this.adminListPageSize()),
   );
 
   paginatedNotificationEmails = computed(() =>
-    adminSlicePage(this.displayedNotificationEmails(), this.notificationEmailPage()),
+    adminSlicePage(
+      this.displayedNotificationEmails(),
+      this.notificationEmailPage(),
+      this.adminListPageSize(),
+    ),
   );
 
   searchedOperators = computed(() => {
@@ -350,42 +372,72 @@ export class AdminComponent implements OnInit {
     );
   });
 
-  operatorsTotalPages = computed(() => adminTotalPages(this.searchedOperators().length));
+  operatorsTotalPages = computed(() =>
+    adminTotalPages(this.searchedOperators().length, this.adminListPageSize()),
+  );
 
   paginatedOperators = computed(() =>
-    adminSlicePage(this.searchedOperators(), this.operatorsPage()),
+    adminSlicePage(this.searchedOperators(), this.operatorsPage(), this.adminListPageSize()),
   );
 
-  incidentTypesTotalPages = computed(() => adminTotalPages(this.incidentTypes().length));
+  incidentTypesTotalPages = computed(() =>
+    adminTotalPages(this.incidentTypes().length, this.adminListPageSize()),
+  );
 
   paginatedIncidentTypes = computed(() =>
-    adminSlicePage(this.incidentTypes(), this.incidentTypesPage()),
+    adminSlicePage(this.incidentTypes(), this.incidentTypesPage(), this.adminListPageSize()),
   );
 
-  peopleTotalPages = computed(() => adminTotalPages(this.people().length));
+  peopleTotalPages = computed(() =>
+    adminTotalPages(this.people().length, this.adminListPageSize()),
+  );
 
-  paginatedPeople = computed(() => adminSlicePage(this.people(), this.peoplePage()));
+  paginatedPeople = computed(() =>
+    adminSlicePage(this.people(), this.peoplePage(), this.adminListPageSize()),
+  );
+
+  filteredResponseProtocols = computed(() => {
+    const term = this.responseProtocolSearch().trim().toLowerCase();
+    const list = this.responseProtocols();
+    if (!term) return list;
+    return list.filter(
+      (protocol) =>
+        protocol.name.toLowerCase().includes(term) ||
+        protocol.incidentTypeName.toLowerCase().includes(term) ||
+        protocol.steps.some((step) => step.toLowerCase().includes(term)),
+    );
+  });
 
   responseProtocolsTotalPages = computed(() =>
-    adminTotalPages(this.responseProtocols().length),
+    adminTotalPages(this.filteredResponseProtocols().length, this.adminListPageSize()),
   );
 
   paginatedResponseProtocols = computed(() =>
-    adminSlicePage(this.responseProtocols(), this.responseProtocolsPage()),
+    adminSlicePage(
+      this.filteredResponseProtocols(),
+      this.responseProtocolsPage(),
+      this.adminListPageSize(),
+    ),
   );
 
-  adminLogsTotalPages = computed(() => adminTotalPages(this.filteredAdminLogs().length));
+  adminLogsTotalPages = computed(() =>
+    adminTotalPages(this.filteredAdminLogs().length, this.adminListPageSize()),
+  );
 
   paginatedAdminLogs = computed(() =>
-    adminSlicePage(this.filteredAdminLogs(), this.adminLogsPage()),
+    adminSlicePage(this.filteredAdminLogs(), this.adminLogsPage(), this.adminListPageSize()),
   );
 
   incidentHistoryTotalPages = computed(() =>
-    adminTotalPages(this.filteredIncidentsForHistory().length),
+    adminTotalPages(this.filteredIncidentsForHistory().length, this.adminListPageSize()),
   );
 
   paginatedIncidentsForHistory = computed(() =>
-    adminSlicePage(this.filteredIncidentsForHistory(), this.incidentHistoryPage()),
+    adminSlicePage(
+      this.filteredIncidentsForHistory(),
+      this.incidentHistoryPage(),
+      this.adminListPageSize(),
+    ),
   );
 
   constructor() {
@@ -425,6 +477,26 @@ export class AdminComponent implements OnInit {
       this.permissionsDraft.set(copy);
       this.permissionsSnapshot.set(JSON.stringify(copy));
     });
+
+    effect(() => {
+      this.adminListPageSize();
+      this.clampActiveListPage();
+    });
+
+    effect(() => {
+      const tab = this.activeTab();
+      const detailOpen =
+        tab === 'incident_history' && !!this.selectedIncidentForHistory();
+      // Recalcular cuando cambia la pestaña o llegan/cambian datos de la lista.
+      this.searchedOperators().length;
+      this.incidentTypes().length;
+      this.filteredResponseProtocols().length;
+      this.displayedNotificationEmails().length;
+      this.filteredIncidentsForHistory().length;
+      this.people().length;
+      if (!ADAPTIVE_PAGE_TABS.has(tab) || detailOpen) return;
+      queueMicrotask(() => this.connectAdminListPanelObserver());
+    });
   }
 
   ngOnInit() {
@@ -463,6 +535,165 @@ export class AdminComponent implements OnInit {
         this.operatorPasswordError.set(null);
       }
     });
+  }
+
+  ngAfterViewInit(): void {
+    const recalc = () => this.recalcAdminListPageSize();
+    this.adminListResizeObserver = new ResizeObserver(() => recalc());
+    window.addEventListener('resize', recalc);
+    this.onDestroyAdminListResize = () => window.removeEventListener('resize', recalc);
+    this.connectAdminListPanelObserver();
+  }
+
+  ngOnDestroy(): void {
+    this.adminListResizeObserver?.disconnect();
+    this.adminListResizeObserver = null;
+    this.onDestroyAdminListResize?.();
+    this.onDestroyAdminListResize = null;
+  }
+
+  private isAdaptiveListVisible(): boolean {
+    const tab = this.activeTab();
+    if (!ADAPTIVE_PAGE_TABS.has(tab)) return false;
+    if (tab === 'incident_history' && this.selectedIncidentForHistory()) return false;
+    return true;
+  }
+
+  private getActiveListPanel(): HTMLElement | null {
+    return this.host.nativeElement.querySelector('.admin-list-panel');
+  }
+
+  private connectAdminListPanelObserver(): void {
+    if (!this.isAdaptiveListVisible()) return;
+
+    queueMicrotask(() => {
+      const panel = this.getActiveListPanel();
+      if (panel && this.adminListResizeObserver) {
+        this.adminListResizeObserver.disconnect();
+        this.adminListResizeObserver.observe(panel);
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => this.recalcAdminListPageSize()));
+    });
+  }
+
+  private recalcAdminListPageSize(): void {
+    if (!this.isAdaptiveListVisible()) return;
+
+    const size = this.measureAdminListPageSize();
+    if (size === null || size === this.adminListPageSize()) return;
+
+    this.adminListPageSize.set(size);
+    this.clampActiveListPage();
+    this.cdr.markForCheck();
+
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        const refined = this.measureAdminListPageSize();
+        if (refined !== null && refined < this.adminListPageSize()) {
+          this.adminListPageSize.set(refined);
+          this.clampActiveListPage();
+          this.cdr.markForCheck();
+        }
+      });
+    });
+  }
+
+  private measureAdminListPageSize(): number | null {
+    const panel = this.getActiveListPanel();
+    if (!panel) return null;
+
+    const tableWrap = panel.querySelector('.admin-list-table-wrap') as HTMLElement | null;
+    if (!tableWrap) return null;
+
+    const thead = tableWrap.querySelector('thead') as HTMLElement | null;
+    const theadH = thead?.getBoundingClientRect().height || 40;
+    const pagination = panel.querySelector('app-admin-pagination') as HTMLElement | null;
+    const paginationH = pagination?.getBoundingClientRect().height || 36;
+
+    const panelStyle = getComputedStyle(panel);
+    const gap = Number.parseFloat(panelStyle.rowGap || panelStyle.gap || '0') || 0;
+    let chromeH = 0;
+    let chromeBlocks = 0;
+    for (const child of Array.from(panel.children)) {
+      if (child === tableWrap || child.contains(tableWrap)) {
+        // Contenedor anidado (ej. correos): restar paginación interna ya contemplada.
+        if (child !== tableWrap) {
+          for (const nested of Array.from(child.children)) {
+            if (nested === tableWrap || nested.tagName === 'APP-ADMIN-PAGINATION') continue;
+            chromeH += (nested as HTMLElement).getBoundingClientRect().height;
+            chromeBlocks += 1;
+          }
+        }
+        continue;
+      }
+      if (child.tagName === 'APP-ADMIN-PAGINATION') continue;
+      chromeH += (child as HTMLElement).getBoundingClientRect().height;
+      chromeBlocks += 1;
+    }
+
+    // Preferir alto del panel (acotado por flex); si aún no hay layout, usar el wrap.
+    const panelH = panel.clientHeight || panel.getBoundingClientRect().height;
+    const wrapH = tableWrap.clientHeight || tableWrap.getBoundingClientRect().height;
+    const availablePanel = panelH - chromeH - paginationH - gap * Math.max(chromeBlocks, 1);
+    const listArea = Math.max(wrapH > 0 ? wrapH - theadH : 0, availablePanel - theadH);
+    if (listArea < 36) return null;
+
+    const rows = Array.from(tableWrap.querySelectorAll('tbody tr')).filter(
+      (row) => !row.querySelector('td[colspan]'),
+    );
+    let rowH = this.activeTab() === 'responses' ? 72 : 52;
+    if (rows.length) {
+      let measured = 0;
+      for (let i = 0; i < Math.min(rows.length, 3); i++) {
+        measured = Math.max(measured, rows[i].getBoundingClientRect().height);
+      }
+      if (measured > 24) rowH = measured;
+    }
+
+    const count = Math.floor((listArea - 2) / rowH);
+    if (count < 1) return ADMIN_PAGE_SIZE_MIN;
+    return Math.min(ADMIN_PAGE_SIZE_MAX, Math.max(ADMIN_PAGE_SIZE_MIN, count));
+  }
+
+  private clampActiveListPage(): void {
+    const size = this.adminListPageSize();
+    const clamp = (page: number, count: number, setPage: (n: number) => void) => {
+      const pages = adminTotalPages(count, size);
+      if (page > pages) setPage(pages);
+    };
+
+    switch (this.activeTab()) {
+      case 'users':
+        clamp(this.operatorsPage(), this.searchedOperators().length, (n) =>
+          this.operatorsPage.set(n),
+        );
+        break;
+      case 'incidents':
+        clamp(this.incidentTypesPage(), this.incidentTypes().length, (n) =>
+          this.incidentTypesPage.set(n),
+        );
+        break;
+      case 'responses':
+        clamp(this.responseProtocolsPage(), this.filteredResponseProtocols().length, (n) =>
+          this.responseProtocolsPage.set(n),
+        );
+        break;
+      case 'notifications':
+        clamp(this.notificationEmailPage(), this.displayedNotificationEmails().length, (n) =>
+          this.notificationEmailPage.set(n),
+        );
+        break;
+      case 'incident_history':
+        clamp(this.incidentHistoryPage(), this.filteredIncidentsForHistory().length, (n) =>
+          this.incidentHistoryPage.set(n),
+        );
+        break;
+      case 'people':
+        clamp(this.peoplePage(), this.people().length, (n) => this.peoplePage.set(n));
+        break;
+      default:
+        break;
+    }
   }
 
   private loadAgencies(): void {
@@ -695,6 +926,11 @@ export class AdminComponent implements OnInit {
     this.operatorsPage.set(1);
   }
 
+  onResponseProtocolSearch(event: Event): void {
+    this.responseProtocolSearch.set((event.target as HTMLInputElement).value);
+    this.responseProtocolsPage.set(1);
+  }
+
   onAdminLogSearch(event: Event): void {
     this.adminLogSearch.set((event.target as HTMLInputElement).value);
     this.adminLogsPage.set(1);
@@ -900,6 +1136,70 @@ export class AdminComponent implements OnInit {
 
   nextIncidentHistoryPage(): void {
     this.incidentHistoryPage.update((p) => Math.min(this.incidentHistoryTotalPages(), p + 1));
+  }
+
+  openIncidentHistoryDetail(incidentId: string): void {
+    this.selectedIncidentIdForHistory.set(incidentId);
+    this.historySubTab.set('details');
+    void this.refreshIncidentHistoryView();
+  }
+
+  incidentHistoryDateLabel(timestamp: string): string {
+    const d = new Date(timestamp);
+    if (Number.isNaN(d.getTime())) return timestamp;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  }
+
+  incidentHistoryTimeLabel(timestamp: string): string {
+    const d = new Date(timestamp);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  incidentHistoryRecordLabel(timestamp: string): string {
+    const date = this.incidentHistoryDateLabel(timestamp);
+    const time = this.incidentHistoryTimeLabel(timestamp);
+    return time ? `${date} ${time}` : date;
+  }
+
+  incidentHistoryStatusBadgeClass(status: IncidentStatus | string): string {
+    const base =
+      'text-xs font-medium px-2.5 py-1 rounded-full border ';
+    const value = String(status ?? '');
+    if (/cerrado|cancelado/i.test(value)) {
+      return base + 'bg-red-900/40 text-red-300 border-red-500/30';
+    }
+    if (/resuelto|medidas asignadas/i.test(value)) {
+      return base + 'bg-green-900/50 text-green-300 border-green-500/30';
+    }
+    if (/reiteraciones/i.test(value)) {
+      return base + 'bg-amber-900/40 text-amber-200 border-amber-500/30';
+    }
+    if (/nuevo/i.test(value)) {
+      return base + 'bg-sky-900/40 text-sky-200 border-sky-500/30';
+    }
+    if (/gesti[oó]n|cerrem|evaluaci[oó]n|asignado|camino|proceso|enviado/i.test(value)) {
+      return base + 'bg-indigo-900/40 text-indigo-300 border-indigo-500/30';
+    }
+    return base + 'bg-green-900/50 text-green-300 border-green-500/30';
+  }
+
+  incidentHistoryPriorityBadgeClass(priority: string): string {
+    const base = 'text-xs font-medium px-2.5 py-1 rounded-full border ';
+    switch (priority) {
+      case 'Crítica':
+        return base + 'bg-red-900/50 text-red-300 border-red-500/30';
+      case 'Alta':
+        return base + 'bg-orange-900/40 text-orange-300 border-orange-500/30';
+      case 'Media':
+        return base + 'bg-amber-900/40 text-amber-200 border-amber-500/30';
+      case 'Baja':
+        return base + 'bg-slate-700/60 text-slate-300 border-slate-500/30';
+      default:
+        return base + 'bg-slate-700/60 text-slate-300 border-slate-500/30';
+    }
   }
 
   async refreshIncidentHistoryView(): Promise<void> {

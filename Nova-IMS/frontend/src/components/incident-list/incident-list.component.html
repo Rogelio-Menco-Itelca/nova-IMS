@@ -1469,14 +1469,11 @@
     </div>
   }
 
-  <!-- Filters and Incident List -->
+  <!-- Lista solo cuando no hay formulario abierto (evita que tape el registro/detalle) -->
+  @if (!activeTabId()) {
   <div
     #incidentListPanel
-    [class]="
-      activeTabId()
-        ? 'bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col shrink-0'
-        : 'bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden'
-    "
+    class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden"
   >
     <div class="p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 shrink-0">
       <label for="incident-list-search" class="sr-only">Buscar incidentes</label>
@@ -1499,11 +1496,7 @@
         }
       </select>
     </div>
-    <div
-      [class]="
-        activeTabId() ? 'overflow-x-auto overflow-y-hidden' : 'ims-incident-list-table-wrap'
-      "
-    >
+    <div class="ims-incident-list-table-wrap">
       <table class="w-full text-sm text-left text-gray-300">
         <thead class="text-xs text-gray-400 uppercase bg-gray-700/50">
           <tr>
@@ -1529,16 +1522,22 @@
                   incident.priority
                 }}</span>
               </td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3 whitespace-nowrap">
                 <span
                   [class]="
-                    'text-xs font-medium px-2.5 py-1 rounded-full ' +
+                    'inline-flex shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium leading-tight ' +
                     getStatusColor(incident.status)
                   "
+                  [title]="incident.status"
                   >{{ incident.status }}</span
                 >
               </td>
-              <td class="px-4 py-3 font-medium text-white">{{ incident.operator || '—' }}</td>
+              <td
+                class="px-4 py-3 font-medium text-white max-w-[10rem] truncate"
+                [title]="incident.operator || ''"
+              >
+                {{ incident.operator || '—' }}
+              </td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
                   <button
@@ -1646,6 +1645,8 @@
       </nav>
     }
   </div>
+  }
+
 </div>
 
 @if (emailModalIncident(); as emailIncident) {
