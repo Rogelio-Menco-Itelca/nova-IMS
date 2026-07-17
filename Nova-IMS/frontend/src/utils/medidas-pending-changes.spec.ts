@@ -118,6 +118,26 @@ describe('pendingMedidasSections', () => {
       'medidas',
     ]);
   });
+
+  it('incluye medidas aunque ya estén guardadas (sin modo edición)', () => {
+    const baseline = snapshotMedidasDraft(
+      { tipo_esquema: 'Individual' },
+      [{ ID_tipo_medida: 2, cantidad: 1, observacion_medida: '' }],
+    );
+    const current = snapshotMedidasDraft(
+      { tipo_esquema: 'Colectivo', observaciones: 'Nueva nota' },
+      [{ ID_tipo_medida: 2, cantidad: 3, observacion_medida: 'Obs' }],
+    );
+    const ctx: MedidasPendingContext = {
+      ...baseCtx,
+      medidasGuardadas: true,
+      medidasEditMode: false,
+      showOsegBlock: false,
+      showCerremBlock: false,
+      showMedidasBlock: true,
+    };
+    expect(pendingMedidasSections(current, baseline, ctx)).toEqual(['medidas']);
+  });
 });
 
 describe('labelsForPendingMedidasSections', () => {

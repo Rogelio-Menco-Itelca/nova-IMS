@@ -1279,11 +1279,24 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     return String(incident.location ?? '').trim() || '—';
   }
 
+  incidentDepartmentDisplay(incident: Incident): string {
+    return this.formatGeoDisplayName(incident.departmentName) || '—';
+  }
+
   incidentMunicipalityDisplay(incident: Incident): string {
-    const municipality = this.formatGeoDisplayName(incident.municipalityName);
-    const department = this.formatGeoDisplayName(incident.departmentName);
-    if (municipality && department) return `${municipality}, ${department}`;
-    return municipality || department || '—';
+    return this.formatGeoDisplayName(incident.municipalityName) || '—';
+  }
+
+  formatGestionDate(raw: string | null | undefined): string {
+    const value = String(raw ?? '').trim();
+    if (!value) return '—';
+    const d = new Date(value.length <= 10 ? `${value}T12:00:00` : value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('es-CO', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
   }
 
   incidentCoordinatesDisplay(incident: Incident): string {
@@ -1296,28 +1309,29 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${latN.toFixed(4)}, ${lngN.toFixed(4)}`;
   }
 
-  incidentRiesgoEsquemaDisplay(gestion: IncidentHistoryGestion | null): string {
-    if (!gestion) return '—';
-    const riesgo = String(gestion.nivel_riesgo ?? '').trim();
-    const esquema = String(gestion.tipo_esquema ?? '').trim();
-    if (riesgo && esquema) return `${riesgo} · ${esquema}`;
-    return riesgo || esquema || '—';
+  isExtraordinarioRiesgo(nivel: string | null | undefined): boolean {
+    return /extraordinario/i.test(String(nivel ?? ''));
+  }
+
+  private hasIncidentGestionData(gestion: IncidentHistoryGestion | null): boolean {
+    if (!gestion) return false;
+    return [
+      gestion.codigo_oficio,
+      gestion.tramite_destino,
+      gestion.resolucion_cerrem,
+      gestion.nivel_riesgo,
+      gestion.tipo_esquema,
+      gestion.fecha_cerrem,
+      gestion.fecha_resolucion,
+      gestion.observaciones,
+      gestion.compartido_con,
+    ].some((v) => String(v ?? '').trim());
   }
 
   showIncidentGestionSection(incident: Incident): boolean {
     if (this.incidentHistoryMedidasLoading()) return true;
     if (this.incidentHistoryAssignedMedidas().length) return true;
-    const gestion = this.incidentHistoryGestion();
-    if (gestion) {
-      const fields = [
-        gestion.codigo_oficio,
-        gestion.tramite_destino,
-        gestion.resolucion_cerrem,
-        gestion.nivel_riesgo,
-        gestion.tipo_esquema,
-      ];
-      if (fields.some((v) => String(v ?? '').trim())) return true;
-    }
+    if (this.hasIncidentGestionData(this.incidentHistoryGestion())) return true;
     return /medidas asignadas|en gesti[oó]n|cerrem|oseg/i.test(String(incident.status ?? ''));
   }
 
@@ -1412,10 +1426,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   personMetaLine(person: InvolvedPerson): string {
     return [person.gender, person.role].map((v) => String(v ?? '').trim()).filter(Boolean).join(' · ');
-  }
-
-  isProtectionMedida(medida: IncidentHistoryMedida): boolean {
-    return /protecci[oó]n|escolta|guardia/i.test(String(medida.nombre ?? ''));
   }
 
   auditActionKind(log: AuditLog): 'medidas' | 'status' | 'comment' | 'create' | 'gestion' | 'update' {

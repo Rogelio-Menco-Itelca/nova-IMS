@@ -734,6 +734,10 @@
                         <span class="ih-kv-value">{{ incident.phone || '—' }}</span>
                       </div>
                       <div>
+                        <span class="ih-kv-label">Departamento</span>
+                        <span class="ih-kv-value">{{ incidentDepartmentDisplay(incident) }}</span>
+                      </div>
+                      <div>
                         <span class="ih-kv-label">Municipio</span>
                         <span class="ih-kv-value">{{ incidentMunicipalityDisplay(incident) }}</span>
                       </div>
@@ -892,54 +896,126 @@
                     </div>
 
                     @if (showIncidentGestionSection(incident)) {
-                      <section class="ih-section ih-section-gestion">
-                        <h4 class="ih-section-heading">Gestión y medidas (CSJ)</h4>
-                        @if (incidentHistoryMedidasLoading()) {
-                          <p class="ih-empty">Cargando gestión y medidas…</p>
-                        } @else {
-                          <div class="ih-gestion-block">
-                            @if (incidentHistoryGestion(); as gestion) {
-                              <div class="ih-kv-grid ih-kv-grid-flat ih-gestion-grid">
-                                <div>
-                                  <span class="ih-kv-label">Oficio OSEG</span>
-                                  <span class="ih-kv-value">{{ gestion.codigo_oficio || '—' }}</span>
-                                </div>
-                                <div>
-                                  <span class="ih-kv-label">Destino</span>
-                                  <span class="ih-kv-value">{{ gestion.tramite_destino || '—' }}</span>
-                                </div>
-                                <div>
-                                  <span class="ih-kv-label">Resolución CERREM</span>
-                                  <span class="ih-kv-value">{{ gestion.resolucion_cerrem || '—' }}</span>
-                                </div>
-                                <div>
-                                  <span class="ih-kv-label">Riesgo / esquema</span>
-                                  <span class="ih-kv-value">{{ incidentRiesgoEsquemaDisplay(gestion) }}</span>
-                                </div>
-                              </div>
-                            }
+                      <section class="ih-gestion-panel">
+                        <div class="ih-related-header">
+                          <h4 class="ih-related-title">Gestión y medidas (CSJ)</h4>
+                          <span class="ih-related-count">{{ incidentHistoryAssignedMedidas().length }}</span>
+                        </div>
 
-                            @if (incidentHistoryAssignedMedidas().length) {
-                              <div class="ih-medidas-grid ih-medidas-grid-wide">
-                                @for (medida of incidentHistoryAssignedMedidas(); track medida.ID_tipo_medida) {
-                                  <span class="ih-medida-badge ih-medida-badge-wide">
-                                    <span class="ih-medida-leading">
-                                      @if (isProtectionMedida(medida)) {
-                                        <svg class="ih-medida-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                        </svg>
+                        @if (incidentHistoryMedidasLoading()) {
+                          <div class="ih-gestion-body">
+                            <p class="ih-empty ih-empty-inline">Cargando gestión y medidas…</p>
+                          </div>
+                        } @else if (incidentHistoryGestion(); as gestion) {
+                          <div class="ih-gestion-body">
+                            <div class="ih-gestion-cols">
+                              <div class="ih-gestion-col">
+                                <h5 class="ih-gestion-col-title">OSEG</h5>
+                                <dl class="ih-gestion-dl">
+                                  <div>
+                                    <dt>Oficio</dt>
+                                    <dd>{{ gestion.codigo_oficio || '—' }}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Destino</dt>
+                                    <dd>{{ gestion.tramite_destino || '—' }}</dd>
+                                  </div>
+                                </dl>
+                              </div>
+
+                              <div class="ih-gestion-col">
+                                <h5 class="ih-gestion-col-title">CERREM</h5>
+                                <dl class="ih-gestion-dl">
+                                  <div>
+                                    <dt>Resolución</dt>
+                                    <dd>{{ gestion.resolucion_cerrem || '—' }}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Fecha CERREM</dt>
+                                    <dd>{{ formatGestionDate(gestion.fecha_cerrem) }}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Fecha resolución</dt>
+                                    <dd>{{ formatGestionDate(gestion.fecha_resolucion) }}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Nivel de riesgo</dt>
+                                    <dd>
+                                      @if (gestion.nivel_riesgo) {
+                                        <span
+                                          class="ih-gestion-risk"
+                                          [class.ih-gestion-risk--extra]="isExtraordinarioRiesgo(gestion.nivel_riesgo)"
+                                          >{{ gestion.nivel_riesgo }}</span
+                                        >
+                                      } @else {
+                                        —
                                       }
-                                      <span class="ih-medida-name">{{ medida.nombre }}</span>
-                                    </span>
-                                    <span class="ih-medida-qty">x{{ medidaQuantity(medida) }}</span>
-                                  </span>
+                                    </dd>
+                                  </div>
+                                </dl>
+                              </div>
+
+                              <div class="ih-gestion-col">
+                                <h5 class="ih-gestion-col-title">Esquema</h5>
+                                <dl class="ih-gestion-dl">
+                                  <div>
+                                    <dt>Tipo</dt>
+                                    <dd>{{ gestion.tipo_esquema || '—' }}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Compartido con</dt>
+                                    <dd>{{ gestion.compartido_con || '—' }}</dd>
+                                  </div>
+                                </dl>
+                                @if (gestion.observaciones?.trim()) {
+                                  <div class="ih-gestion-obs">
+                                    <span class="ih-gestion-obs-label">Observaciones</span>
+                                    <p class="ih-gestion-obs-text">{{ gestion.observaciones }}</p>
+                                  </div>
                                 }
                               </div>
-                            } @else if (!incidentHistoryGestion()) {
-                              <p class="ih-empty ih-empty-inline">Sin gestión OSEG/CERREM ni medidas registradas.</p>
-                            } @else if (isMedidasAsignadasStatus(incident)) {
-                              <p class="ih-empty ih-empty-inline">El incidente está en «Medidas asignadas» pero no hay medidas registradas.</p>
-                            }
+                            </div>
+
+                            <div class="ih-gestion-medidas">
+                              <h5 class="ih-gestion-col-title">Medidas asignadas</h5>
+                              @if (incidentHistoryAssignedMedidas().length) {
+                                <table class="ih-related-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Medida</th>
+                                      <th>Cant.</th>
+                                      <th>Observación</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    @for (medida of incidentHistoryAssignedMedidas(); track medida.ID_tipo_medida) {
+                                      <tr>
+                                        <td class="ih-related-name">{{ medida.nombre }}</td>
+                                        <td>{{ medidaQuantity(medida) }}</td>
+                                        <td class="ih-related-meta">
+                                          {{ medida.observacion_medida?.trim() || '—' }}
+                                        </td>
+                                      </tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              } @else if (isMedidasAsignadasStatus(incident)) {
+                                <p class="ih-empty ih-empty-inline">
+                                  El incidente está en «Medidas asignadas» pero no hay medidas registradas.
+                                </p>
+                              } @else {
+                                <p class="ih-empty ih-empty-inline">Sin medidas físicas registradas.</p>
+                              }
+                            </div>
+                          </div>
+                        } @else {
+                          <div class="ih-gestion-body">
+                            <div class="ih-related-empty">
+                              <svg class="ih-related-empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                              </svg>
+                              <p>Sin gestión OSEG/CERREM ni medidas registradas</p>
+                            </div>
                           </div>
                         }
                       </section>

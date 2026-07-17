@@ -95,7 +95,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   filterText = signal('');
   filterStatus = signal('');
   incidentStatuses = signal<CatalogOption[]>([]);
-  /** Opciones del filtro: mismos estados que Incidentes, sin cerrados (solo activos en dashboard). */
   dashboardStatusFilterOptions = computed(() =>
     this.incidentStatuses().filter((st) => {
       const ui = catalogStatusToUiStatus(st.name);
@@ -104,13 +103,10 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   );
   private static readonly DASHBOARD_PAGE_MIN = 3;
   private static readonly DASHBOARD_PAGE_MAX = 30;
-  /** Filas/cards visibles según alto del panel; el resto va a la siguiente página. */
   dashboardPageSize = signal(10);
   dashboardCurrentPage = signal(1);
   selectedDashboardIncidentId = signal<string | null>(null);
-  /** Dirección exacta por geocodificación inversa (id → formatted_address) */
   resolvedAddresses = signal<Record<string, string>>({});
-  /** Coordenadas obtenidas por geocodificar la dirección escrita */
   resolvedCoords = signal<Record<string, { lat: number; lng: number }>>({});
   private readonly resolvingAddressIds = new Set<string>();
   private readonly resolvingCoordIds = new Set<string>();
@@ -825,29 +821,23 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private recalcDashboardPageSize(): void {
-    const size = this.measureDashboardPageSize();
-    if (size === null || size === this.dashboardPageSize()) return;
-
+  private applyDashboardPageSize(size: number): void {
     this.dashboardPageSize.set(size);
     const pages = Math.max(1, Math.ceil(this.filteredIncidents().length / size));
     if (this.dashboardCurrentPage() > pages) this.dashboardCurrentPage.set(pages);
     this.cdr.markForCheck();
+  }
 
-    // Segunda pasada: si las filas reales son más altas (badge/operador), bajar el page size.
+  private recalcDashboardPageSize(): void {
+    const size = this.measureDashboardPageSize();
+    if (size === null || size === this.dashboardPageSize()) return;
+    this.applyDashboardPageSize(size);
+
     queueMicrotask(() => {
       requestAnimationFrame(() => {
         const refined = this.measureDashboardPageSize();
         if (refined !== null && refined < this.dashboardPageSize()) {
-          this.dashboardPageSize.set(refined);
-          const refinedPages = Math.max(
-            1,
-            Math.ceil(this.filteredIncidents().length / refined),
-          );
-          if (this.dashboardCurrentPage() > refinedPages) {
-            this.dashboardCurrentPage.set(refinedPages);
-          }
-          this.cdr.markForCheck();
+          this.applyDashboardPageSize(refined);
         }
       });
     });
@@ -876,9 +866,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       ? (tableWrap?.querySelector('thead') as HTMLElement | null)
       : null;
     const theadH = thead?.getBoundingClientRect().height ?? (cardsVisible ? 0 : 40);
-
-    // Alto útil = panel menos cabecera/filtros y paginación.
-    // Preferir clientHeight del listado (ya descuenta la paginación en el flex).
     const wrapH = listEl.clientHeight || listEl.getBoundingClientRect().height;
     const fromWrap = wrapH > 0 ? wrapH - theadH : 0;
     const fromPanel = panelH - headH - navH - gap * 2 - theadH;

@@ -89,7 +89,6 @@
   margin: 0;
   margin-left: auto;
   flex-shrink: 0;
-  /* Mismo rango que el texto del hint; solo resalta por weight/color */
   font-size: clamp(0.75rem, 1.1vw, 0.875rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -223,7 +222,6 @@
   overflow-y: hidden;
 }
 
-/* Badges de estado largos (ej. En evaluación CERREM) no se parten en 2 líneas */
 .ims-status-badge {
   display: inline-flex;
   align-items: center;

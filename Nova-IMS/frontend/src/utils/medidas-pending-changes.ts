@@ -191,11 +191,7 @@ export function pendingMedidasSections(
     sections.push('cerrem');
   }
   const medidasChanged = medidasListChanged(current, baseline) || medidasMetaChanged(current, baseline);
-  if (
-    medidasChanged &&
-    ctx.showMedidasBlock &&
-    (!ctx.medidasGuardadas || ctx.medidasEditMode)
-  ) {
+  if (medidasChanged && ctx.showMedidasBlock) {
     sections.push('medidas');
   }
   return sections;

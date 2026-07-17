@@ -3388,7 +3388,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.abortUpdateWithoutChanges();
       return;
     }
-    this.updateIncident();
+    void this.saveMedidasThenUpdateIncident();
     this.cdr.markForCheck();
   }
 

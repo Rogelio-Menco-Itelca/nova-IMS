@@ -791,11 +791,16 @@ export class MedidasComponent implements OnInit, OnChanges {
   async savePendingChanges(): Promise<boolean> {
     if (!this.hasPendingChanges()) return true;
 
-    for (const section of pendingMedidasSections(
+    const sections = pendingMedidasSections(
       snapshotMedidasDraft(this.form, this.medidasSeleccionadas()),
       this.draftBaseline,
       this.pendingContext(),
-    )) {
+    );
+    if (sections.includes('medidas')) {
+      this.medidasEditMode.set(true);
+    }
+
+    for (const section of sections) {
       const ok = await this.savePendingSection(section);
       if (!ok) return false;
     }
