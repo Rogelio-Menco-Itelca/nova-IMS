@@ -791,7 +791,8 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit() {
-    if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
+    // Siempre recargar: no reutilizar lista en memoria de otra sesión/agencia.
+    this.incidentService.getIncidents();
     this.loadDashboardStatusCatalog();
     setTimeout(() => this.initDashboardMap(), 300);
   }

@@ -61,7 +61,7 @@ router.get('/incident-statuses/allowed', authRequired, async (req, res, next) =>
     }
 
     const giNames = allowedNames.map((name) => mapStatusToGi(name));
-    const agency = req.user?.agency_code || req.query.agency;
+    const agency = req.user?.agency_code;
     if (!agency) {
       return res.status(400).json({ error: { message: 'Agency requerida' } });
     }

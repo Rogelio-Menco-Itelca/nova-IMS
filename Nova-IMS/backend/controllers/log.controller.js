@@ -1,5 +1,6 @@
 const asyncHandler = require('../utils/asyncHandler');
 const giLogs = require('../db/gestionincidentes/logs');
+const { requireSessionAgency } = require('../utils/requestAgency');
 
 function parseAuditPayload(raw) {
   if (raw == null) return null;
@@ -37,12 +38,14 @@ function mapAuditLogRow(r) {
 }
 
 exports.adminLogs = asyncHandler(async (req, res) => {
-  res.json(await giLogs.listAdminLogs());
+  const agencyCode = requireSessionAgency(req);
+  res.json(await giLogs.listAdminLogs(agencyCode));
 });
 
 exports.auditLogs = asyncHandler(async (req, res) => {
+  const agencyCode = requireSessionAgency(req);
   const { incidentId } = req.query;
-  let rows = await giLogs.listAuditLogs();
+  let rows = await giLogs.listAuditLogs(agencyCode);
   if (incidentId) {
     rows = rows.filter((r) => r.incidentId === incidentId);
   }
@@ -50,10 +53,12 @@ exports.auditLogs = asyncHandler(async (req, res) => {
 });
 
 exports.usersAuditSummary = asyncHandler(async (req, res) => {
-  res.json(await giLogs.listUsersWithActivitySummary());
+  const agencyCode = requireSessionAgency(req);
+  res.json(await giLogs.listUsersWithActivitySummary(agencyCode));
 });
 
 exports.userActions = asyncHandler(async (req, res) => {
+  const agencyCode = requireSessionAgency(req);
   const { userId } = req.params;
-  res.json(await giLogs.listActionsByUser(userId));
+  res.json(await giLogs.listActionsByUser(userId, agencyCode));
 });

@@ -370,17 +370,24 @@ async function lookupByDocument(documentId, agencyCode = null) {
   return rows[0] || null;
 }
 
-async function lookupByPhone(candidates) {
+async function lookupByPhone(candidates, agencyCode = null) {
   await ensureAdminPersonasCatalog();
   const ph = candidates.map(() => '?').join(',');
+  const params = [...candidates];
+  let agencyClause = '';
+  if (agencyCode) {
+    agencyClause = ' AND UPPER(p.ID_Agencia) = ?';
+    params.push(normalizeAgencyCode(agencyCode));
+  }
   const [rows] = await pool.query(
     `SELECT ${PERSON_SELECT}
      WHERE ${adminCatalogWhere('p')}
        AND COALESCE(NULLIF(p.estado, ''), 'Activo') = 'Activo'
        AND p.Contacto IN (${ph})
+       ${agencyClause}
      ORDER BY p.FechaRegistro DESC
      LIMIT 1`,
-    candidates,
+    params,
   );
   if (!rows.length) return null;
   return { person: rows[0], documentType: rows[0].tipo_documento };

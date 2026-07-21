@@ -58,7 +58,7 @@ async function listRolesSimple(agencyCode) {
   const agency = normalizeAgencyCode(agencyCode);
   if (!agency) return [];
   const [rows] = await pool.query(
-    `SELECT ID_Rol AS id, Rol AS name, activo
+    `SELECT ID_Rol AS id, Rol AS name
      FROM roles
      WHERE UPPER(ID_Agencia) = ?
      ORDER BY Rol`,

@@ -123,11 +123,14 @@ async function updatePasswordHash(userId, agencyCode, hash) {
   );
 }
 
-async function listOperators() {
+async function listOperators(agencyCode) {
   const agencyMap = await loadAgencyMap();
+  const agency = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
     `SELECT ${USER_SELECT}
+     WHERE UPPER(u.ID_Agencia) = ?
      ORDER BY u.FechaRegistro DESC`,
+    [agency],
   );
   return rows.map((r) => attachAgencyId(r, agencyMap));
 }
@@ -143,9 +146,13 @@ async function findRoleIdByName(name, agencyCode) {
   return rows[0]?.id || null;
 }
 
-async function emailExists(email, excludeUserId = null) {
+async function emailExists(email, agencyCode = null, excludeUserId = null) {
   const params = [email.trim().toLowerCase()];
   let sql = `SELECT ID_Usuario FROM usuarios WHERE LOWER(Correo) = ?`;
+  if (agencyCode) {
+    sql += ` AND UPPER(ID_Agencia) = ?`;
+    params.push(normalizeAgencyCode(agencyCode));
+  }
   if (excludeUserId) {
     sql += ` AND ID_Usuario <> ?`;
     params.push(excludeUserId);
@@ -279,8 +286,14 @@ async function updateOperator(
   await pool.query(sql, params);
 }
 
-async function deleteOperator(id) {
-  const [result] = await pool.query(`DELETE FROM usuarios WHERE ID_Usuario = ?`, [id]);
+async function deleteOperator(id, agencyCode) {
+  const params = [id];
+  let sql = `DELETE FROM usuarios WHERE ID_Usuario = ?`;
+  if (agencyCode) {
+    sql += ` AND UPPER(ID_Agencia) = ?`;
+    params.push(normalizeAgencyCode(agencyCode));
+  }
+  const [result] = await pool.query(sql, params);
   return result.affectedRows;
 }
 

@@ -18,10 +18,6 @@ export class PersonService {
   people = signal<Person[]>([]);
   isLoading = signal(false);
 
-  constructor() {
-    this.getPeople();
-  }
-
   getPeople(): void {
     this.isLoading.set(true);
     this.http.get<Person[]>(this.apiUrl).subscribe({
@@ -31,6 +27,11 @@ export class PersonService {
       },
       error: () => this.isLoading.set(false),
     });
+  }
+
+  clearSessionData(): void {
+    this.people.set([]);
+    this.isLoading.set(false);
   }
 
   getPersonRoles(agencyCode: string) {

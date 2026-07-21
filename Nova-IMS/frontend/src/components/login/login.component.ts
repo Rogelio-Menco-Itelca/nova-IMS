@@ -17,6 +17,9 @@ import {
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { IncidentService } from '../../services/incident.service';
+import { ConfigurationService } from '../../services/configuration.service';
+import { PersonService } from '../../services/person.service';
 import { Agency, RoleOption } from '../../models/user.model';
 
 type Step = 'credentials' | 'otp';
@@ -44,6 +47,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly notificationService = inject(NotificationService);
+  private readonly incidentService = inject(IncidentService);
+  private readonly configurationService = inject(ConfigurationService);
+  private readonly personService = inject(PersonService);
 
   step = signal<Step>('credentials');
   isLoading = signal(false);
@@ -222,6 +228,7 @@ export class LoginComponent implements OnInit, OnDestroy {
             this.step.set('otp');
             this.startResendCountdown();
           } else {
+            this.clearAgencySessionData();
             this.notificationService.clearSessionNotifications();
             this.authService.bootstrapSessionPermissions().catch(() => {
             });
@@ -255,6 +262,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.authService.verifyOtp(this.pendingUser(), code, this.pendingAgency()).subscribe({
       next: (res) => {
         this.isLoading.set(false);
+        this.clearAgencySessionData();
         this.notificationService.clearSessionNotifications();
         this.authService.bootstrapSessionPermissions().catch(() => {
         });
@@ -355,5 +363,12 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.resendCountdown.set(v);
       if (v <= 0 && this.resendTimer) clearInterval(this.resendTimer);
     }, 1000);
+  }
+
+  /** Evita reutilizar en memoria datos de otra agencia al iniciar sesión. */
+  private clearAgencySessionData(): void {
+    this.incidentService.clearSessionData();
+    this.configurationService.clearSessionData();
+    this.personService.clearSessionData();
   }
 }

@@ -356,6 +356,7 @@ export interface Incident {
   priority: IncidentPriority;
   operator: string;
   ani: string;
+  agency?: string;
   contactInfo?: string;
   involvedPeople?: InvolvedPerson[];
   involvedPlaces?: InvolvedPlace[];

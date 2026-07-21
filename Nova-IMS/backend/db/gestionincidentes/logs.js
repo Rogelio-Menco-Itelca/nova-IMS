@@ -1,4 +1,5 @@
 const { pool } = require('../../config/db');
+const { normalizeAgencyCode } = require('./maps');
 
 function parseAuditActorFromDetails(raw) {
   if (raw == null) return null;
@@ -16,14 +17,17 @@ function parseAuditActorFromDetails(raw) {
   return trimmed || null;
 }
 
-async function listAdminLogs() {
+async function listAdminLogs(agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
     `SELECT ID_Auditoria AS id, Nombre_Usuario AS actor_name, ID_Usuario AS user_id,
             Accion AS action, Detalle AS details, FechaCambio AS created_at
      FROM auditoria_general
      WHERE Categoria = 'administracion'
+       AND UPPER(IFNULL(ID_Agencia, '')) = ?
      ORDER BY FechaCambio DESC
      LIMIT 200`,
+    [agency],
   );
   return rows.map((r) => ({
     id: r.id,
@@ -34,7 +38,8 @@ async function listAdminLogs() {
   }));
 }
 
-async function listAuditLogs() {
+async function listAuditLogs(agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
     `SELECT a.id_transaccion_incidentes AS id,
             i.ID_visible AS incidentId,
@@ -44,9 +49,11 @@ async function listAuditLogs() {
             a.fecha AS timestamp,
             a.usuarios_id AS user_id
      FROM auditoria_incidente a
-     LEFT JOIN incidentes i ON i.ID_incidente = a.incidentes_id
+     INNER JOIN incidentes i ON i.ID_incidente = a.incidentes_id
+     WHERE UPPER(i.IDAgencias) = ?
      ORDER BY a.fecha DESC
      LIMIT 500`,
+    [agency],
   );
   return rows.map((r) => ({
     id: r.id,
@@ -59,7 +66,8 @@ async function listAuditLogs() {
   }));
 }
 
-async function listUsersWithActivitySummary() {
+async function listUsersWithActivitySummary(agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
     `SELECT
         u.ID_Usuario AS userId,
@@ -72,11 +80,19 @@ async function listUsersWithActivitySummary() {
         r.Rol AS roleName,
         u.ID_Agencia AS agencyCode,
         u.estado AS status,
-        (SELECT COUNT(*) FROM auditoria_general a WHERE a.ID_Usuario = u.ID_Usuario) AS actionCount,
-        (SELECT MAX(a.FechaCambio) FROM auditoria_general a WHERE a.ID_Usuario = u.ID_Usuario) AS lastActivity
+        (SELECT COUNT(*) FROM auditoria_general a
+          WHERE a.ID_Usuario = u.ID_Usuario
+            AND UPPER(IFNULL(a.ID_Agencia, u.ID_Agencia)) = UPPER(u.ID_Agencia)
+        ) AS actionCount,
+        (SELECT MAX(a.FechaCambio) FROM auditoria_general a
+          WHERE a.ID_Usuario = u.ID_Usuario
+            AND UPPER(IFNULL(a.ID_Agencia, u.ID_Agencia)) = UPPER(u.ID_Agencia)
+        ) AS lastActivity
      FROM usuarios u
      LEFT JOIN roles r ON r.ID_Rol = u.ID_Rol
+     WHERE UPPER(u.ID_Agencia) = ?
      ORDER BY lastActivity IS NULL, lastActivity DESC, userName ASC`,
+    [agency],
   );
   return rows.map((r) => ({
     userId: r.userId,
@@ -89,7 +105,8 @@ async function listUsersWithActivitySummary() {
   }));
 }
 
-async function listActionsByUser(userId) {
+async function listActionsByUser(userId, agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
   const [rows] = await pool.query(
     `SELECT
         a.ID_Auditoria AS id,
@@ -102,9 +119,10 @@ async function listActionsByUser(userId) {
         a.FechaCambio AS timestamp
      FROM auditoria_general a
      WHERE a.ID_Usuario = ?
+       AND UPPER(IFNULL(a.ID_Agencia, '')) = ?
      ORDER BY a.FechaCambio DESC, a.ID_Auditoria DESC
      LIMIT 1000`,
-    [userId],
+    [userId, agency],
   );
   return rows.map((r) => ({
     id: r.id,

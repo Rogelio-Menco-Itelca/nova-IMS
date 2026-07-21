@@ -689,24 +689,62 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadAgencies(): void {
+    const sessionAgency = this.authService.currentUser()?.agency;
     this.authService.getAgencies().subscribe({
-      next: (list) => this.agencies.set(list),
+      next: (list) => {
+        // Solo la agencia de la sesión: las agencias son tenants independientes.
+        const scoped = sessionAgency
+          ? list.filter((ag) => ag.code?.toUpperCase() === sessionAgency.toUpperCase())
+          : list;
+        this.agencies.set(scoped.length ? scoped : list);
+      },
       error: () => this.agencies.set([]),
     });
   }
 
   private loadRolesForAgency(agencyCode: string): void {
+    const code = String(agencyCode || this.authService.currentUser()?.agency || '')
+      .trim()
+      .toUpperCase();
+    if (!code) {
+      this.agencyRoles.set([]);
+      this.rolesLoading.set(false);
+      return;
+    }
+
     this.rolesLoading.set(true);
-    this.authService.getRoles(agencyCode).subscribe({
-      next: (roles) => {
-        this.agencyRoles.set(roles);
-        this.rolesLoading.set(false);
-      },
-      error: () => {
-        this.agencyRoles.set([]);
-        this.rolesLoading.set(false);
-      },
-    });
+    // /api/roles usa la agencia del JWT (sesión); /api/roles/list es público y filtra por query.
+    // Tras login preferimos el endpoint autenticado para no mezclar roles de otras agencias.
+    this.http
+      .get<RolePermission[]>('/api/roles', {
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      })
+      .subscribe({
+        next: (roles) => {
+          this.agencyRoles.set(
+            (roles || []).map((r) => ({
+              id: String(r.id),
+              name: String(r.role || ''),
+            })),
+          );
+          this.rolesLoading.set(false);
+          this.operatorForm.controls.role.enable({ emitEvent: false });
+        },
+        error: () => {
+          // Fallback: listado simple por código de agencia (login / red)
+          this.authService.getRoles(code).subscribe({
+            next: (roles) => {
+              this.agencyRoles.set(roles || []);
+              this.rolesLoading.set(false);
+              this.operatorForm.controls.role.enable({ emitEvent: false });
+            },
+            error: () => {
+              this.agencyRoles.set([]);
+              this.rolesLoading.set(false);
+            },
+          });
+        },
+      });
   }
 
   suggestUsername(primerNombre: string, primerApellido: string): string {
@@ -1468,16 +1506,23 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   openAddForm(): void {
     this.isEditMode.set(false);
     this.selectedOperator.set(null);
-    this.operatorForm.reset({ status: 'Activo' });
+    const sessionAgency = this.authService.currentUser()?.agency || '';
+    this.operatorForm.reset({ status: 'Activo', agency: sessionAgency, role: '' });
     this.operatorForm.controls.password.setValidators([Validators.required]);
     this.operatorForm.controls.password.updateValueAndValidity();
     this.operatorForm.controls.username.enable({ emitEvent: false });
-    this.operatorForm.controls.agency.enable({ emitEvent: false });
+    // Agencia fija a la del login; no se puede crear usuarios en otra agencia.
+    this.operatorForm.controls.agency.disable({ emitEvent: false });
     this.operatorForm.controls.role.disable({ emitEvent: false });
-    this.agencyRoles.set([]);
     this.operatorPasswordError.set(null);
     this.operatorFormError.set(null);
     this.showOperatorForm.set(true);
+    // Roles solo de la agencia de la sesión (los creados en Administración → Permisos).
+    if (sessionAgency) {
+      this.loadRolesForAgency(sessionAgency);
+    } else {
+      this.agencyRoles.set([]);
+    }
   }
 
   openEditForm(operator: Operator): void {
@@ -1541,7 +1586,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       segundoApellido: formValue.segundoApellido?.trim() || '',
       email: formValue.email,
       telefono: formValue.telefono?.trim() || '',
-      agency: formValue.agency,
+      agency: this.authService.currentUser()?.agency || formValue.agency,
       role: formValue.role,
       status: formValue.status,
     };

@@ -1,5 +1,5 @@
 const { pool } = require('../../config/db');
-const { mapStatusFromGi, mapPriorityFromGi } = require('./maps');
+const { mapStatusFromGi, mapPriorityFromGi, normalizeAgencyCode } = require('./maps');
 
 const INCIDENT_REPORT_FROM = `
   FROM incidentes i
@@ -8,10 +8,23 @@ const INCIDENT_REPORT_FROM = `
   JOIN estadosincidentes es ON es.ID_estado = i.ID_estado
   JOIN origen o ON o.ID_Origen = i.ID_Origen`;
 
-async function summary(filters = {}) {
-  const { from, to, status, type, priority, operator } = filters;
+function agencyWhere(agencyCode) {
+  const agency = normalizeAgencyCode(agencyCode);
+  return {
+    clause: 'UPPER(i.IDAgencias) = ?',
+    agency,
+  };
+}
 
-  const [[kpisRaw]] = await pool.query(`
+async function summary(filters = {}) {
+  const { from, to, status, type, priority, operator, agencyCode } = filters;
+  if (!agencyCode) {
+    throw new Error('agencyCode es requerido para reportes');
+  }
+  const { clause: agencyClause, agency } = agencyWhere(agencyCode);
+
+  const [[kpisRaw]] = await pool.query(
+    `
     SELECT
       COUNT(*) AS total,
       SUM(es.Nombre_estado IN ('Cerrado')) AS resolved,
@@ -20,53 +33,76 @@ async function summary(filters = {}) {
       SUM(pr.Prioridad = 'Alta') AS critical,
       SUM(pr.Prioridad = 'Alta') AS high
     ${INCIDENT_REPORT_FROM}
-  `);
+    WHERE ${agencyClause}
+  `,
+    [agency],
+  );
 
-  const [byType] = await pool.query(`
+  const [byType] = await pool.query(
+    `
     SELECT COALESCE(e.TipoEvento, 'Sin tipo') AS label, COUNT(*) AS value
     ${INCIDENT_REPORT_FROM}
+    WHERE ${agencyClause}
     GROUP BY e.TipoEvento ORDER BY value DESC
-  `);
+  `,
+    [agency],
+  );
 
-  const [byStatusRaw] = await pool.query(`
+  const [byStatusRaw] = await pool.query(
+    `
     SELECT es.Nombre_estado AS label_raw, COUNT(*) AS value
     ${INCIDENT_REPORT_FROM}
+    WHERE ${agencyClause}
     GROUP BY es.Nombre_estado ORDER BY value DESC
-  `);
+  `,
+    [agency],
+  );
   const byStatus = byStatusRaw.map((r) => ({
     label: mapStatusFromGi(r.label_raw),
     value: r.value,
   }));
 
-  const [byPriorityRaw] = await pool.query(`
+  const [byPriorityRaw] = await pool.query(
+    `
     SELECT pr.Prioridad AS label_raw, COUNT(*) AS value
     ${INCIDENT_REPORT_FROM}
+    WHERE ${agencyClause}
     GROUP BY pr.Prioridad
     ORDER BY FIELD(pr.Prioridad,'Alta','Media','Baja')
-  `);
+  `,
+    [agency],
+  );
   const byPriority = byPriorityRaw.map((r) => ({
     label: mapPriorityFromGi(r.label_raw),
     value: r.value,
   }));
 
-  const [byOperator] = await pool.query(`
+  const [byOperator] = await pool.query(
+    `
     SELECT COALESCE(u.ID_Usuario, 'Sin asignar') AS label, COUNT(*) AS value
     ${INCIDENT_REPORT_FROM}
     LEFT JOIN personas p ON p.ID_incidente = i.ID_incidente
     LEFT JOIN usuarios u ON u.ID_Usuario = p.ID_Usuario AND u.ID_Agencia = p.ID_Agencia
+    WHERE ${agencyClause}
     GROUP BY u.ID_Usuario ORDER BY value DESC LIMIT 10
-  `);
+  `,
+    [agency],
+  );
 
-  const [daily] = await pool.query(`
+  const [daily] = await pool.query(
+    `
     SELECT DATE(i.FechaHora) AS day, COUNT(*) AS total,
            SUM(pr.Prioridad = 'Alta') AS critical
     ${INCIDENT_REPORT_FROM}
-    WHERE i.FechaHora >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    WHERE ${agencyClause}
+      AND i.FechaHora >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
     GROUP BY DATE(i.FechaHora) ORDER BY day ASC
-  `);
+  `,
+    [agency],
+  );
 
-  const conditions = [];
-  const params = [];
+  const conditions = [agencyClause];
+  const params = [agency];
   if (from) {
     conditions.push('DATE(i.FechaHora) >= ?');
     params.push(from);
@@ -91,7 +127,7 @@ async function summary(filters = {}) {
     conditions.push('u.ID_Usuario LIKE ?');
     params.push(`%${operator}%`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = `WHERE ${conditions.join(' AND ')}`;
 
   const [historyRaw] = await pool.query(
     `
@@ -121,13 +157,18 @@ async function summary(filters = {}) {
     updatedAt: r.updatedAt,
   }));
 
-  const [operatorActivity] = await pool.query(`
-    SELECT usuarios_id AS operator, COUNT(*) AS actions,
-           SUM(accion = 'Creación') AS created,
-           SUM(accion = 'Actualización') AS updated
-    FROM auditoria_incidente
-    GROUP BY usuarios_id ORDER BY actions DESC LIMIT 10
-  `);
+  const [operatorActivity] = await pool.query(
+    `
+    SELECT a.usuarios_id AS operator, COUNT(*) AS actions,
+           SUM(a.accion = 'Creación') AS created,
+           SUM(a.accion = 'Actualización') AS updated
+    FROM auditoria_incidente a
+    INNER JOIN incidentes i ON i.ID_incidente = a.incidentes_id
+    WHERE UPPER(i.IDAgencias) = ?
+    GROUP BY a.usuarios_id ORDER BY actions DESC LIMIT 10
+  `,
+    [agency],
+  );
 
   return {
     kpis: {

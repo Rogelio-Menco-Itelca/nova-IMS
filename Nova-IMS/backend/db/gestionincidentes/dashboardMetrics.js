@@ -47,9 +47,10 @@ function statusReachedSql(alias) {
   )`;
 }
 
-async function queryAverageTimeToStatus(statusLabel) {
+async function queryAverageTimeToStatus(statusLabel, agencyCode) {
   const actionPattern = `%→ ${statusLabel}`;
   const changesPattern = `%→ ${statusLabel}%`;
+  const agency = String(agencyCode || CSJ_AGENCY).trim().toUpperCase();
 
   const [[row]] = await pool.query(
     `
@@ -68,16 +69,17 @@ async function queryAverageTimeToStatus(statusLabel) {
       AND UPPER(i.IDAgencias) = ?
       AND st.first_at >= i.FechaHora
     `,
-    [actionPattern, changesPattern, statusLabel, statusLabel, CSJ_AGENCY],
+    [actionPattern, changesPattern, statusLabel, statusLabel, agency],
   );
 
   return buildTimeMetric(row);
 }
 
-async function queryAverageTimeToProtection() {
+async function queryAverageTimeToProtection(agencyCode) {
   const statusLabel = STATUS_TARGETS.PROTECCION;
   const actionPattern = `%→ ${statusLabel}`;
   const changesPattern = `%→ ${statusLabel}%`;
+  const agency = String(agencyCode || CSJ_AGENCY).trim().toUpperCase();
 
   const [[row]] = await pool.query(
     `
@@ -108,20 +110,21 @@ async function queryAverageTimeToProtection() {
       AND UPPER(i.IDAgencias) = ?
       AND pt.protection_at >= i.FechaHora
     `,
-    [actionPattern, changesPattern, statusLabel, statusLabel, CSJ_AGENCY],
+    [actionPattern, changesPattern, statusLabel, statusLabel, agency],
   );
 
   return buildTimeMetric(row);
 }
 
-async function getCsjDashboardMetrics() {
+async function getCsjDashboardMetrics(agencyCode = CSJ_AGENCY) {
+  const agency = String(agencyCode || CSJ_AGENCY).trim().toUpperCase();
   const [gestion, proteccion] = await Promise.all([
-    queryAverageTimeToStatus(STATUS_TARGETS.GESTION),
-    queryAverageTimeToProtection(),
+    queryAverageTimeToStatus(STATUS_TARGETS.GESTION, agency),
+    queryAverageTimeToProtection(agency),
   ]);
 
   return {
-    agency: CSJ_AGENCY,
+    agency,
     gestion,
     proteccion,
   };

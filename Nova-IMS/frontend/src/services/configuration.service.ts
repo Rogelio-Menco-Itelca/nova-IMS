@@ -198,4 +198,19 @@ export class ConfigurationService {
       this.loadingUserActions.set(false);
     }
   }
+
+  /** Limpia cachés de admin al cerrar sesión / cambiar de agencia. */
+  clearSessionData(): void {
+    this.adminLogs.set([]);
+    this.operators.set([]);
+    this.incidentTypes.set([]);
+    this.responseProtocols.set([]);
+    this.notificationEmails.set([]);
+    this.auditLogs.set([]);
+    this.rolePermissions.set([]);
+    this.usersAuditSummary.set([]);
+    this.selectedUserActions.set([]);
+    this.selectedUserId.set(null);
+    this.loadingUserActions.set(false);
+  }
 }

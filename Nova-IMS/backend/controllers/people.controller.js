@@ -70,8 +70,16 @@ exports.create = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const b = req.body || {};
+  const agencyCode = requireSessionAgency(req);
   const existing = await giPeople.getPerson(id);
   if (!existing) throw new HttpError(404, 'Persona no encontrada');
+  if (
+    String(existing.id_agencia || '')
+      .trim()
+      .toUpperCase() !== agencyCode
+  ) {
+    throw new HttpError(404, 'Persona no encontrada');
+  }
 
   const row = await giPeople.updatePerson(id, {
     primerNombre: b.primerNombre,
@@ -86,7 +94,7 @@ exports.update = asyncHandler(async (req, res) => {
     comentarios: b.comentarios ?? b.notes,
     genderId: b.genderId,
     status: b.status,
-    agencyCode: existing.id_agencia || requireSessionAgency(req),
+    agencyCode,
     userId: await resolveDbUserId(req.user),
   });
   await writeAdminLog(
@@ -104,6 +112,16 @@ exports.setStatus = asyncHandler(async (req, res) => {
   const status = req.body?.status;
   if (!status) {
     throw new HttpError(400, 'status es requerido (Activo o Inactivo)');
+  }
+  const agencyCode = requireSessionAgency(req);
+  const existing = await giPeople.getPerson(id);
+  if (
+    !existing ||
+    String(existing.id_agencia || '')
+      .trim()
+      .toUpperCase() !== agencyCode
+  ) {
+    throw new HttpError(404, 'Persona no encontrada');
   }
   const row = await giPeople.setPersonStatus(id, status);
   if (!row) throw new HttpError(404, 'Persona no encontrada');
@@ -130,7 +148,8 @@ exports.lookupByPhone = asyncHandler(async (req, res) => {
     candidates.add(`+57${digits}`);
   }
   const list = [...candidates].filter(Boolean);
-  const result = await giPeople.lookupByPhone(list);
+  const agencyCode = requireSessionAgency(req);
+  const result = await giPeople.lookupByPhone(list, agencyCode);
   if (!result) throw new HttpError(404, 'Número no registrado');
 
   const person = mapPerson(result.person);

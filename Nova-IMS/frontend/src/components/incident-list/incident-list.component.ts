@@ -2436,7 +2436,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       (action) => this.requestLeaveOr(action),
     );
 
-    if (this.incidentService.incidents().length === 0) this.incidentService.getIncidents();
+    // Siempre recargar: no reutilizar lista en memoria de otra sesión/agencia.
+    this.incidentService.getIncidents();
 
     this.configService.getIncidentTypes().catch(() => void 0);
     this.configService.getResponseProtocols().catch(() => void 0);

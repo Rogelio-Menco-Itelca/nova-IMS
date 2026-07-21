@@ -10,7 +10,7 @@ const {
   locationChannelFromGi,
 } = require('./maps');
 const { resolveUserContext } = require('./users');
-const { requireAgencyInput } = require('./agencyContext');
+const { requireUserAgency } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
 const { insertPersonComment } = require('./people');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
@@ -95,7 +95,16 @@ const INCIDENT_JOINS = `
   LEFT JOIN departamentos d ON d.id_departamento = i.id_departamento
   LEFT JOIN municipios m ON m.id_municipio = i.id_municipio`;
 
-async function getInternalId(visibleId) {
+async function getInternalId(visibleId, agencyCode = null) {
+  if (agencyCode) {
+    const [rows] = await pool.query(
+      `SELECT ID_incidente FROM incidentes
+       WHERE ID_visible = ? AND UPPER(IDAgencias) = ?
+       LIMIT 1`,
+      [visibleId, normalizeAgencyCode(agencyCode)],
+    );
+    return rows[0]?.ID_incidente ?? null;
+  }
   const [rows] = await pool.query(
     `SELECT ID_incidente FROM incidentes WHERE ID_visible = ? LIMIT 1`,
     [visibleId],
@@ -480,7 +489,17 @@ async function hydrateIncidents(rows, reader = pool) {
   return out;
 }
 
-async function listIncidents(limit = 100) {
+async function listIncidents(limit = 100, agencyCode = null) {
+  const agency = agencyCode ? normalizeAgencyCode(agencyCode) : null;
+  if (agency) {
+    const rows = await fetchIncidentRows(
+      `WHERE (i.ID_visible IS NULL OR i.ID_visible NOT LIKE 'CAT-PERS-%')
+         AND UPPER(i.IDAgencias) = ?
+       ORDER BY i.ID_incidente DESC LIMIT ?`,
+      [agency, limit],
+    );
+    return hydrateIncidents(rows);
+  }
   const rows = await fetchIncidentRows(
     `WHERE (i.ID_visible IS NULL OR i.ID_visible NOT LIKE 'CAT-PERS-%')
      ORDER BY i.ID_incidente DESC LIMIT ?`,
@@ -489,8 +508,14 @@ async function listIncidents(limit = 100) {
   return hydrateIncidents(rows);
 }
 
-async function getIncident(visibleId) {
-  const rows = await fetchIncidentRows(`WHERE i.ID_visible = ?`, [visibleId]);
+async function getIncident(visibleId, agencyCode = null) {
+  const agency = agencyCode ? normalizeAgencyCode(agencyCode) : null;
+  const rows = agency
+    ? await fetchIncidentRows(`WHERE i.ID_visible = ? AND UPPER(i.IDAgencias) = ?`, [
+        visibleId,
+        agency,
+      ])
+    : await fetchIncidentRows(`WHERE i.ID_visible = ?`, [visibleId]);
   if (!rows.length) return null;
   const [inc] = await hydrateIncidents(rows);
   return inc;
@@ -757,7 +782,7 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
 }
 
 async function createIncident(body, user) {
-  const agencyCode = requireAgencyInput(body.agency, user);
+  const agencyCode = requireUserAgency(user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const cats = await resolveCatalogIds(agencyCode, body);
 
@@ -1019,9 +1044,9 @@ async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
 }
 
 async function updateIncident(visibleId, body, user) {
-  const internalId = await getInternalId(visibleId);
+  const agencyCode = requireUserAgency(user);
+  const internalId = await getInternalId(visibleId, agencyCode);
   if (!internalId) return null;
-  const agencyCode = requireAgencyInput(null, user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const cats = await resolveCatalogIds(agencyCode, body);
 
@@ -1103,9 +1128,9 @@ function buildAuditDetailsPayload(details, actorDisplayName, { isCreation = fals
 }
 
 async function writeAudit(conn, { incidentId, user, action, changes, details, creatorDisplayName, actorDisplayName }) {
-  const internalId = await getInternalId(incidentId);
+  const agencyCode = requireUserAgency(user);
+  const internalId = await getInternalId(incidentId, agencyCode);
   if (!internalId) return;
-  const agencyCode = requireAgencyInput(null, user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const id = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const resolvedActor = actorDisplayName ?? creatorDisplayName ?? user?.name ?? null;
@@ -1144,15 +1169,22 @@ async function loadAuditLogs(visibleId) {
   return rows;
 }
 
-async function emailAllowed(recipients) {
+async function emailAllowed(recipients, agencyCode = null) {
   const { ensureEmailStatusColumn } = require('./correosSchema');
   await ensureEmailStatusColumn();
   const ph = recipients.map(() => '?').join(',');
+  const params = recipients.map((e) => e.toLowerCase());
+  let agencyClause = '';
+  if (agencyCode) {
+    agencyClause = ' AND UPPER(ID_Agencia) = ?';
+    params.push(normalizeAgencyCode(agencyCode));
+  }
   const [rows] = await pool.query(
     `SELECT DISTINCT LOWER(Correo) AS email FROM correosincidentes
      WHERE LOWER(Correo) IN (${ph})
-       AND COALESCE(NULLIF(estado, ''), 'Activo') = 'Activo'`,
-    recipients.map((e) => e.toLowerCase()),
+       AND COALESCE(NULLIF(estado, ''), 'Activo') = 'Activo'
+       ${agencyClause}`,
+    params,
   );
   return new Set(rows.map((r) => r.email));
 }

@@ -6,6 +6,7 @@ const { generateUniqueUsername } = require('../utils/usernameGenerator');
 const { validatePassword } = require('../utils/passwordPolicy');
 const { sendWelcomeEmail } = require('../services/email.service');
 const { resolveAgency } = require('../db/gestionincidentes/agencies');
+const { requireSessionAgency } = require('../utils/requestAgency');
 const giUsers = require('../db/gestionincidentes/users');
 
 function mapOperator(r) {
@@ -43,7 +44,8 @@ function assertRequiredNames(body) {
 }
 
 exports.list = asyncHandler(async (req, res) => {
-  const rows = await giUsers.listOperators();
+  const agencyCode = requireSessionAgency(req);
+  const rows = await giUsers.listOperators(agencyCode);
   res.json(rows.map(mapOperator));
 });
 
@@ -54,13 +56,11 @@ exports.create = asyncHandler(async (req, res) => {
   if (!b.email || !b.role) {
     throw new HttpError(400, 'email y role son requeridos');
   }
-  if (!String(b.agency || '').trim()) {
-    throw new HttpError(400, 'La agencia es requerida');
-  }
 
-  const agency = await resolveAgency(b.agency);
-  if (!agency) throw new HttpError(400, `Agencia no encontrada: ${b.agency}`);
-  const agencyCode = agency.code;
+  // Tenant = agencia de la sesión; el cliente no puede crear usuarios en otra agencia.
+  const agencyCode = requireSessionAgency(req);
+  const agency = await resolveAgency(agencyCode);
+  if (!agency) throw new HttpError(400, `Agencia no encontrada: ${agencyCode}`);
 
   const roleId = await giUsers.findRoleIdByName(b.role, agencyCode);
   if (!roleId) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
@@ -74,8 +74,8 @@ exports.create = asyncHandler(async (req, res) => {
 
   const email = b.email.trim().toLowerCase();
 
-  if (await giUsers.emailExists(email)) {
-    throw new HttpError(409, 'Ya existe un usuario con ese correo');
+  if (await giUsers.emailExists(email, agencyCode)) {
+    throw new HttpError(409, 'Ya existe un usuario con ese correo en esta agencia');
   }
   if (await giUsers.usernameExists(loginId, agencyCode)) {
     throw new HttpError(409, 'El nombre de usuario ya existe en esta agencia');
@@ -128,7 +128,8 @@ exports.create = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const b = req.body || {};
-  const existing = await giUsers.findUserById(id);
+  const agencyCode = requireSessionAgency(req);
+  const existing = await giUsers.findUserById(id, agencyCode);
   if (!existing) throw new HttpError(404, 'Operador no encontrado');
 
   assertRequiredNames({
@@ -138,7 +139,7 @@ exports.update = asyncHandler(async (req, res) => {
 
   let roleId = null;
   if (b.role) {
-    roleId = await giUsers.findRoleIdByName(b.role, existing.agency_code);
+    roleId = await giUsers.findRoleIdByName(b.role, agencyCode);
     if (!roleId) throw new HttpError(400, `Rol no encontrado: ${b.role}`);
   }
 
@@ -151,18 +152,23 @@ exports.update = asyncHandler(async (req, res) => {
     telefono: b.telefono,
     roleId,
     status: b.status,
-    agencyCode: existing.agency_code,
+    agencyCode,
   });
 
-  const user = await giUsers.findUserById(id, existing.agency_code);
-  await writeAdminLog(req.user, 'Actualización de Operador', `Se actualizó el operador ${id}`, req, { tablaAfectada: 'usuarios' });
+  const user = await giUsers.findUserById(id, agencyCode);
+  await writeAdminLog(req.user, 'Actualización de Operador', `Se actualizó el operador ${id}`, req, {
+    tablaAfectada: 'usuarios',
+  });
   res.json(mapOperator(user));
 });
 
 exports.remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const affected = await giUsers.deleteOperator(id);
+  const agencyCode = requireSessionAgency(req);
+  const affected = await giUsers.deleteOperator(id, agencyCode);
   if (!affected) throw new HttpError(404, 'Operador no encontrado');
-  await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`, req, { tablaAfectada: 'usuarios' });
+  await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`, req, {
+    tablaAfectada: 'usuarios',
+  });
   res.status(204).send();
 });

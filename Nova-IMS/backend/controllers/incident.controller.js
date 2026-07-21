@@ -50,6 +50,7 @@ function mapIncidentRow(r) {
     contactInfo: r.contact_info || undefined,
     locationPhoneNumber: r.location_phone_number || r.location_phone || undefined,
     operator: r.operator_name || r.operator || '',
+    agency: r.agency_code || r.agency || '',
     timestamp: r.created_at || r.timestamp,
     updatedAt: r.updated_at || r.updatedAt || r.created_at || r.timestamp,
     involvedPeople: r.involvedPeople || [],
@@ -242,17 +243,20 @@ function buildAuditDetails(before, after) {
   return details;
 }
 
-const dashboardMetrics = asyncHandler(async (_req, res) => {
-  res.json(await getCsjDashboardMetrics());
+const dashboardMetrics = asyncHandler(async (req, res) => {
+  const agencyCode = requireSessionAgency(req);
+  res.json(await getCsjDashboardMetrics(agencyCode));
 });
 
 const list = asyncHandler(async (req, res) => {
-  const rows = await giIncidents.listIncidents();
+  const agencyCode = requireSessionAgency(req);
+  const rows = await giIncidents.listIncidents(100, agencyCode);
   res.json(rows.map(mapIncidentRow));
 });
 
 const getOne = asyncHandler(async (req, res) => {
-  const inc = await giIncidents.getIncident(req.params.id);
+  const agencyCode = requireSessionAgency(req);
+  const inc = await giIncidents.getIncident(req.params.id, agencyCode);
   if (!inc) throw new HttpError(404, 'Incidente no encontrado');
   res.json(mapIncidentRow(inc));
 });
@@ -299,7 +303,8 @@ const create = asyncHandler(async (req, res) => {
     detalle: `Incidente ${visibleId} creado`,
   });
 
-  const inc = mapIncidentRow(await giIncidents.getIncident(visibleId));
+  const agencyCode = requireSessionAgency(req);
+  const inc = mapIncidentRow(await giIncidents.getIncident(visibleId, agencyCode));
   inc.operator = actorName;
   socket.emit('incident:created', inc);
   res.status(201).json(inc);
@@ -308,6 +313,7 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const b = req.body || {};
+  const agencyCode = requireSessionAgency(req);
   const invalidVehicle = (b.involvedVehicles || []).find(
     (v) => String(v?.plate || '').trim() && !isValidPlate(v.plate),
   );
@@ -318,7 +324,7 @@ const update = asyncHandler(async (req, res) => {
     );
   }
 
-  const before = mapIncidentRow(await giIncidents.getIncident(id));
+  const before = mapIncidentRow(await giIncidents.getIncident(id, agencyCode));
   if (!before.id) throw new HttpError(404, 'Incidente no encontrado');
 
   const newStatus = b.status || before.status;
@@ -332,7 +338,7 @@ const update = asyncHandler(async (req, res) => {
     req.user,
   );
 
-  const afterForAuditBase = mapIncidentRow(await giIncidents.getIncident(id));
+  const afterForAuditBase = mapIncidentRow(await giIncidents.getIncident(id, agencyCode));
   if (!afterForAuditBase.id) throw new HttpError(404, 'Incidente no encontrado');
 
   const afterForAudit = {
@@ -387,7 +393,7 @@ const update = asyncHandler(async (req, res) => {
     });
   }
 
-  const after = mapIncidentRow(await giIncidents.getIncident(id));
+  const after = mapIncidentRow(await giIncidents.getIncident(id, agencyCode));
   after.operator = actorName;
 
   socket.emit('incident:updated', after);
@@ -432,13 +438,14 @@ const sendEmail = asyncHandler(async (req, res) => {
         .filter(Boolean),
     ),
   ];
-  const allowed = await giIncidents.emailAllowed(recipients);
+  const agencyCode = requireSessionAgency(req);
+  const allowed = await giIncidents.emailAllowed(recipients, agencyCode);
   const invalid = recipients.filter((e) => !allowed.has(e));
   if (invalid.length) {
     throw new HttpError(400, `Correo(s) no autorizado(s): ${invalid.join(', ')}`);
   }
 
-  const incRaw = await giIncidents.getIncident(id);
+  const incRaw = await giIncidents.getIncident(id, agencyCode);
   if (!incRaw) throw new HttpError(404, 'Incidente no encontrado');
   const incident = mapIncidentRow(incRaw);
   const allAuditLogs = await loadIncidentAuditLogs(id);
@@ -454,7 +461,6 @@ const sendEmail = asyncHandler(async (req, res) => {
 
   const result = await sendIncidentNotification({ to: recipients, incident });
 
-  const agencyCode = requireSessionAgency(req);
   await comunicacion.safeLog(() =>
     comunicacion.logIncidentEmailCommunications({
       incidentInternalId: incRaw.internal_id,

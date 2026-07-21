@@ -12,6 +12,8 @@ export class IncidentService {
   private readonly socketService = inject(SocketService);
   private readonly notificationService = inject(NotificationService);
   private readonly apiUrl = '/api/incidents';
+  /** Agencia de la última carga exitosa; filtra eventos socket de otras agencias. */
+  private loadedAgency: string | null = null;
 
   incidents = signal<Incident[]>([]);
   dashboardMetrics = signal<DashboardResponseMetrics | null>(null);
@@ -20,16 +22,36 @@ export class IncidentService {
 
   constructor() {
     this.socketService.on('incident:created', (newIncident: Incident) => {
+      if (!this.belongsToLoadedAgency(newIncident)) return;
       this.incidents.update((list) => [newIncident, ...list]);
       this.refreshDashboardMetrics();
     });
 
     this.socketService.on('incident:updated', (updatedIncident: Incident) => {
+      if (!this.belongsToLoadedAgency(updatedIncident)) return;
       this.incidents.update((list) =>
         list.map((i) => (i.id === updatedIncident.id ? updatedIncident : i)),
       );
       this.refreshDashboardMetrics();
     });
+  }
+
+  private belongsToLoadedAgency(incident: Incident): boolean {
+    if (!this.loadedAgency) return false;
+    const incidentAgency = String(incident.agency || '')
+      .trim()
+      .toUpperCase();
+    if (!incidentAgency) return false;
+    return incidentAgency === this.loadedAgency;
+  }
+
+  /** Limpia datos en memoria al cerrar sesión (evita ver incidentes de otra agencia). */
+  clearSessionData(): void {
+    this.incidents.set([]);
+    this.dashboardMetrics.set(null);
+    this.isLoading.set(false);
+    this.pendingOpenIncidentId.set(null);
+    this.loadedAgency = null;
   }
 
   private dedupeIncidents(list: Incident[]): Incident[] {
@@ -62,7 +84,22 @@ export class IncidentService {
     this.isLoading.set(true);
     this.http.get<Incident[]>(this.apiUrl).subscribe({
       next: (data) => {
-        this.incidents.set(this.dedupeIncidents(data));
+        const list = this.dedupeIncidents(data);
+        this.incidents.set(list);
+        const fromRow = String(list[0]?.agency || '')
+          .trim()
+          .toUpperCase();
+        let fromSession = '';
+        try {
+          fromSession = String(
+            JSON.parse(sessionStorage.getItem('ims_currentUser') || '{}')?.agency || '',
+          )
+            .trim()
+            .toUpperCase();
+        } catch {
+          fromSession = '';
+        }
+        this.loadedAgency = fromRow || fromSession || null;
         this.isLoading.set(false);
       },
       error: (err) => {

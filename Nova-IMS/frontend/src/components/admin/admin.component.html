@@ -2184,14 +2184,13 @@
               class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60"
               required
             >
-              <option value="" disabled>Seleccione agencia...</option>
               @for (ag of agencies(); track ag.id) {
                 <option [value]="ag.code">{{ ag.name }} ({{ ag.code }})</option>
               }
             </select>
-            @if (operatorForm.controls.agency.touched && operatorForm.controls.agency.invalid) {
-              <p class="mt-1 text-xs text-red-400">La agencia es obligatoria.</p>
-            }
+            <p class="mt-1 text-xs text-gray-400">
+              Solo administra usuarios de su agencia.
+            </p>
           </div>
           <div>
             <label for="role" class="block text-sm font-medium text-gray-300 mb-1">
@@ -2206,8 +2205,8 @@
               <option value="" disabled>
                 @if (rolesLoading()) {
                   Cargando roles...
-                } @else if (!operatorForm.controls.agency.value) {
-                  Seleccione agencia primero
+                } @else if (agencyRoles().length === 0) {
+                  Sin roles para esta agencia
                 } @else {
                   Seleccione un rol
                 }
@@ -2217,10 +2216,14 @@
               }
             </select>
             @if (
-              operatorForm.controls.agency.value && !rolesLoading() && agencyRoles().length === 0
+              operatorForm.getRawValue().agency && !rolesLoading() && agencyRoles().length === 0
             ) {
               <p class="mt-1 text-xs text-amber-400">
-                No hay roles configurados para esta agencia.
+                No hay roles creados para esta agencia. Créelos en la pestaña Permisos.
+              </p>
+            } @else if (!rolesLoading() && agencyRoles().length > 0) {
+              <p class="mt-1 text-xs text-gray-400">
+                Roles configurados solo para su agencia.
               </p>
             }
           </div>

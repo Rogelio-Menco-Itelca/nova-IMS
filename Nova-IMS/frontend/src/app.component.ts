@@ -27,6 +27,9 @@ import { SessionWarningComponent } from './components/session-warning/session-wa
 import { ProfileModalComponent } from './components/profile-modal/profile-modal.component';
 import { ProfilePhotoService } from './services/profile-photo.service';
 import { IncidentLeaveGuardService } from './services/incident-leave-guard.service';
+import { IncidentService } from './services/incident.service';
+import { ConfigurationService } from './services/configuration.service';
+import { PersonService } from './services/person.service';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
 
@@ -56,6 +59,9 @@ export class AppComponent implements OnInit {
   readonly inactivityService = inject(InactivityService);
   readonly profilePhotoService = inject(ProfilePhotoService);
   private readonly incidentLeaveGuard = inject(IncidentLeaveGuardService);
+  private readonly incidentService = inject(IncidentService);
+  private readonly configurationService = inject(ConfigurationService);
+  private readonly personService = inject(PersonService);
 
   private readonly elementRef = inject(ElementRef);
 
@@ -98,6 +104,7 @@ export class AppComponent implements OnInit {
   isDarkTheme = signal(true);
   phoneNumber = signal('');
   toastNotification = signal<{ title: string; message: string } | null>(null);
+  private hadAuthenticatedSession = false;
 
   constructor() {
     effect(() => {
@@ -117,11 +124,17 @@ export class AppComponent implements OnInit {
 
     effect(() => {
       if (this.authService.isAuthenticated()) {
+        this.hadAuthenticatedSession = true;
         this.inactivityService.start();
         this.profilePhotoService.loadForUser(this.authService.currentUser()?.id);
       } else {
         this.inactivityService.stop();
         this.profilePhotoService.loadForUser(null);
+        // Limpia caché al cerrar sesión (botón, inactividad o 401), no en el arranque en frío.
+        if (this.hadAuthenticatedSession) {
+          this.clearAgencySessionData();
+          this.hadAuthenticatedSession = false;
+        }
       }
     });
 
@@ -183,12 +196,20 @@ export class AppComponent implements OnInit {
 
   logout(): void {
     this.notificationService.clearSessionNotifications();
+    this.clearAgencySessionData();
     this.inactivityService.stop();
     this.authService.logout();
     this.isProfileOpen.set(false);
     this.isProfileModalOpen.set(false);
     this.isNotificationsOpen.set(false);
     this.authService.currentView.set('dashboard');
+  }
+
+  /** Evita reutilizar en memoria datos de otra agencia al cambiar de sesión. */
+  private clearAgencySessionData(): void {
+    this.incidentService.clearSessionData();
+    this.configurationService.clearSessionData();
+    this.personService.clearSessionData();
   }
 
   setView(view: View): void {
