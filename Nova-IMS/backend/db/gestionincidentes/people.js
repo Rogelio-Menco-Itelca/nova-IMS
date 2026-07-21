@@ -22,7 +22,6 @@ function normalizeGenderId(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** Corrige registros admin guardados con incidente técnico CAT-PERS-* */
 async function repairLegacyAdminPersonas() {
   await pool.query(
     `UPDATE personas p
@@ -32,7 +31,6 @@ async function repairLegacyAdminPersonas() {
   );
 }
 
-/** Asegura columna estado (Activo/Inactivo) en catálogo admin de personas. */
 async function ensurePersonStatusColumn() {
   const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'estado'");
   if (!cols.length) {
@@ -43,7 +41,6 @@ async function ensurePersonStatusColumn() {
   await pool.query(`UPDATE personas SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`);
 }
 
-/** Personas del módulo Admin: ID_incidente NULL (no ligadas a ningún incidente). */
 async function ensureAdminPersonasCatalog() {
   if (adminCatalogReady) return;
   const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'ID_incidente'");

@@ -1,17 +1,3 @@
-/**
- * Middleware de auditoría automática (enfoque LISTA BLANCA).
- *
- * Solo registra en `auditoria_general` las mutaciones que corresponden a
- * ACCIONES REALES del usuario definidas explícitamente en ALLOWLIST. Cualquier
- * otra petición (borradores internos, contadores, sub-recursos técnicos, etc.)
- * NO se audita, evitando registros falsos o mal etiquetados.
- *
- * Las acciones "ricas" (incidentes, roles, personas, operadores, sesión) se
- * auditan de forma explícita en sus controladores y marcan
- * `req.skipAutoAudit = true`, por lo que este middleware las ignora.
- *
- * @module middleware/auditMiddleware
- */
 
 const { recordAudit } = require('../utils/auditTrail');
 
@@ -26,7 +12,6 @@ const IGNORED_BODY_KEYS = new Set([
   'otp',
 ]);
 
-/** Lista legible de los campos enviados (sin valores ni claves sensibles). */
 function describeBodyFields(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
   const keys = Object.keys(body).filter((k) => !IGNORED_BODY_KEYS.has(k));
@@ -39,7 +24,6 @@ function entityId(req) {
   return p.id || p.userId || p.email || null;
 }
 
-/** Detalle genérico "Se creó/actualizó <recurso> (<id>) — campos: ...". */
 function genericDetalle(verbo, recurso, req, withFields) {
   const id = entityId(req);
   let detalle = `${verbo} ${recurso.toLowerCase()}${id ? ` (${id})` : ''}`;
@@ -50,13 +34,7 @@ function genericDetalle(verbo, recurso, req, withFields) {
   return detalle;
 }
 
-/**
- * Reglas de acciones reales que este middleware SÍ audita.
- * Cada regla: método(s), patrón de ruta (relativa a /api), y cómo describirla.
- * El resto de rutas NO se audita aquí.
- */
 const ALLOWLIST = [
-  // Tipos de incidente
   {
     methods: ['POST'],
     test: /^\/incident-types\/?$/,
@@ -75,7 +53,6 @@ const ALLOWLIST = [
     accion: 'Actualización de tipo de incidente',
     detalle: (req) => genericDetalle('Se actualizó', 'tipo de incidente', req, true),
   },
-  // Protocolos de respuesta
   {
     methods: ['POST'],
     test: /^\/response-protocols\/?$/,
@@ -94,7 +71,6 @@ const ALLOWLIST = [
     accion: 'Actualización de protocolo de respuesta',
     detalle: (req) => genericDetalle('Se actualizó', 'protocolo de respuesta', req, true),
   },
-  // Correos autorizados de notificación
   {
     methods: ['POST'],
     test: /^\/notification-emails\/?$/,
@@ -116,9 +92,6 @@ const ALLOWLIST = [
       return `Se ${estado} el correo autorizado (${entityId(req) || '—'})`;
     },
   },
-  // Solicitudes de ubicación (módulo Incidentes)
-  // NOTA: la creación (POST /location-requests) se audita de forma explícita en
-  // locationRequest.controller.js para capturar canal (WhatsApp/SMS) y teléfono.
   {
     methods: ['POST'],
     test: /^\/location-requests\/[^/]+\/received\/?$/,
@@ -139,8 +112,6 @@ function resolveRule(method, cleanPath) {
 function auditMiddleware(req, res, next) {
   if (!AUDITED_METHODS.has(req.method)) return next();
 
-  // La ruta se resuelve AHORA (síncrono): req.baseUrl puede mutar si la
-  // petición cae a un router montado aparte.
   const cleanPath = req.originalUrl.split('?')[0].replace(/^\/api/, '') || '/';
 
   res.on('finish', () => {
@@ -163,7 +134,6 @@ function auditMiddleware(req, res, next) {
         detalle: rule.detalle ? rule.detalle(req) : rule.accion,
       });
     } catch {
-      /* nunca interrumpir la respuesta por auditoría */
     }
   });
 

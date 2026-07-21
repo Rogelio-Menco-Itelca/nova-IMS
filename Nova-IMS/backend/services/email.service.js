@@ -14,7 +14,6 @@ function isSmtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
-/** resend (HTTPS, Railway/Vercel) | smtp (on-prem) | console (dev sin envío) */
 function getMailProvider() {
   const requested = String(process.env.MAIL_PROVIDER || '').trim().toLowerCase();
   if (requested === 'console') return 'console';
@@ -83,10 +82,6 @@ async function sendMailViaResend({ from, to, subject, text, html }) {
   return payload;
 }
 
-/* ----- SMTP (Nodemailer) — reservado para despliegue on-prem / Office365 -----
- * En Railway/Vercel los puertos SMTP suelen estar bloqueados.
- * Reactivar con: MAIL_PROVIDER=smtp y variables SMTP_*.
- */
 function getTransporter() {
   if (!isSmtpConfigured()) return null;
   if (!transporter) {

@@ -12,7 +12,6 @@ export type IncidentStatus =
   | 'En proceso'
   | 'Resuelto';
 
-/** Estados visibles en el dashboard (incidentes que requieren seguimiento). */
 export const DASHBOARD_ACTIVE_STATUSES: readonly IncidentStatus[] = [
   'Nuevo',
   'En gestión OSEG',
@@ -21,7 +20,6 @@ export const DASHBOARD_ACTIVE_STATUSES: readonly IncidentStatus[] = [
   'Medidas asignadas',
 ] as const;
 
-/** Estados cerrados: no aparecen en el dashboard. */
 export const DASHBOARD_CLOSED_STATUSES: readonly IncidentStatus[] = [
   'Cerrado',
   'Cancelado',
@@ -40,7 +38,6 @@ export function isDashboardClosedStatus(status: string | null | undefined): bool
   return (DASHBOARD_CLOSED_STATUSES as readonly string[]).includes(value);
 }
 
-/** Mapeo nombre catálogo BD → estado UI del API (alineado con backend maps.js). */
 export const CATALOG_STATUS_TO_UI: Record<string, IncidentStatus> = {
   Nuevo: 'Nuevo',
   'En gestión OSEG': 'En gestión OSEG',
@@ -61,7 +58,6 @@ export function catalogStatusToUiStatus(catalogName: string): string {
   return CATALOG_STATUS_TO_UI[name] || name;
 }
 
-/** Orden del flujo CSJ: mayor número = más avanzado (solo hacia adelante). */
 export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En gestión OSEG': 1,
@@ -73,7 +69,6 @@ export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Cancelado: 6,
 };
 
-/** Orden del flujo POL. */
 export const POL_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En proceso': 1,
@@ -93,7 +88,6 @@ export function statusWorkflowRank(status: string, agency = 'CSJ'): number | und
   return ranks[ui];
 }
 
-/** Un incidente creado solo puede avanzar en el flujo, nunca retroceder. */
 export function isForwardStatusTransition(
   fromStatus: string,
   toStatus: string,
@@ -110,7 +104,6 @@ export function isForwardStatusTransition(
   return toRank > fromRank;
 }
 
-/** ¿Requiere datos CERREM al guardar según destino del flujo CSJ? */
 export function needsCerremGestionForTransition(targetStatus: string): boolean {
   const target = catalogStatusToUiStatus(targetStatus);
   if (target === 'Cerrado' || target === 'Cancelado') return false;
@@ -119,7 +112,6 @@ export function needsCerremGestionForTransition(targetStatus: string): boolean {
   return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En evaluación CERREM'];
 }
 
-/** ¿Requiere gestión OSEG al guardar según destino del flujo CSJ? */
 export function needsOsegGestionForTransition(targetStatus: string): boolean {
   const target = catalogStatusToUiStatus(targetStatus);
   if (target === 'Cerrado' || target === 'Cancelado') return false;
@@ -136,7 +128,6 @@ export function incidentMatchesCatalogStatus(
   return incidentUiStatus === ui || incidentUiStatus === catalogName;
 }
 
-/** Los 3 estados finales del flujo CSJ: ocultos en "Todos los activos", visibles al filtrar. */
 export const INCIDENT_LIST_HIDDEN_BY_DEFAULT: readonly IncidentStatus[] = [
   'Cerrado',
   'Cancelado',
@@ -148,12 +139,10 @@ export function isHiddenByDefaultInIncidentList(status: string | null | undefine
   return (INCIDENT_LIST_HIDDEN_BY_DEFAULT as readonly string[]).includes(ui);
 }
 
-/** Incidentes visibles en dashboard y lista por defecto (todos excepto los 3 cerrados CSJ). */
 export function isVisibleInActiveViews(status: string | null | undefined): boolean {
   return !isHiddenByDefaultInIncidentList(status);
 }
 
-/** Clave numérica del ID visible (INC-0000009 → 9) para ordenar por creación. */
 export function incidentIdSortKey(id: string | null | undefined): number {
   const raw = String(id ?? '').trim();
   const digits = raw.match(/(\d+)\s*$/)?.[1] ?? raw.replace(/\D/g, '');
@@ -164,7 +153,6 @@ export type IncidentPriority = 'Baja' | 'Media' | 'Alta' | 'Crítica';
 
 export type PersonRole = 'Víctima' | 'Victimario' | 'Testigo';
 
-/** Tipos de documento de identidad (Colombia) */
 export type DocumentType =
   | 'Registro Civil'
   | 'Tarjeta de Identidad'
@@ -199,7 +187,6 @@ export interface ColombiaMunicipality {
 
 export interface InvolvedPerson {
   id?: string;
-  /** Nombre completo (legacy / visualización) */
   name?: string;
   primerNombre?: string;
   segundoNombre?: string;
@@ -208,7 +195,6 @@ export interface InvolvedPerson {
   role?: string;
   roleId?: number | null;
   contact?: string;
-  /** Comentarios del solicitante (tabla comentariospersonas) */
   comentarios?: string;
   details?: string;
   phone?: string;
@@ -320,7 +306,6 @@ export interface InvolvedPlace {
   contact?: string;
   roleId?: number;
   roleName?: string;
-  /** Comentarios del lugar (tabla comentarios_lugar) */
   comments?: string;
   commentsHistory?: { text: string; at?: string; user?: string }[];
 }
@@ -331,9 +316,7 @@ export interface InvolvedVehicle {
   make?: string;
   model?: string;
   color?: string;
-  /** Comentarios del vehículo (tabla comentariosvehiculos) */
   details?: string;
-  /** Fecha y hora en que se registró el vehículo en este incidente */
   incidentDate?: string;
 }
 
@@ -351,9 +334,7 @@ export interface DashboardResponseMetrics {
 
 export interface Incident {
   id: string;
-  /** Fecha de creación (no cambia al actualizar). */
   timestamp: string;
-  /** Última actividad registrada (actualización o creación). */
   updatedAt?: string;
   status: IncidentStatus;
   event_id: string; // ID_evento
@@ -362,7 +343,6 @@ export interface Incident {
   origin: string;
   phone: string; // Telefono
   location: string; // Direccion
-  /** Ubicación del Incidente (no confundir con domicilio de personas involucradas). */
   departmentId?: number | null;
   municipalityId?: number | null;
   departmentName?: string;
@@ -372,7 +352,6 @@ export interface Incident {
   lng: number;
   details: string; // Descripcion
 
-  // Legacy/Additional
   type: string;
   priority: IncidentPriority;
   operator: string;
@@ -382,8 +361,6 @@ export interface Incident {
   involvedPlaces?: InvolvedPlace[];
   involvedVehicles?: InvolvedVehicle[];
   locationPhoneNumber?: string;
-  /** request_id del enlace WhatsApp/SMS (ubicacion.url_peticion) */
   locationRequestId?: string;
-  /** ID_solicitud en tabla ubicacion */
   locationSolicitudId?: number;
 }

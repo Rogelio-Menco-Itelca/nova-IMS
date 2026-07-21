@@ -6,7 +6,6 @@ function truncateEmail(email) {
   return String(email ?? '').trim().substring(0, 150);
 }
 
-/** Correo canónico en correosincidentes (FK Destinatario, respeta mayúsculas/minúsculas de BD). */
 async function resolveCanonicalRecipientEmails(recipients) {
   if (!recipients?.length) return [];
   const ph = recipients.map(() => '?').join(',');
@@ -20,9 +19,6 @@ async function resolveCanonicalRecipientEmails(recipients) {
   return rows.map((r) => r.email);
 }
 
-/**
- * Una fila en comunicacion por cada destinatario al enviar notificación de incidente.
- */
 async function insertIncidentEmailCommunications({
   incidentInternalId,
   userId,

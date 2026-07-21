@@ -14,11 +14,6 @@ const ACTION_LABELS = {
   export: 'Exportar',
 };
 
-/**
- * Compara permisos antes/después y devuelve una descripción legible de los
- * cambios por módulo, p. ej.:
- *   «Dashboard: quitó "Ver". Reportes: agregó "Exportar", habilitó el módulo.»
- */
 function describeModulePermissionChanges(prev, nextPerm) {
   const changes = [];
 

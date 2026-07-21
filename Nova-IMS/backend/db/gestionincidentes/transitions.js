@@ -1,7 +1,3 @@
-/**
- * Reglas de transición de estados para incidentes CSJ
- * Cada estado define a cuáles puede pasar y si requiere medidas
- */
 
 const TRANSITIONS = {
   Nuevo: {
@@ -13,7 +9,6 @@ const TRANSITIONS = {
     requiresMedidas: false,
     requiredFields: ['codigo_oficio'],
   },
-  /** Legacy: casos históricos; ya no se ofrece en el selector CSJ. */
   'Enviado a CERREM': {
     next: ['En evaluación CERREM', 'Medidas asignadas', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
@@ -44,7 +39,6 @@ const TRANSITIONS = {
   },
 };
 
-/** Orden del flujo CSJ: mayor número = más avanzado (solo hacia adelante). */
 const WORKFLOW_RANK_CSJ = {
   Nuevo: 0,
   'En gestión OSEG': 1,
@@ -56,7 +50,6 @@ const WORKFLOW_RANK_CSJ = {
   Cancelado: 6,
 };
 
-/** Orden del flujo POL. */
 const WORKFLOW_RANK_POL = {
   Nuevo: 0,
   'En proceso': 1,
@@ -79,9 +72,6 @@ function statusWorkflowRank(status, agency) {
   return ranks[status];
 }
 
-/**
- * Solo permite avanzar en el flujo; nunca retroceder a un estado anterior.
- */
 function isForwardStatusTransition(fromStatus, toStatus, agency) {
   if (!toStatus || fromStatus === toStatus) return true;
 
@@ -92,38 +82,23 @@ function isForwardStatusTransition(fromStatus, toStatus, agency) {
   return toRank > fromRank;
 }
 
-/**
- * Retorna los estados permitidos desde el estado actual
- */
 function getAllowedNextStates(currentStatus) {
   return TRANSITIONS[currentStatus]?.next ?? [];
 }
 
-/**
- * Valida si una transición es permitida
- */
 function isTransitionAllowed(fromStatus, toStatus) {
   const allowed = getAllowedNextStates(fromStatus);
   return allowed.includes(toStatus);
 }
 
-/**
- * Retorna si el estado requiere medidas asignadas
- */
 function requiresMedidas(status) {
   return TRANSITIONS[status]?.requiresMedidas ?? false;
 }
 
-/**
- * Retorna si el estado es final (no puede transitar)
- */
 function isFinalState(status) {
   return TRANSITIONS[status]?.final ?? false;
 }
 
-/**
- * Retorna los campos requeridos para entrar a un estado
- */
 function getRequiredFields(toStatus) {
   return TRANSITIONS[toStatus]?.requiredFields ?? [];
 }

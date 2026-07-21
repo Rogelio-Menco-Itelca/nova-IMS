@@ -1,4 +1,3 @@
-/** Separador entre entradas en details/comments (TEXT en BD, sin tabla nueva). */
 export const INCIDENT_NOTE_SEPARATOR = '\n---\n';
 
 export interface IncidentNoteEntry {
@@ -102,7 +101,6 @@ export function formatNoteForDisplay(entry: IncidentNoteEntry): string {
   return entry.timestamp;
 }
 
-/** Interpreta fechas guardadas como [DD/MM/YYYY, HH:mm:ss] en comments. */
 export const DMY_DATE_TIME_RE =
   /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?/;
 
@@ -131,7 +129,6 @@ function parseNoteTimestamp(raw: string): Date | null {
   return parseDmyDateTime(raw);
 }
 
-/** Comentarios viejos sin nombre en cabecera: usar operador del incidente si existe. */
 export function enrichCommentAuthors(
   entries: IncidentNoteEntry[],
   fallbackAuthor?: string | null,
@@ -146,7 +143,6 @@ export function enrichCommentAuthors(
   });
 }
 
-/** Mismo criterio que enrichCommentAuthors: id/usuario → nombre del operador. */
 export function resolveHistoryAuthor(
   rawAuthor: string | null | undefined,
   fallbackAuthor?: string | null,
@@ -158,7 +154,6 @@ export function resolveHistoryAuthor(
   return entry.author;
 }
 
-/** Texto visible del comentario sin cabecera [fecha] autor ni prefijos legacy. */
 export function displayCommentBody(text: string, authorHint?: string): string {
   let body = String(text ?? '').trim();
   if (!body) return '';
@@ -202,14 +197,12 @@ export function noteAuthorInitials(author: string): string {
   return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
 
-/** Última entrada del historial (campo details legado en API/correo). */
 export function latestIncidentNoteText(raw: string | null | undefined): string {
   const entries = parseIncidentNotes(raw);
   if (!entries.length) return '';
   return entries.at(-1)?.text ?? '';
 }
 
-/** Historial unificado: comments + descripción antigua si solo existía details. */
 export function buildCommentHistoryView(
   comments?: string | null,
   legacyDetails?: string | null,
@@ -227,7 +220,6 @@ export function buildCommentHistoryView(
   return [{ timestamp: null, author: 'Descripción inicial', text: legacy }, ...fromComments];
 }
 
-/** Último comentario añadido o actualizado en el incidente (comments; si no hay, details legado). */
 export function latestIncidentCommentEntry(
   comments?: string | null,
   legacyDetails?: string | null,
@@ -252,14 +244,12 @@ export function latestIncidentCommentEntry(
   return enriched;
 }
 
-/** Marca en el texto de comentarios generados al reiterar (plantilla CSJ). */
 export const REITERACION_COMMENT_MARK = /se reitera la solicitud/i;
 
 export function isReiteracionNoteText(text: string | null | undefined): boolean {
   return REITERACION_COMMENT_MARK.exec(String(text ?? '')) !== null;
 }
 
-/** Cuenta reiteraciones registradas en el historial de comentarios del incidente. */
 export function countReiteracionNotes(raw: string | null | undefined): number {
   return parseIncidentNotes(raw).filter((n) => isReiteracionNoteText(n.text)).length;
 }

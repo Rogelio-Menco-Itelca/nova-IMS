@@ -135,7 +135,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   activeTab = signal<AdminTab>('users');
 
-  // People Management
   people = this.personService.people;
   showPersonForm = signal(false);
   isEditModePerson = signal(false);
@@ -161,7 +160,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     status: ['Activo' as 'Activo' | 'Inactivo', Validators.required],
   });
 
-  // Admin Logs
   adminLogs = this.configService.adminLogs;
   adminLogSearch = signal('');
 
@@ -212,7 +210,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   });
 
-  // Data signals from service
   operators = this.configService.operators;
   incidentTypes = this.configService.incidentTypes;
   responseProtocols = this.configService.responseProtocols;
@@ -284,7 +281,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   agencyRoles = signal<RoleOption[]>([]);
   rolesLoading = signal(false);
 
-  // Delete confirmation
   userSearchTerm = signal('');
   operatorsPage = signal(1);
   incidentTypesPage = signal(1);
@@ -293,7 +289,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   responseProtocolSearch = signal('');
   adminLogsPage = signal(1);
   incidentHistoryPage = signal(1);
-  /** Filas visibles según alto de pantalla; el resto pasa a la siguiente página. */
   adminListPageSize = signal(ADMIN_PAGE_SIZE_DEFAULT);
   private adminListResizeObserver: ResizeObserver | null = null;
   private onDestroyAdminListResize: (() => void) | null = null;
@@ -487,7 +482,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       const tab = this.activeTab();
       const detailOpen =
         tab === 'incident_history' && !!this.selectedIncidentForHistory();
-      // Recalcular cuando cambia la pestaña o llegan/cambian datos de la lista.
       this.searchedOperators().length;
       this.incidentTypes().length;
       this.filteredResponseProtocols().length;
@@ -616,7 +610,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     let chromeBlocks = 0;
     for (const child of Array.from(panel.children)) {
       if (child === tableWrap || child.contains(tableWrap)) {
-        // Contenedor anidado (ej. correos): restar paginación interna ya contemplada.
         if (child !== tableWrap) {
           for (const nested of Array.from(child.children)) {
             if (nested === tableWrap || nested.tagName === 'APP-ADMIN-PAGINATION') continue;
@@ -631,7 +624,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       chromeBlocks += 1;
     }
 
-    // Preferir alto del panel (acotado por flex); si aún no hay layout, usar el wrap.
     const panelH = panel.clientHeight || panel.getBoundingClientRect().height;
     const wrapH = tableWrap.clientHeight || tableWrap.getBoundingClientRect().height;
     const availablePanel = panelH - chromeH - paginationH - gap * Math.max(chromeBlocks, 1);
@@ -733,7 +725,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     return (first.charAt(0) + last).slice(0, 20);
   }
 
-  // --- Person Methods ---
   private loadPersonCatalogs(): void {
     const agency = this.authService.currentUser()?.agency;
     if (!agency) return;
@@ -956,7 +947,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   userActionSourceLabel(source: string): string {
     switch (source) {
-      // Categorías nuevas (auditoría unificada)
       case 'sesion':
         return 'Sesión';
       case 'seguridad':
@@ -971,7 +961,6 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'Comunicación';
       case 'consulta':
         return 'Consulta';
-      // Compatibilidad con datos antiguos
       case 'admin':
         return 'Administración';
       case 'incident':

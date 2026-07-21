@@ -1,9 +1,3 @@
-/**
- * Configuración de aplicación (solo variables de entorno).
- * No incluir usuarios, contraseñas ni códigos de agencia en el código fuente.
- *
- * @module config/app
- */
 
 const logger = require('../utils/logger');
 
@@ -38,8 +32,6 @@ const defaultAgencyCode = process.env.APP_DEFAULT_AGENCY_CODE
   : null;
 
 module.exports = Object.freeze({
-  /** Solo si está definido en .env (opcional, evitar usar en flujos de login) */
   defaultAgencyCode,
-  /** Mapa opcional LEGACY→real, p. ej. {"CENTRAL":"CSJ"} en .env */
   legacyAgencyAliases: normalizeAliases(parseLegacyAgencyAliases()),
 });

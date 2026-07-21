@@ -7,7 +7,6 @@ function normalizePlate(plate) {
     .replace(/[^A-Z0-9]/g, '');
 }
 
-/** Último registro en `vehiculos` por placa (sin comentariosvehiculos). */
 async function lookupByPlate(plate) {
   const normalized = normalizePlate(plate);
   if (!normalized || normalized.length < 5) return null;

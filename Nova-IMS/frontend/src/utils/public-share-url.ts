@@ -1,7 +1,6 @@
 import { environment } from '../environments/environment';
 import { isLoopbackUrl } from './public-url-shared';
 
-/** Convierte URL localhost del backend en URL pública https (ngrok / dominio). */
 export function resolvePublicShareUrl(rawUrl: string): string {
   const url = String(rawUrl || '').trim();
   if (!url) return url;

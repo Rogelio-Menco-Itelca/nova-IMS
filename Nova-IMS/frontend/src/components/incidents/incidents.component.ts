@@ -71,7 +71,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   canViewIncident(): boolean {
-    return this.permissionService.canViewIncident();
+    return this.permissionService.canViewIncident('Dashboard');
   }
 
   private dashboardMap: google.maps.Map | null = null;
@@ -214,7 +214,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.ngZone.run(() => this.clearDashboardSelection());
     });
 
-    // En viewport estrecho el contenedor a veces aún mide 0 al init.
     setTimeout(() => {
       if (!this.dashboardMap) return;
       this.triggerDashboardMapResize();
@@ -232,7 +231,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /** Tras fitBounds con varios marcadores cercanos, evita acercar de más. */
   private clampDashboardMapZoom(maxZoom = IMS_MAP_ZOOM.dashboardFitMax): void {
     if (!this.dashboardMap) return;
     const z = this.dashboardMap.getZoom();
@@ -314,7 +312,6 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.getIncidentPosition(incident) !== null;
   }
 
-  /** Separa marcadores que comparten las mismas coordenadas */
   private spreadOverlappingPositions(
     incidents: Incident[],
   ): Map<string, { lat: number; lng: number }> {

@@ -12,14 +12,6 @@ interface ClientAuditPayload {
   format?: string;
 }
 
-/**
- * Registra en auditoría acciones significativas que ocurren solo en el cliente
- * y no pasan por un endpoint de negocio: ver un incidente (desde la lista ya
- * cargada), descargar un reporte o consultar el mapa de geolocalización.
- *
- * Es best-effort: si falla no interrumpe la experiencia del usuario. Aplica un
- * dedupe corto para no registrar el mismo evento repetidamente.
- */
 @Injectable({ providedIn: 'root' })
 export class AuditClientService {
   private readonly http = inject(HttpClient);
@@ -27,7 +19,6 @@ export class AuditClientService {
   private readonly lastSent = new Map<string, number>();
   private readonly DEDUPE_MS = 60_000;
 
-  /** El usuario abrió la información de un incidente específico (dato sensible). */
   incidentView(incidentId: string | number, module: 'Dashboard' | 'Incidentes' = 'Incidentes'): void {
     const id = String(incidentId ?? '').trim();
     if (!id) return;
@@ -35,12 +26,10 @@ export class AuditClientService {
     this.send({ type: 'incident_view', incidentId: id, module });
   }
 
-  /** El usuario descargó un reporte. */
   reportDownload(reportName: string, format?: string): void {
     this.send({ type: 'report_download', reportName, format });
   }
 
-  /** El usuario consultó la geolocalización en el mapa (dashboard o formulario). */
   mapGeolocation(module: 'Dashboard' | 'Incidentes', incidentId?: string | number): void {
     const id = incidentId != null ? String(incidentId).trim() : '';
     if (this.isRecent(`map:${module}:${id || '*'}`)) return;

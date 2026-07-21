@@ -1,4 +1,3 @@
-/** Mapeos entre contrato API del frontend y catálogos de gestionincidentes */
 
 const STATUS_TO_GI = {
   Nuevo: 'Nuevo',
@@ -9,7 +8,6 @@ const STATUS_TO_GI = {
   'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
-  // POL
   Asignado: 'Asignado',
   'En camino': 'En camino',
   'En proceso': 'En proceso',
@@ -25,7 +23,6 @@ const STATUS_FROM_GI = {
   'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
-  // POL
   Asignado: 'Asignado',
   'En camino': 'En camino',
   'En proceso': 'En proceso',

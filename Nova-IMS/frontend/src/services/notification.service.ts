@@ -36,7 +36,6 @@ export class NotificationService {
 
   unreadCount = computed(() => this._notifications().filter((n) => !n.read).length);
 
-  /** Recupera la bandeja al recargar la página (misma sesión de navegador). */
   restoreSession(): void {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -108,7 +107,6 @@ export class NotificationService {
     this.persistSession(next);
   }
 
-  /** Bandeja vacía al iniciar sesión nueva o al cerrar sesión. */
   clearSessionNotifications(): void {
     this._notifications.set([]);
     this.lastNotification.set(null);

@@ -1,13 +1,3 @@
-/**
- * Auditoría de acciones significativas que ocurren SOLO en el cliente y no
- * pasan por un endpoint de negocio (ver un incidente desde la lista ya cargada,
- * descargar un reporte, consultar el mapa de geolocalización).
- *
- * El frontend envía un `type` de una lista blanca cerrada; el servidor decide
- * la acción, categoría y módulo. Nunca se confía en texto libre del cliente.
- *
- * @module controllers/auditClient.controller
- */
 
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/HttpError');
@@ -24,7 +14,6 @@ function str(value, max = 150) {
   return String(value).slice(0, max).trim();
 }
 
-/** Constructores por tipo de evento. Cada uno define cómo se audita. */
 const EVENT_BUILDERS = {
   incident_view: (b) => {
     const incidentId = str(b.incidentId, 30) || '—';
@@ -72,7 +61,6 @@ exports.clientEvent = asyncHandler(async (req, res) => {
   const builder = EVENT_BUILDERS[type];
   if (!builder) throw new HttpError(400, 'Tipo de evento de auditoría no soportado');
 
-  // Evita que el middleware genérico intente auditar esta ruta técnica.
   req.skipAutoAudit = true;
 
   const spec = builder(body);

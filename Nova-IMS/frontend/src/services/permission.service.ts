@@ -60,8 +60,9 @@ export class PermissionService {
     return this.canModuleAction('Reportes', 'export');
   }
 
-  canViewIncident(): boolean {
+  /** Controls the "Ver" button on incident rows for the given module (Dashboard or Incidentes). */
+  canViewIncident(module: 'Dashboard' | 'Incidentes' = 'Incidentes'): boolean {
     if (!this.loaded()) return true;
-    return this.canModuleAction('Incidentes', 'viewIncident');
+    return this.canModuleAction(module, 'viewIncident');
   }
 }

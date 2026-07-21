@@ -1,9 +1,4 @@
-/**
- * Encapsula APIs legacy de Google Maps (Marker, Autocomplete) pendientes de migrar
- * a AdvancedMarkerElement / PlaceAutocompleteElement.
- */
 
-/** Alias del marcador legacy; compatible con InfoWindow.open({ anchor }). */
 export type MapPin = google.maps.Marker;
 
 export interface PlaceAutocompleteControl {

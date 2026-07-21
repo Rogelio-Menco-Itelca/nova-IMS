@@ -47,7 +47,6 @@ module.exports = [
       'utils/logger.js',
     ],
     rules: {
-      // Catálogos internos / índices controlados; no son claves arbitrarias de usuario.
       'security/detect-object-injection': 'off',
     },
   },

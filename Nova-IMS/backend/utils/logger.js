@@ -1,7 +1,3 @@
-/**
- * Logger mínimo para evitar console.* directo en código de aplicación (Sonar S106).
- * Scripts CLI e import-db pueden seguir usando console.
- */
 
 const REDACT_KEYS = ['password', 'pass', 'token', 'secret', 'authorization', 'cookie', 'otp', 'code'];
 const MAX_ARG_LENGTH = 1000;

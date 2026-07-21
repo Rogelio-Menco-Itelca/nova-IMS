@@ -5,7 +5,6 @@ const ldapConfig = require('../../config/ldap');
 const { fullUserName, normalizeAgencyCode } = require('./maps');
 const { loadAgencyMap, resolveAgency } = require('./agencies');
 
-/** Token_Contraseña: MUST_CHANGE = primer ingreso; cualquier otro valor = ya cambió */
 const MUST_CHANGE_TOKEN = 'MUST_CHANGE';
 const CHANGED_TOKEN = 'OK';
 
@@ -72,7 +71,6 @@ async function findUserByLogin(username, agencyCode) {
     return attachAgencyId(rows[0], agencyMap);
   }
 
-  // Sin agencia válida: buscar en cualquier agencia (compatibilidad legacy)
   const [rows] = await pool.query(`${baseSql} ORDER BY u.FechaRegistro DESC LIMIT 1`, [
     login,
     login,
@@ -116,7 +114,6 @@ async function verifyPassword(stored, plain) {
 }
 
 async function updateLastLogin() {
-  /* gestionincidentes no tiene last_login; no-op */
 }
 
 async function updatePasswordHash(userId, agencyCode, hash) {
@@ -298,7 +295,6 @@ async function resolveUserContext(userId, agencyCode) {
 }
 
 const LDAP_ONLY_TOKEN = 'LDAP_ONLY';
-/** Hash imposible de adivinar; bloquea login local (solo directorio LDAP). */
 const LDAP_ONLY_PASSWORD = bcrypt.hashSync('LDAP_DIRECTORY_ONLY', 8);
 
 function splitDisplayName(displayName, fallbackUsername) {
@@ -327,10 +323,6 @@ function splitDisplayName(displayName, fallbackUsername) {
   };
 }
 
-/**
- * Usuarios que solo existen en LDAP (Docker / AD): fila mínima en MySQL para FK de ubicacion, etc.
- * No habilita login local; el acceso sigue siendo por directorio.
- */
 async function ensureDirectoryActor(jwtUser) {
   const username = String(jwtUser?.username || '').trim();
   const agencyCode = normalizeAgencyCode(jwtUser?.agency_code);

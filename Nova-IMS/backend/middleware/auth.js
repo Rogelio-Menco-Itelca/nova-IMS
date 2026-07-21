@@ -1,10 +1,6 @@
 const jwt = require('jsonwebtoken');
 const HttpError = require('../utils/HttpError');
 
-/**
- * Extrae y valida el JWT del header Authorization: Bearer <token>
- * Deja el payload en req.user = { sub, username, name, role_id, role_name, agency_code }
- */
 function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
   const [scheme, token] = header.split(' ');
@@ -20,10 +16,6 @@ function authRequired(req, res, next) {
   }
 }
 
-/**
- * Permite paso solo si el usuario pertenece a alguno de los roles dados.
- * Uso: router.delete('/...', authRequired, requireRole('RP-1'), handler)
- */
 function requireRole(...roleIds) {
   return (req, res, next) => {
     if (!req.user) return next(new HttpError(401, 'No autenticado'));

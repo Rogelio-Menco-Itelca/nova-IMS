@@ -1,8 +1,4 @@
-/* ============================================================
-   LIGHT THEME — IMS Nova
-   Paleta C — Profesional
-   Sidebar azul · Fondo gris neutro · Acento azul suave
-============================================================ */
+
 html.theme-light,
 .theme-light {
   --lt-bg: #f1f5f9;
@@ -35,7 +31,6 @@ body.theme-light {
   color: var(--lt-text-primary) !important;
 }
 
-/* ── LAYOUT ─────────────────────────────────────────────── */
 html.theme-light .ims-layout,
 .theme-light .ims-layout {
   background-color: var(--lt-bg) !important;
@@ -47,7 +42,6 @@ html.theme-light .ims-main,
   background-color: var(--lt-bg) !important;
 }
 
-/* ── SIDEBAR (azul institucional claro) ─────────────────── */
 html.theme-light aside.ims-sidebar,
 .theme-light aside.ims-sidebar {
   background-color: var(--lt-bg-sidebar) !important;
@@ -186,7 +180,6 @@ html.theme-light aside.ims-sidebar .disabled\:bg-gray-500:disabled,
   color: #f0f7ff !important;
 }
 
-/* ── HEADER ─────────────────────────────────────────────── */
 html.theme-light header.ims-header,
 .theme-light header.ims-header {
   background-color: var(--lt-bg-card) !important;
@@ -211,7 +204,6 @@ html.theme-light header.ims-header .border-gray-800,
   border-color: var(--lt-bg-card) !important;
 }
 
-/* ── CONTENIDO PRINCIPAL (main y hijos) ─────────────────── */
 html.theme-light .ims-main .bg-gray-900,
 html.theme-light .ims-main .bg-slate-900,
 .theme-light .ims-main .bg-gray-900,
@@ -359,7 +351,6 @@ html.theme-light .ims-main textarea::placeholder,
   color: var(--lt-text-muted) !important;
 }
 
-/* ── ACENTOS Y BADGES (contenido) ───────────────────────── */
 html.theme-light .ims-main .bg-indigo-500,
 html.theme-light .ims-main .bg-indigo-600,
 html.theme-light header.ims-header .bg-indigo-600,
@@ -538,7 +529,6 @@ html.theme-light .ims-main .border-l-4.border-indigo-500,
   background-color: var(--lt-accent-light) !important;
 }
 
-/* ── POPUPS (notificaciones, perfil en sidebar) ─────────── */
 html.theme-light aside.ims-sidebar .absolute.bg-gray-700,
 html.theme-light header.ims-header .absolute.bg-gray-700,
 .theme-light aside.ims-sidebar .absolute.bg-gray-700,
@@ -586,7 +576,6 @@ html.theme-light header.ims-header .absolute.bg-gray-700 .border-gray-600,
   border-color: var(--lt-border) !important;
 }
 
-/* ── MODALES Y OVERLAYS ─────────────────────────────────── */
 html.theme-light .fixed.inset-0.bg-black\/70,
 html.theme-light .fixed.inset-0.bg-black\/50,
 .theme-light .fixed.inset-0.bg-black\/70,
@@ -608,7 +597,6 @@ html.theme-light #incident-map.bg-gray-900,
   background-color: var(--lt-bg-muted) !important;
 }
 
-/* ── SCROLLBAR ──────────────────────────────────────────── */
 html.theme-light ::-webkit-scrollbar-track,
 .theme-light ::-webkit-scrollbar-track {
   background: var(--lt-bg);
@@ -624,7 +612,6 @@ html.theme-light ::-webkit-scrollbar-thumb:hover,
   background: var(--lt-text-muted);
 }
 
-/* ── PULIDO: títulos y jerarquía ─────────────────────────── */
 html.theme-light .ims-main h2.text-white,
 html.theme-light .ims-main h3.text-white,
 .theme-light .ims-main h2.text-white,
@@ -633,7 +620,6 @@ html.theme-light .ims-main h3.text-white,
   letter-spacing: -0.01em;
 }
 
-/* Menú activo del sidebar — azul brillante */
 html.theme-light aside.ims-sidebar nav a.bg-indigo-600,
 html.theme-light aside.ims-sidebar nav button.bg-indigo-600,
 html.theme-light aside.ims-sidebar .bg-indigo-600,
@@ -644,7 +630,6 @@ html.theme-light aside.ims-sidebar .bg-indigo-600,
   border-radius: 0.5rem;
 }
 
-/* ── DASHBOARD (KPIs, tabla, mapa) ──────────────────────── */
 html.theme-light .ims-dashboard .bg-gray-800.rounded-lg.shadow-lg,
 .theme-light .ims-dashboard .bg-gray-800.rounded-lg.shadow-lg {
   background-color: var(--lt-bg-card) !important;
@@ -652,7 +637,6 @@ html.theme-light .ims-dashboard .bg-gray-800.rounded-lg.shadow-lg,
   box-shadow: var(--lt-shadow-md) !important;
 }
 
-/* KPI cards — borde de acento por métrica */
 html.theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(1),
 .theme-light .ims-dashboard > .grid > .bg-gray-800:nth-child(1) {
   border-left: 4px solid var(--lt-accent) !important;
@@ -708,7 +692,6 @@ html.theme-light .ims-dashboard .bg-sky-500\/20,
   background-color: #e0f2fe !important;
 }
 
-/* Badge MONITOREO EN VIVO */
 html.theme-light .ims-dashboard .rounded-full.border.border-gray-600,
 .theme-light .ims-dashboard .rounded-full.border.border-gray-600 {
   background-color: #fef2f2 !important;
@@ -722,7 +705,6 @@ html.theme-light .ims-dashboard .rounded-full .text-red-400,
   letter-spacing: 0.04em;
 }
 
-/* Tabla — encabezado y filas */
 html.theme-light .ims-dashboard thead.bg-gray-700\/50,
 .theme-light .ims-dashboard thead.bg-gray-700\/50 {
   background-color: var(--lt-bg-muted) !important;
@@ -751,7 +733,6 @@ html.theme-light .ims-dashboard tbody tr.ring-indigo-500\/50,
   --tw-ring-color: rgb(61 117 168 / 0.3) !important;
 }
 
-/* Badges de estado — pastillas legibles en modo claro */
 html.theme-light .ims-dashboard tbody td span.rounded-full,
 .theme-light .ims-dashboard tbody td span.rounded-full {
   border: 1px solid transparent;
@@ -831,7 +812,6 @@ html.theme-light .ims-dashboard tbody td span.rounded-full[class*='text-'],
   color: inherit !important;
 }
 
-/* Prioridades */
 html.theme-light .ims-dashboard .text-orange-400,
 .theme-light .ims-dashboard .text-orange-400 {
   color: #c2410c !important;
@@ -844,7 +824,6 @@ html.theme-light .ims-dashboard .text-yellow-400,
   font-weight: 700;
 }
 
-/* Mapa */
 html.theme-light .ims-dashboard .bg-indigo-500\/10,
 .theme-light .ims-dashboard .bg-indigo-500\/10 {
   background-color: var(--lt-accent-light) !important;

@@ -1,16 +1,13 @@
-/* ============================================================
-   IMS Nova — Tipografía global (Inter)
-   Una sola escala; Tailwind en index.html ya usa los mismos valores.
-============================================================ */
+
 
 :root {
   --ims-font-sans: Inter, 'Segoe UI', system-ui, sans-serif;
 
-  --ims-fs-caption: 0.8125rem; /* 13px — meta, encabezados de tabla */
-  --ims-fs-body: 0.9375rem; /* 15px — texto general */
-  --ims-fs-section: 1.25rem; /* 20px — h3, bloques internos */
-  --ims-fs-page: 1.5rem; /* 24px — título de página */
-  --ims-fs-kpi: 1.875rem; /* 30px — números KPI */
+  --ims-fs-caption: 0.8125rem; 
+  --ims-fs-body: 0.9375rem; 
+  --ims-fs-section: 1.25rem; 
+  --ims-fs-page: 1.5rem; 
+  --ims-fs-kpi: 1.875rem; 
 
   --ims-lh-tight: 1.3;
   --ims-lh-body: 1.45;
@@ -39,7 +36,6 @@ body,
   line-height: var(--ims-lh-relaxed);
 }
 
-/* —— App autenticada —— */
 .ims-layout {
   font-family: var(--ims-font-sans);
   font-size: var(--ims-fs-body);
@@ -93,7 +89,6 @@ body,
   letter-spacing: 0.04em;
 }
 
-/* Formularios y tablas */
 .ims-layout p,
 .ims-layout li,
 .ims-layout label,
@@ -140,7 +135,6 @@ body,
   font-weight: 500;
 }
 
-/* Evita desbordes horizontales en el sidebar estrecho (~14rem) */
 .ims-sidebar {
   overflow-x: hidden;
 }
@@ -149,7 +143,6 @@ body,
   font-weight: 500;
 }
 
-/* —— Login / cambio de contraseña (fuera de .ims-layout) —— */
 .ims-auth {
   font-family: var(--ims-font-sans);
   font-size: var(--ims-fs-body);
@@ -200,7 +193,6 @@ body,
   }
 }
 
-/* Drawer abierto: bloquear scroll de fondo en móvil y tablet */
 @media (max-width: 1023px) {
   html.ims-sidebar-open,
   html.ims-sidebar-open body {

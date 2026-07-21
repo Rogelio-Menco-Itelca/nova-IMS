@@ -90,7 +90,6 @@ export class PersonService {
       .pipe(catchError(() => of(null as unknown as Person)));
   }
 
-  /** Catálogo admin: búsqueda local por cédula o teléfono (solo activos). */
   findRegisteredPerson(query: { documentId?: string; phone?: string }): Person | null {
     const normDoc = String(query.documentId ?? '').replace(/\D/g, '');
     const normPhone = this.normalizePhoneDigits(query.phone ?? '');

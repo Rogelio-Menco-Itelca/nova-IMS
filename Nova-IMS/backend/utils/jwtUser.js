@@ -23,7 +23,6 @@ async function resolveDbUserIdFromString(id) {
   return exists ? id : null;
 }
 
-/** Usuario real en MySQL para FK (ubicacion, notificaciones, etc.). */
 async function resolveActorForDb(jwtUser) {
   if (!jwtUser?.sub) return null;
 

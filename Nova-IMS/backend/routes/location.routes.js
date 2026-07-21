@@ -8,11 +8,6 @@ const { reverseGeocode } = require('../services/geocode.service');
 const { recordAudit } = require('../utils/auditTrail');
 const logger = require('../utils/logger');
 
-/**
- * Audita la RECEPCIÓN de una ubicación rápida. La ruta es pública (el ciudadano
- * no está autenticado), así que se atribuye al operador que creó la solicitud,
- * cuyo ID quedó guardado en `ubicacion.ID_usuario`.
- */
 async function auditLocationReceived(row, { lat, lng, address }) {
   try {
     if (!row?.ID_usuario) return;

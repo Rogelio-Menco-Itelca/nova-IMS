@@ -69,7 +69,6 @@ function latestIncidentNote(raw) {
   return entries.at(-1) ?? null;
 }
 
-/** Solo el último comentario gestionado (vitácora / correo). */
 function formatLatestNoteForEmail(raw) {
   const e = latestIncidentNote(raw);
   if (!e) return '(sin comentario)';
@@ -116,7 +115,6 @@ function formatNotesHtml(raw) {
     .join('');
 }
 
-/** Entradas nuevas al guardar (historial en comments). */
 function diffNewCommentEntries(beforeRaw, afterRaw) {
   const before = parseIncidentNotes(beforeRaw);
   const after = parseIncidentNotes(afterRaw);

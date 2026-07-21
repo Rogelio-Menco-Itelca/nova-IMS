@@ -144,7 +144,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private readonly platePattern = /^[A-Za-z0-9-]{5,8}$/;
 
-  /** Placa opcional en BD; si se escribe, debe cumplir el formato. */
   private readonly validateOptionalPlate = (control: AbstractControl): ValidationErrors | null => {
     const value = String(control.value ?? '').trim();
     if (!value) return null;
@@ -162,7 +161,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return !!(plate || role || hasCatalog);
   }
 
-  /** Inferir código de catálogo (CC, PA, …) cuando el lookup no trae tipo. */
   private inferDocumentType(documentId: string): string {
     const id = String(documentId || '').trim();
     if (!id) return '';
@@ -195,7 +193,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly configService = inject(ConfigurationService);
   private readonly locationService = inject(LocationRequestService);
 
-  /** Teléfono opcional; si se escribe, solo dígitos/+ y formato colombiano válido. */
   private readonly validateOptionalPhone = (control: AbstractControl): ValidationErrors | null => {
     const raw = String(control.value ?? '').trim();
     if (!raw) return null;
@@ -212,7 +209,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly auditClient = inject(AuditClientService);
 
-  // --- Tab Management State ---
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
   activeTabId = signal<string | null>(null);
@@ -223,7 +219,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   isProtocolVisible = signal(true);
   newIncidentFormState = signal<Partial<Incident> | null>(null);
   readonly MAX_TABS = 5;
-  /** Mensajes inline cuando un catálogo queda vacío tras cargar (sin referencias técnicas). */
   readonly catalogEmptyHints = {
     statuses: 'No hay estados disponibles para su agencia. Contacte al administrador del sistema.',
     origins: 'No hay orígenes disponibles para su agencia. Contacte al administrador del sistema.',
@@ -242,7 +237,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   canViewIncident(): boolean {
-    return this.permissionService.canViewIncident();
+    return this.permissionService.canViewIncident('Incidentes');
   }
 
   leaveConfirmOpen = signal(false);
@@ -256,7 +251,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly formatNoteHeader = formatNoteForDisplay;
   readonly commentAuthorInitials = noteAuthorInitials;
 
-  // Google Maps
   private map: google.maps.Map | null = null;
   private marker: MapPin | null = null;
   private geocoder: google.maps.Geocoder | null = null;
@@ -267,7 +261,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private statusSub: Subscription | undefined;
   private formDirtySub: Subscription | undefined;
   private skipStatusNav = false;
-  /** Evita pisar la prioridad que el operador eligió manualmente. */
   private lastIncidentTypeName: string | null = null;
   private lastTypeDefaultPriority: IncidentPriority | null = null;
   private priorityManuallyOverridden = false;
@@ -275,7 +268,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private locationTextSub: Subscription | undefined;
   private locationResolveSub: Subscription | undefined;
   private readonly locationCoordSync = new IncidentLocationCoordSync();
-  /** Invalida geocodificaciones async obsoletas tras guardar o cambiar de pestaña. */
   private formSyncEpoch = 0;
   private syncedFormFingerprint: { incidentId: string; fp: string } | null = null;
   private formSyncStableTimer: ReturnType<typeof setTimeout> | null = null;
@@ -303,13 +295,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   allowedStatuses = signal<string[]>([]);
   workflowGestion = signal<GestionSnapshot | null>(null);
   currentIncidentUiStatus = signal('');
-  /** Municipios por fila de lugar involucrado (índice del FormArray). */
   placeMunicipalities = signal<Map<number, ColombiaMunicipality[]>>(new Map());
   departments = signal<ColombiaDepartment[]>([]);
-  /** Municipios del Ubicación del Incidente(según departamento del incidente). */
   incidentMunicipalities = signal<ColombiaMunicipality[]>([]);
   incidentMunicipalitiesLoaded = signal(false);
-  /** Municipios cargados por fila de lugar involucrado (índice → listo). */
   placeMunicipalitiesLoaded = signal<Map<number, boolean>>(new Map());
   vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
   readonly personService = inject(PersonService);
@@ -407,7 +396,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     effect(() => {
       const tabId = this.activeTabId();
-      // Solo reaccionar al cambio de pestaña; no re-ejecutar cuando carguen catálogos (incidentStatuses).
       untracked(() => {
         this.destroyMap();
         this.detailTab.set('detalle');
@@ -512,7 +500,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const form = this.incidentForm.getRawValue();
     return JSON.stringify({
       status: catalogStatusToUiStatus(String(form.status ?? '').trim()),
-      // Usar el valor del formulario (nombre del tipo), no el catálogo async.
       typeKey: String(form.event_id ?? '').trim().toLowerCase(),
       priority: this.resolveFormPriority(form),
       origin: String(form.origin ?? '').trim(),
@@ -541,7 +528,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incidentForm.markAsPristine();
   }
 
-  // Tras catálogos/mapa async, alinear huella del form
   private scheduleFormSyncAfterStable(incidentId: string): void {
     const sync = () => {
       if (this.activeTabId() !== incidentId) return;
@@ -558,7 +544,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 900);
   }
 
-  /** true solo si el operador modificó el formulario respecto a la última carga/guardado. */
   private hasFormEditsSinceSync(): boolean {
     const tabId = this.activeTabId();
     if (!tabId || tabId === 'new') return false;
@@ -574,7 +559,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return true;
   }
 
-  /** SMS/WhatsApp: teléfono del enlace de ubicación; si no, N/A en vitácora. */
   private resolveLocationPhoneForSave(raw: unknown): string {
     const v = typeof raw === 'string' ? raw.trim() : '';
     return v || 'N/A';
@@ -801,8 +785,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ------ Google Maps ------
-
   private async waitForGoogleMaps(): Promise<boolean> {
     if (isGoogleMapsLoaded()) return true;
 
@@ -911,7 +893,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  /** Centra el mapa y el marcador en las coordenadas del incidente. */
   private async syncMapToCoords(lat: number, lng: number, zoom = 17): Promise<void> {
     await this.waitForGoogleMaps();
     if (!this.map) {
@@ -954,7 +935,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /** Dirección escrita a mano: geocodificar con Enter. */
   geocodeManualLocation(): void {
     const address = String(this.incidentForm.get('location')?.value || '').trim();
     if (!address) {
@@ -1210,12 +1190,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.markLocationCoordsSynced();
   }
 
-  /** Mapa / arrastre de marcador: rellena dirección desde coordenadas. */
   private reverseGeocode(lat: number, lng: number) {
     this.runReverseGeocode(lat, lng, false);
   }
 
-  /** Ubicación recibida por SMS/WhatsApp: solo esta fuente llena el campo Ubicación. */
   private reverseGeocodeFromGps(lat: number, lng: number, epoch = this.formSyncEpoch) {
     this.runReverseGeocode(lat, lng, true, epoch);
   }
@@ -1288,7 +1266,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.handleReverseGeocodeResult(results, status, fromGpsRequest, epoch);
       });
     } catch {
-      // Sin Maps/geocoder: se mantienen coordenadas ya aplicadas.
     }
   }
 
@@ -1318,7 +1295,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   });
 
-  /** Los comentarios ya tienen su propia sección; no duplicarlos en cambios. */
   private isCommentOnlyAuditLog(log: AuditLog): boolean {
     if (/creaci/i.test(log.action)) return false;
     if (/cambio de estado/i.test(log.action)) return false;
@@ -1898,7 +1874,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       return false;
     }
 
-    // Incidente ya creado: solo estados hacia adelante en el flujo (nunca retroceder).
     if (this.activeTabId() !== 'new') {
       const savedStatusUi = catalogStatusToUiStatus(
         String(this.activeIncident()?.status ?? '').trim(),
@@ -2013,7 +1988,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadAllIncidentStatuses(agency, () => this.syncStatusControlFromActiveIncident());
   }
 
-  /** Reaplica el estado guardado cuando el catálogo de estados termina de cargar. */
   private syncStatusControlFromActiveIncident(): void {
     if (this.activeTabId() === 'new') return;
     const incident = this.activeIncident();
@@ -2150,7 +2124,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.placeDeptSubs.push(sub);
   }
 
-  /** Al cambiar departamento: limpia municipio y carga solo los de ese departamento. */
   private async refreshPlaceMunicipalities(index: number, deptId: number): Promise<void> {
     const group = this.involvedPlaces.at(index);
     if (!(group instanceof FormGroup)) return;
@@ -2247,7 +2220,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.clearVehicleRow(index);
       this.vehicleLastLookupPlate.delete(index);
     } else if (previousPlate && previousPlate !== currentPlate) {
-      // Si cambia de placa, solo limpiamos catálogo (marca/modelo/color); rol y detalles son de este incidente.
       this.clearVehicleCatalogFields(index);
     }
 
@@ -2289,7 +2261,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.incidentService.lookupVehicleByPlate(plate).subscribe({
       next: (vehicle) => {
-        // Solo datos del vehículo en `vehiculos`; rol y comentarios son de este incidente.
         const patch: Partial<InvolvedVehicle> = {
           make: vehicle.make || '',
           model: vehicle.model || '',
@@ -2555,7 +2526,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /** Abre Medidas o enfoca comentarios según el estado elegido en el selector. */
   private navigateForWorkflowStatus(catalogStatusName: string): void {
     const uiStatus = catalogStatusToUiStatus(catalogStatusName);
     if (uiStatus === 'Reiteraciones') {
@@ -2590,7 +2560,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 80);
   }
 
-  /** Comentario obligatorio al pasar a «Reiteraciones» desde otro estado. */
   requiresReiteracionCommentOnSave(): boolean {
     if (!isCsjMedidasWorkflow(this.currentAgency()) || this.activeTabId() === 'new') {
       return false;
@@ -2616,7 +2585,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return 'Nuevo comentario; al guardar pasa al historial y este campo se limpia...';
   }
 
-  // ── Seguimiento «Reiteraciones» (lista / badges) ──
   private statusChangeLogsFor(incidentId: string): AuditLog[] {
     return this.auditLogs()
       .filter(
@@ -2635,7 +2603,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return m ? catalogStatusToUiStatus(m[1].trim()) === uiStatus : false;
   }
 
-  /** Cuántas reiteraciones lleva el caso (comentarios de reiteración; respaldo auditoría). */
   reiteracionesCount(incident: Incident | null | undefined): number {
     if (!incident) return 0;
     const fromComments = countReiteracionNotes(incident.comments);
@@ -2726,7 +2693,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     subs.forEach((s) => this.locationTextSub?.add(s));
   }
 
-  /** Tras editar dirección/depto/municipio, geocodifica y mueve el pin. */
   private setupLocationGeoResolve(): void {
     this.locationResolveSub?.unsubscribe();
     const locationControl = this.incidentForm.get('location');
@@ -3102,7 +3068,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return items;
   }
 
-  /** Compara el formulario con el incidente guardado (más fiable que incidentForm.dirty). */
   private incidentFormDiffersFromSaved(incident: Incident): boolean {
     return this.describeFormFieldChanges(incident).length > 0;
   }
@@ -3553,10 +3518,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       });
   }
 
-  /**
-   * Guardar medidas usa POST /medidas y no marca el formulario del incidente.
-   * Tras guardar, preseleccionamos «Medidas asignadas» para habilitar «Actualizar incidente».
-   */
   onMedidasAsignadasGuardadas(incidentId: string, saveDelta?: string): void {
     this.refreshWorkflowGestion(incidentId);
     this.hasAssignedMedidas(incidentId).subscribe({
@@ -3688,7 +3649,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incidentForm.patchValue({ agregarComentario: '' }, { emitEvent: false });
   }
 
-  /** Pasa el texto de "Agregar comentario" al historial (columna comments) y deja el campo vacío. */
   private mergeCommentHistory(storedComments: string, draft: string | null | undefined): string {
     const text = String(draft ?? '').trim();
     if (!text) return storedComments ?? '';
@@ -4241,7 +4201,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.listCurrentPage.set(1);
   }
 
-  /** Select sin valor real: muestra la opción guía en gris (estilo placeholder). */
   selectShowsPlaceholder(controlName: string): boolean {
     const value = this.incidentForm.get(controlName)?.value;
     return value == null || value === '';

@@ -25,7 +25,6 @@ export const IMS_COORD = {
   nullEpsilon: 0.0001,
 } as const;
 
-// Continental + San Andrés y Providencia (WGS84)
 export const IMS_COLOMBIA_BOUNDS = {
   north: 13.51,
   south: -4.25,

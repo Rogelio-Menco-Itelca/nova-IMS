@@ -1,4 +1,3 @@
-/** IDs de catálogo CSJ (02_catalogos_referencia.sql). */
 const RIESGO_ORDINARIO_ID = 1;
 const RIESGO_EXTRAORDINARIO_ID = 2;
 

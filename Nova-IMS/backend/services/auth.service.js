@@ -1,8 +1,3 @@
-/**
- * Autenticación híbrida: directorio LDAP primero, MySQL local como respaldo.
- *
- * @module services/auth.service
- */
 
 const jwt = require('jsonwebtoken');
 const HttpError = require('../utils/HttpError');

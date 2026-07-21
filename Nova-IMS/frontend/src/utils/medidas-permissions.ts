@@ -73,7 +73,6 @@ export function hasCerremGestionData(gestion: GestionSnapshot | null | undefined
   );
 }
 
-/** Etapas del flujo que quedaron con datos guardados (vista de casos cerrados). */
 export function describeClosedReviewStages(
   gestion: GestionSnapshot | null | undefined,
   medidasCount: number,
@@ -86,10 +85,6 @@ export function describeClosedReviewStages(
   return `Etapas registradas: ${stages.join(' · ')}.`;
 }
 
-/**
- * Incidente cerrado/cancelado: solo bloques con datos guardados.
- * Flujo acumulativo: CERREM muestra OSEG+CERREM; medidas muestra cada etapa registrada.
- */
 export function resolveClosedMedidasPermissions(
   gestion: GestionSnapshot | null | undefined,
   medidasCount: number,
@@ -133,7 +128,6 @@ export function isClosedWorkflowStatus(status: string): boolean {
   return ui === 'Cerrado' || ui === 'Cancelado';
 }
 
-/** Matriz CSJ acordada: habilitación por estado del incidente y nivel de riesgo CERREM. */
 export function getMedidasPermissions(
   status: string,
   agency = 'CSJ',
@@ -287,7 +281,6 @@ export const MEDIADAS_WORKFLOW_STATUSES = [
   'Medidas asignadas',
 ] as const;
 
-/** Pasos del flujo CSJ mostrados en la pestaña Medidas cuando el incidente aún está en «Nuevo». */
 export const CSJ_MEDIADAS_WORKFLOW_STEPS = [
   'Nuevo',
   'En gestión OSEG',
@@ -342,17 +335,14 @@ export function requiresMedidasBeforeClose(gestion?: GestionSnapshot | null): bo
   return requiresMedidasForRiesgo(gestion);
 }
 
-/** Riesgo Ordinario ya guardado en CERREM (resolución + nivel de riesgo). */
 export function isOrdinarioCerremGuardado(gestion?: GestionSnapshot | null): boolean {
   return hasCerremGestionData(gestion) && isRiesgoOrdinario(gestion);
 }
 
-/** Extraordinario ya guardado en CERREM. */
 export function isExtraordinarioCerremGuardado(gestion?: GestionSnapshot | null): boolean {
   return hasCerremGestionData(gestion) && isRiesgoExtraordinario(gestion);
 }
 
-/** Filtra transiciones de estado CSJ según nivel de riesgo CERREM guardado. */
 export function isCsjStatusChoiceAllowed(
   fromStatus: string,
   toStatus: string,

@@ -116,7 +116,6 @@ function formatCommentTimestamp(value) {
   });
 }
 
-/** Guarda solo el texto; quita encabezados [fecha] heredados del frontend. */
 function plainCommentText(raw) {
   let text = String(raw ?? '').trim();
   while (/^\[[^\]]+\]\s*(\n|$)/.test(text)) {
@@ -152,7 +151,6 @@ async function loadComments(internalId) {
     .join('\n---\n');
 }
 
-/** Último comentario del incidente (vitácora / correo). */
 async function loadLatestComment(internalId) {
   const [rows] = await pool.query(
     `SELECT Comentario, FechaHora FROM comentarios_incidentes
@@ -267,7 +265,6 @@ async function resolveCatalogIds(
   return { eventoId, estadoId, prioridadId, origenId, agency };
 }
 
-/** ID_visible = INC- + ID_incidente con 7 dígitos (p. ej. INC-0000004). */
 function formatVisibleId(internalId) {
   return `INC-${String(internalId).padStart(7, '0')}`;
 }
@@ -938,7 +935,6 @@ async function assertCommentIfRequired(currentStatus, newStatus, internalId, bod
   const prev = await loadComments(internalId);
   const incoming = String(body.comments ?? '');
 
-  // Ya en Reiteraciones: permitir guardar otros campos sin nueva reiteración.
   if (
     currentStatus === STATUS_REITERACIONES &&
     newStatus === STATUS_REITERACIONES &&

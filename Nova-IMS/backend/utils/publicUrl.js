@@ -1,13 +1,3 @@
-/**
- * URL pública del backend (enlaces WhatsApp/SMS, location share).
- *
- * Prioridad:
- * 1. PUBLIC_URL si no es localhost
- * 2. NGROK_URL en .env
- * 3. Auto-detectar túnel ngrok local (http://127.0.0.1:4040/api/tunnels)
- * 4. PUBLIC_URL aunque sea localhost
- * 5. http://localhost:PORT
- */
 
 const http = require('node:http');
 const logger = require('./logger');
@@ -31,11 +21,6 @@ function normalizeBaseUrl(raw) {
     .replace(/\/+$/, '');
 }
 
-/**
- * Detecta valores de ejemplo/placeholder que NO son un túnel real, para no
- * enviar enlaces rotos (p. ej. el valor por defecto de .env.example). Si es un
- * placeholder, se ignora y se cae a auto-detección/localhost + advertencia.
- */
 function isPlaceholderUrl(url) {
   const u = String(url || '')
     .trim()
@@ -44,7 +29,6 @@ function isPlaceholderUrl(url) {
   const patterns = ['tu-tunel', 'su-tunel', 'xxxx', 'ejemplo', 'example', 'cambia'];
   if (patterns.some((p) => u.includes(p))) return true;
   try {
-    // Un host sin subdominio real como "https://.ngrok-free.app" tampoco sirve.
     const { hostname } = new URL(u);
     if (!hostname || hostname.startsWith('.')) return true;
   } catch {
@@ -53,7 +37,6 @@ function isPlaceholderUrl(url) {
   return false;
 }
 
-/** Devuelve el NGROK_URL normalizado solo si es un túnel real (no placeholder). */
 function resolveConfiguredNgrokUrl() {
   const raw = normalizeBaseUrl(process.env.NGROK_URL);
   return isPlaceholderUrl(raw) ? '' : raw;

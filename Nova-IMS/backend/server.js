@@ -14,7 +14,6 @@ const logger = require('./utils/logger');
 const app = express();
 const server = http.createServer(app);
 
-// ---------- Middlewares ----------
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || '*',
@@ -24,27 +23,20 @@ app.use(
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// ---------- Health ----------
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
-// ------ Ubicación pública (sin auth) ------
 const locationRoutes = require('./routes/location.routes');
 app.use('/location', locationRoutes);
 
-// ---------- API ----------
 app.use('/api', routes);
 
-// ---------- Notificaciones ----------
 app.use('/api/notifications', notificationsRoutes);
 
-// ---------- Errores ----------
 app.use((req, res) => res.status(404).json({ error: { message: 'Ruta no encontrada' } }));
 app.use(errorHandler);
 
-// ---------- Socket.IO ----------
 socket.init(server, process.env.CORS_ORIGIN || '*');
 
-// ---------- Boot ----------
 const PORT = Number(process.env.PORT || 3000);
 const { getPublicUrlAsync } = require('./utils/publicUrl');
 
@@ -75,7 +67,6 @@ async function bootstrap() {
 
 bootstrap();
 
-// Cierre gracioso
 process.on('SIGTERM', () => {
   logger.info('SIGTERM');
   server.close(() => process.exit(0));

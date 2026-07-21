@@ -24,7 +24,6 @@ export class ConfigurationService {
   private readonly http = inject(HttpClient);
   private readonly socketService = inject(SocketService);
 
-  // ---------- Señales públicas ----------
   adminLogs = signal<AdminActionLog[]>([]);
   operators = signal<Operator[]>([]);
   incidentTypes = signal<IncidentType[]>([]);
@@ -38,20 +37,17 @@ export class ConfigurationService {
   loadingUserActions = signal(false);
 
   constructor() {
-    // Eventos de tiempo real
     this.socketService.on('admin:log', (log: AdminActionLog) => {
       this.adminLogs.update((logs) => [log, ...logs]);
     });
   }
 
-  // ---------- Admin logs ----------
   getAdminLogs(): void {
     this.http.get<AdminActionLog[]>('/api/admin-logs').subscribe((logs) => {
       this.adminLogs.set(logs);
     });
   }
 
-  // ---------- Operadores ----------
   async getOperators(): Promise<void> {
     const ops = await firstValueFrom(this.http.get<Operator[]>('/api/operators'));
     this.operators.set(ops);
@@ -81,7 +77,6 @@ export class ConfigurationService {
     this.operators.update((ops) => ops.filter((o) => o.id !== operatorId));
   }
 
-  // ---------- Tipos de incidente ----------
   async getIncidentTypes(): Promise<void> {
     const types = await firstValueFrom(this.http.get<IncidentType[]>('/api/incident-types'));
     this.incidentTypes.set(types);
@@ -99,7 +94,6 @@ export class ConfigurationService {
     this.incidentTypes.update((list) => list.map((t) => (t.id === typeId ? updated : t)));
   }
 
-  // ---------- Protocolos ----------
   async getResponseProtocols(): Promise<void> {
     const protos = await firstValueFrom(
       this.http.get<ResponseProtocol[]>('/api/response-protocols'),
@@ -124,7 +118,6 @@ export class ConfigurationService {
     this.responseProtocols.update((list) => list.map((p) => (p.id === protocolId ? updated : p)));
   }
 
-  // ---------- Emails de notificación ----------
   async getNotificationEmails(): Promise<void> {
     const emails = await firstValueFrom(
       this.http.get<NotificationEmailEntry[]>('/api/notification-emails'),
@@ -158,13 +151,11 @@ export class ConfigurationService {
       .map((entry) => entry.email);
   }
 
-  // ---------- Audit logs ----------
   async getAuditLogs(): Promise<void> {
     const logs = await firstValueFrom(this.http.get<AuditLog[]>('/api/audit-logs'));
     this.auditLogs.set(logs);
   }
 
-  // ---------- Roles y permisos ----------
   async getRolePermissions(): Promise<void> {
     const roles = await firstValueFrom(
       this.http.get<RolePermission[]>('/api/roles', {

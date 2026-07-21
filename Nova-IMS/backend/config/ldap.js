@@ -1,16 +1,3 @@
-/**
- * Configuración del módulo de autenticación LDAP.
- *
- * Lee y valida las variables de entorno relacionadas con LDAP.
- * Expone un objeto frozen (inmutable) que el resto del backend consume
- * sin tocar process.env directamente — esto centraliza la configuración
- * y facilita testear/mockear.
- *
- * Principio: fail-fast. Si LDAP_ENABLED=true pero falta configuración,
- * el servidor NO arranca en lugar de fallar silenciosamente en runtime.
- *
- * @module config/ldap
- */
 
 const REQUIRED_WHEN_ENABLED = [
   'LDAP_URL',
@@ -43,7 +30,6 @@ const config = Object.freeze({
   timeoutMs: Number.parseInt(process.env.LDAP_TIMEOUT_MS || '5000', 10),
   tlsRejectUnauthorized:
     String(process.env.LDAP_TLS_REJECT_UNAUTHORIZED || 'true').toLowerCase() === 'true',
-  /** Rol/agencia por defecto si el uid solo existe en el directorio (no en MySQL) — solo .env */
   defaultRoleId: process.env.LDAP_DEFAULT_ROLE_ID,
   defaultAgencyCode: process.env.LDAP_DEFAULT_AGENCY_CODE
     ? String(process.env.LDAP_DEFAULT_AGENCY_CODE).trim().toUpperCase()

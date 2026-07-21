@@ -1,4 +1,3 @@
-/** Origen de la sesión actual */
 export type AuthSource = 'ldap' | 'local';
 
 export interface Agency {
@@ -21,6 +20,5 @@ export interface User {
   agency?: string;
   agencyName?: string;
   permissions?: string[];
-  /** ldap = directorio activo; local = cuenta en base de datos */
   authSource?: AuthSource;
 }

@@ -30,14 +30,12 @@ interface LoginResponse {
   user: ApiUserPayload;
 }
 
-// Respuesta cuando el backend pide OTP (usuarios locales)
 interface LoginOtpResponse {
   requiresOtp: true;
   userId: string;
   otpTarget: string;
 }
 
-// Respuesta después de verificar OTP
 interface VerifyOtpResponse {
   token: string;
   mustChangePassword: boolean;
@@ -76,7 +74,6 @@ function authSourceFromToken(token: string): AuthSource | null {
       return normalizeAuthSource(payload.auth_source);
     }
   } catch {
-    /* ignore */
   }
   return null;
 }
@@ -118,7 +115,6 @@ export class AuthService {
     return source === 'ldap' ? 'Directorio activo' : 'Cuenta local';
   });
 
-  /** Código de la agencia de la sesión actual (ej. CSJ, POL). */
   sessionAgencyLabel = computed(() => String(this.currentUser()?.agency || '').trim());
 
   isDirectorySession = computed(() => (this.currentUser()?.authSource ?? 'local') === 'ldap');
@@ -147,7 +143,6 @@ export class AuthService {
   login(payload: LoginPayload): Observable<LoginResponse | LoginOtpResponse> {
     return this.http.post<LoginResponse | LoginOtpResponse>(`${this.apiUrl}/login`, payload).pipe(
       tap((resp) => {
-        // Solo guardar sesión si es respuesta LDAP (token directo)
         if ('token' in resp) {
           const user = mapApiUser(resp.user);
           sessionStorage.setItem(TOKEN_KEY, resp.token);
@@ -163,7 +158,6 @@ export class AuthService {
             sessionStorage.removeItem(MUST_CHANGE_KEY);
           }
         }
-        // Si llega requiresOtp, el login.component maneja el paso 2
       }),
       catchError((err) => {
         const msg =
@@ -173,7 +167,6 @@ export class AuthService {
     );
   }
 
-  /** Paso 2 (usuarios locales): verifica OTP y guarda sesión */
   verifyOtp(userId: string, code: string, agencia?: string): Observable<VerifyOtpResponse> {
     return this.http
       .post<VerifyOtpResponse>(`${this.apiUrl}/verify-otp`, { userId, code, agencia })
@@ -211,13 +204,6 @@ export class AuthService {
 
   private loggingOut = false;
 
-  /**
-   * Cierra la sesión. Registra el cierre en auditoría (best-effort) antes de
-   * limpiar el estado local. No audita cuando la sesión ya expiró (401), pues
-   * el token sería inválido y provocaría un bucle con el interceptor.
-   *
-   * @param reason 'manual' | 'inactividad' | 'sesion_expirada'
-   */
   logout(reason = 'manual'): void {
     const token = this.getToken();
     if (token && reason !== 'sesion_expirada' && !this.loggingOut) {
@@ -241,19 +227,16 @@ export class AuthService {
     return this.token() || sessionStorage.getItem(TOKEN_KEY);
   }
 
-  /** Catálogo público de agencias (login) */
   getAgencies(): Observable<Agency[]> {
     return this.http.get<Agency[]>('/api/agencies');
   }
 
-  /** Catálogo público de roles (login) — filtrados por agencia en BD */
   getRoles(agencyCode: string): Observable<RoleOption[]> {
     return this.http.get<RoleOption[]>('/api/roles/list', {
       params: { agency: agencyCode },
     });
   }
 
-  /** Actualiza el usuario en sesión desde el servidor (teléfono, agencia, etc.). */
   refreshProfile(): Observable<User> {
     return this.http.get<ApiUserPayload>(`${this.apiUrl}/me`).pipe(
       map((apiUser) => {

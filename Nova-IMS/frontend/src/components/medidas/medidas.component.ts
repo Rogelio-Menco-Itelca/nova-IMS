@@ -590,14 +590,11 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() incidentId!: string;
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
-  /** Réplica en signal para que los computed reaccionen al cambio de @Input. */
   private readonly workflowStatusSig = signal('Nuevo');
   private readonly agencySig = signal('CSJ');
   @Output() goToDetalle = new EventEmitter<void>();
   @Output() gestionUpdated = new EventEmitter<void>();
-  /** Medidas físicas + esquema guardados en `/medidas` (distinto del formulario del incidente). */
   @Output() medidasSaved = new EventEmitter<string | undefined>();
-  /** true cuando hay borrador sin guardar en OSEG, CERREM o medidas. */
   @Output() pendingChangesChange = new EventEmitter<boolean>();
 
   readonly workflowSteps = CSJ_MEDIADAS_WORKFLOW_STEPS;
@@ -646,9 +643,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   panelLockedMessage = computed(() =>
     medidasPanelLockedMessage(this.workflowStatusSig(), this.agencySig()),
   );
-  /** OSEG ya guardado en BD: oficio + trámite/destino completos. */
   osegGuardada = signal(false);
-  /** CERREM ya guardado en BD: resolución + nivel de riesgo. */
   cerremGuardada = signal(false);
   cerremEditMode = signal(false);
   medidasGuardadas = signal(false);
@@ -867,7 +862,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.notifyPendingChanges();
   }
 
-  /** El flujo ya pasó por CERREM (incluye «Medidas asignadas» aunque canSaveGestion sea false). */
   private flujoCerremAlcanzado(): boolean {
     const ui = catalogStatusToUiStatus(this.workflowStatus);
     const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
@@ -878,10 +872,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     );
   }
 
-  /**
-   * Botón CERREM: «Guardar» la primera vez; «Editar» solo tras guardar;
-   * «Guardar» de nuevo mientras edita.
-   */
   showCerremAccion(): boolean {
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (!this.permissions().showCerremBlock) return false;
@@ -889,10 +879,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     return this.permissions().canSaveGestion || this.flujoCerremAlcanzado();
   }
 
-  /**
-   * Botón medidas: «Guardar» la primera asignación; «Editar» solo tras guardar;
-   * «Guardar» de nuevo si el operador agrega o cambia medidas.
-   */
   showMedidasAccion(): boolean {
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (!this.permissions().showMedidasBlock) return false;
@@ -900,7 +886,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     return this.permissions().canSaveMedidas;
   }
 
-  /** true = etiqueta «Guardar»; false = etiqueta «Editar» */
   cerremBotonGuardar(): boolean {
     return !this.cerremGuardada() || this.cerremEditMode();
   }
@@ -945,7 +930,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     return (this.permissions()[key] as MedidasFieldMode) === 'auto';
   }
 
-  /** Permite completar OSEG si el incidente saltó ese paso. */
   isTramiteEditable(): boolean {
     if (this.osegGuardada()) return false;
     if (this.permissions().tramiteDestino === 'editable') return true;
@@ -1097,7 +1081,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     return this.medidasSeleccionadas().some((m) => m.ID_tipo_medida === id);
   }
 
-  /** Catálogo legacy: «Esquema de protección» no es checkbox; va en columnas V/W del Excel. */
   private isEsquemaProteccionNombre(nombre: string | null | undefined): boolean {
     return /esquema de protecci/i.test(String(nombre ?? ''));
   }

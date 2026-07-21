@@ -16,11 +16,9 @@ export class IncidentService {
   incidents = signal<Incident[]>([]);
   dashboardMetrics = signal<DashboardResponseMetrics | null>(null);
   isLoading = signal(false);
-  /** Incidente a abrir al entrar en la vista Incidentes (desde el dashboard). */
   pendingOpenIncidentId = signal<string | null>(null);
 
   constructor() {
-    // Punto Rojo: Escuchando actualizaciones del backend en tiempo real
     this.socketService.on('incident:created', (newIncident: Incident) => {
       this.incidents.update((list) => [newIncident, ...list]);
       this.refreshDashboardMetrics();
@@ -61,7 +59,6 @@ export class IncidentService {
   }
 
   getIncidents(): void {
-    // Punto Rojo: Conectando a servicios de backend reales
     this.isLoading.set(true);
     this.http.get<Incident[]>(this.apiUrl).subscribe({
       next: (data) => {
@@ -90,7 +87,6 @@ export class IncidentService {
   addIncident(incident: Incident): void {
     this.createIncident(incident).subscribe({
       next: () => {
-        // La actualización de la señal ocurrirá vía Socket.io
       },
       error: (err) => this.handleCreateError(err),
     });

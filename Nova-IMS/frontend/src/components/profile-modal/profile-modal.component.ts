@@ -245,7 +245,6 @@ const SESSION_STARTED_KEY = 'ims_session_started_at';
         border-color: #64748b;
       }
 
-      /* Tema claro */
       :host-context(.theme-light) .profile-modal-panel,
       :host-context(html.theme-light) .profile-modal-panel {
         background: #ffffff;

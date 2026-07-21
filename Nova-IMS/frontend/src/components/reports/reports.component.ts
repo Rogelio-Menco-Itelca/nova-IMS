@@ -31,13 +31,10 @@ export class ReportsComponent implements OnInit {
   readonly permissionService = inject(PermissionService);
   private readonly auditClient = inject(AuditClientService);
 
-  // ---------- pestañas ----------
   activeTab = signal<Tab>('analytics');
 
-  // ---------- Power BI ----------
   pbiSafeUrl = signal<SafeResourceUrl | null>(null);
 
-  // ---------- analítica ----------
   isLoading = signal(true);
   data = signal<ReportSummary | null>(null);
   error = signal<string | null>(null);
@@ -79,7 +76,6 @@ export class ReportsComponent implements OnInit {
     return this.permissionService.canExport();
   }
 
-  // ---------- analítica ----------
   load(): void {
     this.isLoading.set(true);
     this.error.set(null);

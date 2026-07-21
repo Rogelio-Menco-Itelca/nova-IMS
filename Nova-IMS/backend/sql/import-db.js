@@ -1,11 +1,3 @@
-/**
- * Importa esquema y catálogos base en MySQL (gestionincidentes).
- *
- *   node sql/import-db.js
- *
- * Geo, usuarios, correos e incidentes: ya en la BD del cliente (dump MySQL).
- * No se versionan en este repositorio.
- */
 const fs = require("node:fs");
 const path = require("node:path");
 const mysql = require("mysql2/promise");

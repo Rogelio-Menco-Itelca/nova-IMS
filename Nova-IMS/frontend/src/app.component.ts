@@ -199,7 +199,6 @@ export class AppComponent implements OnInit {
 
     const navigate = () => {
       this.authService.currentView.set(view);
-      // Drawer en móvil/tablet (< lg); cerrar al navegar
       if (window.innerWidth < 1024) {
         this.isSidebarOpen.set(false);
         this.syncSidebarBodyClass();

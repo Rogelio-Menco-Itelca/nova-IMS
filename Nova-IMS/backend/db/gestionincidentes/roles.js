@@ -25,7 +25,6 @@ function effectiveFlag(actual, required) {
   return !!(actual || required);
 }
 
-/** Ver Incidentes no aplica a los dos últimos módulos (Reportes, Administración). */
 const VIEW_INCIDENT_NA_MODULES = new Set(['Reportes', 'Administración']);
 
 function mapPermissionRowToApi(p) {

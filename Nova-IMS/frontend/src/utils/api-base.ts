@@ -1,6 +1,5 @@
 import { environment } from '../environments/environment';
 
-/** Base URL del backend. Vacío = mismo origen (proxy dev o nginx en producción). */
 export function apiBaseUrl(): string {
   return String(environment.apiUrl || '').replace(/\/+$/, '');
 }

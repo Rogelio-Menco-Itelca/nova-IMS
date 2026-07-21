@@ -1,6 +1,3 @@
-/**
- * Geocodificación inversa (lat/lng → dirección) para ubicacion.direccion
- */
 
 const logger = require('../utils/logger');
 

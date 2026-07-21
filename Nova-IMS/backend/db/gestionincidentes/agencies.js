@@ -34,7 +34,6 @@ async function resolveAgency(code) {
   const { byCode, list } = await loadAgencyMap();
   const resolved = resolveLegacyAgencyCode(code);
   if (byCode[resolved]) return byCode[resolved];
-  // Coincidencia flexible (csj → CSJ)
   const found = list.find((a) => a.code.toUpperCase() === resolved);
   return found || null;
 }

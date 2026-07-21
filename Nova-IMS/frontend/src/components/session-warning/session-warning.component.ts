@@ -2,24 +2,6 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { InactivityService } from '../../services/inactivity.service';
 
-/**
- * Aviso de cierre de sesión por inactividad.
- * Se renderiza condicionalmente cuando InactivityService entra en fase
- * de aviso. Muestra un countdown actualizado cada segundo. El usuario
- * cancela el cierre con cualquier actividad: mover el mouse, teclear,
- * hacer scroll o touch. No tiene botón — es puramente informativo.
- *
- * Si no hay actividad, el servicio dispara logout automáticamente.
- *
- * Implementación:
- *   - Usa signals (warningSeconds, isWarningVisible) del servicio,
- *     OnPush funciona automáticamente sin async pipe ni manual CD.
- *   - Estilos inline para que el archivo sea autocontenido y no requiera
- *     archivos auxiliares al instalarlo.
- *   - pointer-events: none en el backdrop permite que clicks/movimientos
- *     "atraviesen" el aviso hacia la app debajo. El usuario no se siente
- *     bloqueado y la actividad detrás aún cancela el aviso.
- */
 @Component({
   selector: 'app-session-warning',
   standalone: true,
@@ -54,8 +36,6 @@ import { InactivityService } from '../../services/inactivity.service';
         justify-content: center;
         padding-top: 24px;
 
-        /* No bloquear interacciones detrás: el aviso es solo informativo
-           y cualquier actividad debe poder llegar al servicio para cancelar. */
         pointer-events: none;
       }
 

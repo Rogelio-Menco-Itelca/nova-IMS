@@ -21,7 +21,6 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((err: HttpErrorResponse) => {
       const isChangePassword = apiReq.url.includes('/auth/change-password');
       if (err.status === 401 && !isChangePassword) {
-        // Token inválido / expirado → cerrar sesión
         auth.logout('sesion_expirada');
       }
       return throwError(() => err);

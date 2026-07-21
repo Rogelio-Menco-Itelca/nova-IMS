@@ -40,7 +40,6 @@ async function writeIncidentAudit(incidentId, user, { action, changes, details }
   });
 }
 
-// ---------- Público ----------
 router.get('/config/public', configCtrl.publicConfig);
 router.post('/auth/login', authCtrl.login);
 router.post('/auth/verify-otp', authCtrl.verifyOtp);
@@ -83,22 +82,17 @@ router.get('/incident-statuses/allowed', authRequired, async (req, res, next) =>
   }
 });
 
-// A partir de aquí, requiere JWT
 router.use(authRequired);
 
-// Auditoría automática de toda mutación autenticada (red de seguridad).
 router.use(auditMiddleware);
 
-// ---------- Auditoría de eventos de cliente (acciones que no pasan por un endpoint de negocio) ----------
 router.post('/audit/client-event', auditClientCtrl.clientEvent);
 
-// ---------- Auth ----------
 router.get('/auth/me', authCtrl.me);
 router.get('/auth/permissions', authCtrl.permissions);
 router.post('/auth/change-password', authCtrl.changePassword);
 router.post('/auth/logout', authCtrl.logout);
 
-// ---------- Incidentes ----------
 router.get('/incidents', incCtrl.list);
 router.get('/incidents/dashboard-metrics', incCtrl.dashboardMetrics);
 router.get('/incidents/vehicle-lookup/:plate', incCtrl.lookupVehicleByPlate);
@@ -107,7 +101,6 @@ router.post('/incidents/:id/send-email', perm.notify('Incidentes'), incCtrl.send
 router.post('/incidents', incCtrl.create);
 router.put('/incidents/:id', incCtrl.update);
 
-// ---------- Personas ----------
 router.get('/people', peopleCtrl.list);
 router.post('/people', peopleCtrl.create);
 router.put('/people/:id', peopleCtrl.update);
@@ -116,43 +109,35 @@ router.get('/person-roles', peopleCtrl.personRoles);
 router.get('/genders', peopleCtrl.genders);
 router.get('/document-types', peopleCtrl.documentTypes);
 
-// Lookup por teléfono
 router.get('/telephony/lookup/:phone', peopleCtrl.lookupByPhone);
 router.get('/people/lookup/document/:documentId', peopleCtrl.lookupByDocument);
 
-// ---------- Operadores / Usuarios ----------
 router.get('/operators', opCtrl.list);
 router.post('/operators', opCtrl.create);
 router.put('/operators/:id', opCtrl.update);
 
-// ---------- Tipos de Incidente ----------
 router.get('/incident-types', typeCtrl.list);
 router.post('/incident-types', typeCtrl.create);
 router.put('/incident-types/:id', typeCtrl.update);
 
-// ---------- Protocolos ----------
 router.get('/response-protocols', protoCtrl.list);
 router.post('/response-protocols', protoCtrl.create);
 router.put('/response-protocols/:id', protoCtrl.update);
 
-// ---------- Emails de notificación ----------
 router.get('/notification-emails', notifCtrl.list);
 router.post('/notification-emails', notifCtrl.add);
 router.patch('/notification-emails/:email/status', notifCtrl.setStatus);
 
-// ---------- Roles / Permisos ----------
 router.get('/roles', roleCtrl.list);
 router.post('/roles', roleCtrl.create);
 router.put('/roles/:id', roleCtrl.update);
 
-// ---------- Logs ----------
 router.get('/admin-logs', logCtrl.adminLogs);
 router.get('/audit-logs', logCtrl.auditLogs);
 router.get('/users-audit-summary', perm.view('Administración'), logCtrl.usersAuditSummary);
 router.get('/users-audit-summary/:userId/actions', perm.view('Administración'), logCtrl.userActions);
 router.get('/reports/summary', perm.view('Reportes'), reportsCtrl.summary);
 
-// ---------- Location Requests ----------
 router.get('/location-requests', locCtrl.list);
 router.post('/location-requests', locCtrl.create);
 router.post('/location-requests/:id/received', locCtrl.receive);
@@ -171,7 +156,6 @@ router.get('/catalog/riesgos', async (req, res, next) => {
   }
 });
 
-// ---------- Medidas de seguridad ----------
 router.get('/medidas/tipos', async (req, res, next) => {
   try {
     const agency = req.user?.agency_code || req.user?.agency;
@@ -203,7 +187,6 @@ router.post('/incidents/:id/gestion', async (req, res, next) => {
     const idGestion = await medidas.upsertGestion(visibleId, req.body, req.user);
     const gestion = await medidas.getGestionByIncidente(visibleId);
     const auditDetails = medidas.buildGestionAuditDetails(beforeGestion, gestion);
-    // Solo se audita si hubo cambios reales (evita borradores vacíos al ver).
     if (auditDetails.length) {
       await writeIncidentAudit(visibleId, req.user, {
         action: 'Actualización gestión OSEG/CERREM',
