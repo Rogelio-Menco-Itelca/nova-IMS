@@ -217,28 +217,30 @@ interface ModuloMensaje {
                     id="medidas-oficio-tramite"
                     type="text"
                     [ngModel]="form.codigo_oficio"
-                    (ngModelChange)="form.codigo_oficio = $event"
+                    (ngModelChange)="form.codigo_oficio = $event; onDraftChange()"
                     [readonly]="fieldAuto('oficioTramite') || !fieldEditable('oficioTramite')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
                     [class.cursor-not-allowed]="fieldAuto('oficioTramite') || !fieldEditable('oficioTramite')"
                     [class.opacity-80]="fieldAuto('oficioTramite')"
-                    placeholder="Se genera automáticamente"
+                    placeholder="Ingrese el código de oficio"
                   />
                 </div>
               }
               @if (fieldVisible('tramiteDestino')) {
                 <div>
                   <label for="medidas-tramite-destino" class="text-xs text-gray-400 uppercase tracking-wider">Trámite / destino</label>
-                  <input
+                  <select
                     id="medidas-tramite-destino"
                     [(ngModel)]="form.tramite_destino"
                     (ngModelChange)="onDraftChange()"
-                    type="text"
-                    [readonly]="!isTramiteEditable()"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
-                    [class.cursor-not-allowed]="!isTramiteEditable()"
-                    placeholder="Ej: CERREM — Protección a funcionarios judiciales"
-                  />
+                    [disabled]="!isTramiteEditable()"
+                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Seleccione...</option>
+                    @for (opt of tramiteDestinoSelectOptions(); track opt) {
+                      <option [value]="opt">{{ opt }}</option>
+                    }
+                  </select>
                   @if (isTramiteEditable() && permissions().tramiteDestino === 'readonly') {
                     <p class="mt-1 text-xs text-amber-400">
                       Complete este dato pendiente de la gestión OSEG.
@@ -690,6 +692,8 @@ export class MedidasComponent implements OnInit, OnChanges {
     observaciones: '',
   };
 
+  readonly tramiteDestinoOpciones = ['Policia', 'Unp', 'Regimen Judicial'] as const;
+
   ngOnInit() {
     this.workflowStatusSig.set(this.workflowStatus);
     this.agencySig.set(this.agency);
@@ -711,15 +715,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     }
     if (!changes['workflowStatus']) return;
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
-    const ui = catalogStatusToUiStatus(this.workflowStatus);
-    const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
-    if (
-      rank !== undefined &&
-      rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
-      !String(this.form.codigo_oficio || '').trim()
-    ) {
-      this.ensureGestionDraft();
-    } else if (!changes['workflowStatus'].firstChange) {
+    if (!changes['workflowStatus'].firstChange) {
       this.loadGestion();
     }
   }
@@ -810,6 +806,10 @@ export class MedidasComponent implements OnInit, OnChanges {
   }
 
   private async savePendingOsegSection(): Promise<boolean> {
+    if (!String(this.form.codigo_oficio || '').trim()) {
+      this.showMensaje('oseg', 'Complete «Oficio trámite» antes de guardar.', 'error');
+      return false;
+    }
     if (!String(this.form.tramite_destino || '').trim()) {
       this.showMensaje('oseg', 'Complete «Trámite / destino» antes de guardar.', 'error');
       return false;
@@ -940,6 +940,15 @@ export class MedidasComponent implements OnInit, OnChanges {
     );
   }
 
+  /** Opciones fijas + valor histórico si no está en la lista (casos previos con texto libre). */
+  tramiteDestinoSelectOptions(): string[] {
+    const current = String(this.form.tramite_destino || '').trim();
+    if (current && !(this.tramiteDestinoOpciones as readonly string[]).includes(current)) {
+      return [current, ...this.tramiteDestinoOpciones];
+    }
+    return [...this.tramiteDestinoOpciones];
+  }
+
   displayServidor(): string {
     const s = this.solicitud();
     const name = String(this.form.servidor_judicial || s?.servidor_judicial || '').trim();
@@ -1000,18 +1009,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.form.cargo = solicitud.cargo;
   }
 
-  private maybeEnsureGestionDraft(): void {
-    const ui = catalogStatusToUiStatus(this.workflowStatus);
-    const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
-    if (
-      rank !== undefined &&
-      rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
-      !String(this.form.codigo_oficio || '').trim()
-    ) {
-      this.ensureGestionDraft();
-    }
-  }
-
   private applyLoadedGestion(
     gestion: Gestion | null,
     medidas: MedidaAsignada[],
@@ -1042,33 +1039,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.medidasGuardadas.set(lista.length > 0);
     this.medidasEditMode.set(false);
     this.cerremEditMode.set(false);
-    this.maybeEnsureGestionDraft();
     this.captureDraftBaseline();
-  }
-
-  private ensureGestionDraft() {
-    if (!this.permissions().canSaveGestion) return;
-    this.http
-      .post<{ ok: boolean; codigo_oficio?: string }>(`/api/incidents/${this.incidentId}/gestion`, {
-        tramite_destino: this.form.tramite_destino ?? '',
-        workflowStatus: this.workflowStatus,
-      })
-      .subscribe({
-        next: (res) => {
-          if (res.codigo_oficio) {
-            this.form.codigo_oficio = res.codigo_oficio;
-            this.captureDraftBaseline();
-          } else {
-            this.loadGestion();
-          }
-          this.refreshAuditHistory();
-        },
-        error: (err) => {
-          const msg =
-            err?.error?.error?.message || err?.error?.message || 'No se pudo generar el oficio.';
-          this.showMensaje('oseg', msg, 'error');
-        },
-      });
   }
 
   private toDateInput(value: string | null | undefined): string {
@@ -1129,6 +1100,10 @@ export class MedidasComponent implements OnInit, OnChanges {
 
   guardarGestionOseg() {
     if (this.osegGuardada() || isClosedWorkflowStatus(this.workflowStatus)) return;
+    if (!String(this.form.codigo_oficio || '').trim()) {
+      this.showMensaje('oseg', 'Complete «Oficio trámite» antes de guardar.', 'error');
+      return;
+    }
     if (!String(this.form.tramite_destino || '').trim()) {
       this.showMensaje('oseg', 'Complete «Trámite / destino» antes de guardar.', 'error');
       return;

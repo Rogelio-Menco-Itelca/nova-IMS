@@ -264,7 +264,7 @@
                 <label
                   for="event_id"
                   class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                  >Incidente <span class="text-red-400">*</span></label
+                  > Eventos <span class="text-red-400">*</span></label
                 >
                 <select
                   id="event_id"
@@ -861,13 +861,13 @@
                         <label
                           [attr.for]="'person-' + $index + '-comentarios'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Comentarios Del Solicitante</label
+                          >Ubicación de expediente</label
                         >
                         <textarea
                           [id]="'person-' + $index + '-comentarios'"
                           formControlName="comentarios"
                           rows="2"
-                          placeholder="Notas sobre el solicitante"
+                          placeholder="Ruta de SharePoint del expediente"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"
                         ></textarea>
                       </div>

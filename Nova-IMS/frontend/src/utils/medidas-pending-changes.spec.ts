@@ -21,6 +21,12 @@ const baseCtx: MedidasPendingContext = {
 };
 
 describe('hasMedidasPanelPendingChanges', () => {
+  it('detecta oficio OSEG sin guardar', () => {
+    const baseline = snapshotMedidasDraft({}, []);
+    const current = snapshotMedidasDraft({ codigo_oficio: 'OSEG-MANUAL-1' }, []);
+    expect(hasMedidasPanelPendingChanges(current, baseline, baseCtx)).toBe(true);
+  });
+
   it('detecta trámite OSEG sin guardar', () => {
     const baseline = snapshotMedidasDraft({}, []);
     const current = snapshotMedidasDraft({ tramite_destino: 'UNP' }, []);
@@ -156,7 +162,7 @@ describe('labelsForPendingMedidasSections', () => {
       showMedidasBlock: false,
     };
     expect(labelsForPendingMedidasSections(current, baseline, ctx)).toEqual([
-      'Gestión OSEG (trámite / destino)',
+      'Gestión OSEG (oficio / trámite)',
     ]);
   });
 });

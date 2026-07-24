@@ -150,7 +150,7 @@ export function getMedidasPermissions(
         showCerremBlock: false,
         showMedidasBlock: false,
         servidorJudicial: 'readonly',
-        oficioTramite: 'auto',
+        oficioTramite: 'editable',
         tramiteDestino: 'editable',
         fechaCerrem: 'hidden',
         resolucionCerrem: 'hidden',
@@ -309,7 +309,7 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
   const ui = catalogStatusToUiStatus(status);
   switch (ui) {
     case 'En gestión OSEG':
-      return 'Escriba el trámite/destino (a dónde se envía el oficio, ej. CERREM). El código de oficio se genera al abrir esta pestaña o al guardar.';
+      return 'Escriba el código de oficio trámite y seleccione el trámite/destino (Policía, UNP o Régimen Judicial).';
     case 'Enviado a CERREM':
     case 'En evaluación CERREM':
       if (isRiesgoExtraordinario(gestion)) {

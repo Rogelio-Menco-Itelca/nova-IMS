@@ -1,6 +1,5 @@
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
-const { mapStatusFromGi } = require('./maps');
 const { WORKFLOW_RANK_CSJ } = require('./transitions');
 
 function nullIfEmpty(value) {
@@ -26,25 +25,6 @@ function pickInt(bodyVal, prevVal) {
     if (Number.isFinite(n)) return n;
   }
   return null;
-}
-
-function formatCodigoOficio(visibleId) {
-  const year = new Date().getFullYear();
-  const suffix = String(visibleId || '')
-    .replace(/^INC-/i, '')
-    .padStart(7, '0');
-  return `OSEG-${year}-${suffix}`;
-}
-
-async function getIncidentStatusUi(visibleId) {
-  const [rows] = await pool.query(
-    `SELECT es.Nombre_estado
-     FROM incidentes i
-     JOIN estadosincidentes es ON es.ID_estado = i.ID_estado
-     WHERE i.ID_visible = ?`,
-    [visibleId],
-  );
-  return mapStatusFromGi(rows[0]?.Nombre_estado || 'Nuevo');
 }
 
 async function resolveServidorJudicial(incidenteId) {
@@ -176,9 +156,6 @@ async function upsertGestion(visibleId, body, user) {
   );
   if (!incRows.length) throw new HttpError(404, 'Incidente no encontrado');
   const incidenteId = incRows[0].ID_incidente;
-  const incidentStatusDb = await getIncidentStatusUi(visibleId);
-  const incidentStatus =
-    String(body.workflowStatus || body.workflow_status || '').trim() || incidentStatusDb;
   const solicitud = await resolveServidorJudicial(incidenteId);
 
   const [existing] = await pool.query(
@@ -187,17 +164,12 @@ async function upsertGestion(visibleId, body, user) {
   );
 
   const prev = existing[0] || null;
-  const rank = WORKFLOW_RANK_CSJ[incidentStatus];
-  const needsOficio = rank !== undefined && rank >= WORKFLOW_RANK_CSJ['En gestión OSEG'];
 
   const osegBloqueada =
     Boolean(String(prev?.codigo_oficio || '').trim()) &&
     Boolean(String(prev?.tramite_destino || '').trim());
 
-  let codigoOficio = body.codigo_oficio ?? prev?.codigo_oficio ?? null;
-  if (needsOficio && !String(codigoOficio || '').trim()) {
-    codigoOficio = formatCodigoOficio(visibleId);
-  }
+  let codigoOficio = pickText(body.codigo_oficio, prev?.codigo_oficio);
   if (osegBloqueada) {
     codigoOficio = prev.codigo_oficio;
   }
@@ -450,7 +422,6 @@ module.exports = {
   asignarMedidas,
   hasAssignedMedidas,
   validateGestionForStatus,
-  formatCodigoOficio,
   buildMedidasAuditDetails,
   buildMedidasMetaAuditDetails,
   buildGestionAuditDetails,

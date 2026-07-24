@@ -199,6 +199,8 @@ describe('getMedidasPermissions — flujo CSJ', () => {
     expect(p.showOsegBlock).toBe(true);
     expect(p.showCerremBlock).toBe(false);
     expect(p.showMedidasBlock).toBe(false);
+    expect(p.oficioTramite).toBe('editable');
+    expect(p.tramiteDestino).toBe('editable');
     expect(p.canSaveGestion).toBe(true);
     expect(p.canSaveMedidas).toBe(false);
   });

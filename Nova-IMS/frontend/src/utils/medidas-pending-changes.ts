@@ -1,4 +1,5 @@
 export interface MedidasDraftSnapshot {
+  codigo_oficio: string;
   tramite_destino: string;
   fecha_cerrem: string;
   resolucion_cerrem: string;
@@ -40,6 +41,7 @@ function normId(value: unknown): number | null {
 
 export function snapshotMedidasDraft(
   form: {
+    codigo_oficio?: string | null;
     tramite_destino?: string | null;
     fecha_cerrem?: string | null;
     resolucion_cerrem?: string | null;
@@ -56,6 +58,7 @@ export function snapshotMedidasDraft(
   }[],
 ): MedidasDraftSnapshot {
   return {
+    codigo_oficio: norm(form.codigo_oficio),
     tramite_destino: norm(form.tramite_destino),
     fecha_cerrem: norm(form.fecha_cerrem),
     resolucion_cerrem: norm(form.resolucion_cerrem),
@@ -75,7 +78,10 @@ export function snapshotMedidasDraft(
 }
 
 function osegChanged(current: MedidasDraftSnapshot, baseline: MedidasDraftSnapshot): boolean {
-  return current.tramite_destino !== baseline.tramite_destino;
+  return (
+    current.codigo_oficio !== baseline.codigo_oficio ||
+    current.tramite_destino !== baseline.tramite_destino
+  );
 }
 
 function cerremChanged(current: MedidasDraftSnapshot, baseline: MedidasDraftSnapshot): boolean {
@@ -110,7 +116,7 @@ export function hasMedidasPanelPendingChanges(
 export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
 
 export const MEDIDAS_PENDING_SECTION_LABELS: Record<MedidasPendingSection, string> = {
-  oseg: 'Gestión OSEG (trámite / destino)',
+  oseg: 'Gestión OSEG (oficio / trámite)',
   cerrem: 'Decisión CERREM',
   medidas: 'Medidas de protección',
 };
