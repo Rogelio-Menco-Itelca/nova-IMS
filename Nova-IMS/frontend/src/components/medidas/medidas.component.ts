@@ -666,7 +666,7 @@ export class MedidasComponent implements OnInit, OnChanges {
       return 'Decisión CERREM guardada. Pulse «Editar» al final del módulo para modificar.';
     }
     if (this.medidasGuardadas() && !this.medidasEditMode() && this.permissions().showMedidasBlock) {
-      return 'Medidas asignadas. Pulse «Editar» al final del módulo para agregar o cambiar medidas.';
+      return 'En gestión Ponal. Pulse «Editar» al final del módulo para agregar o cambiar medidas.';
     }
     if (isClosedWorkflowStatus(this.workflowStatus)) {
       const stages = describeClosedReviewStages(
@@ -867,7 +867,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     const rank = CSJ_STATUS_WORKFLOW_RANK[ui];
     return (
       rank !== undefined &&
-      rank >= CSJ_STATUS_WORKFLOW_RANK['En evaluación CERREM'] &&
+      rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión UNP'] &&
       rank < CSJ_STATUS_WORKFLOW_RANK['Cerrado']
     );
   }

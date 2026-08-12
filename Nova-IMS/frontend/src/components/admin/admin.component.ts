@@ -143,6 +143,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   emailStatusConfirm = signal<{ entry: NotificationEmailEntry; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
   operatorStatusConfirm = signal<{ operator: Operator; nextStatus: 'Activo' | 'Inactivo' } | null>(null);
   personRoles = signal<CatalogOption[]>([]);
+  judgeCargos = signal<CatalogOption[]>([]);
   genders = signal<CatalogOption[]>([]);
   personRolesLoading = signal(false);
   documentTypes = signal<DocumentTypeOption[]>([]);
@@ -155,6 +156,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     numeroDocumento: ['', Validators.required],
     contacto: [''],
     roleId: [null as number | null, Validators.required],
+    cargoId: [null as number | null],
     genderId: [null as number | null],
     comentarios: [''],
     status: ['Activo' as 'Activo' | 'Inactivo', Validators.required],
@@ -777,6 +779,10 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
         this.personRolesLoading.set(false);
       },
     });
+    this.personService.getJudgeCargos(agency).subscribe({
+      next: (list) => this.judgeCargos.set(Array.isArray(list) ? list : []),
+      error: () => this.judgeCargos.set([]),
+    });
     this.personService.getGenders(agency).subscribe({
       next: (list) => this.genders.set(list),
       error: () => this.genders.set([]),
@@ -787,10 +793,32 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  isAdminPersonJudgeRole(): boolean {
+    const roleId = this.personForm.controls.roleId.value;
+    if (roleId == null) return false;
+    const role = this.personRoles().find((r) => Number(r.id) === Number(roleId));
+    return /^juez$/i.test(String(role?.name ?? '').trim());
+  }
+
+  onAdminPersonRoleChange(): void {
+    if (!this.isAdminPersonJudgeRole()) {
+      this.personForm.controls.cargoId.setValue(null, { emitEvent: false });
+    }
+  }
+
+  onAdminPersonDigitsInput(controlName: 'numeroDocumento' | 'contacto'): void {
+    const ctrl = this.personForm.get(controlName);
+    if (!ctrl) return;
+    const digits = String(ctrl.value ?? '').replace(/\D/g, '');
+    if (ctrl.value !== digits) {
+      ctrl.setValue(digits, { emitEvent: false });
+    }
+  }
+
   openAddPersonForm(): void {
     this.isEditModePerson.set(false);
     this.selectedPerson.set(null);
-    this.personForm.reset({ status: 'Activo' });
+    this.personForm.reset({ status: 'Activo', cargoId: null });
     this.loadPersonCatalogs();
     this.showPersonForm.set(true);
   }
@@ -808,6 +836,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       numeroDocumento: person.documentId ?? '',
       contacto: person.contacto ?? person.phone ?? '',
       roleId: person.roleId ?? null,
+      cargoId: person.cargoId ?? null,
       genderId: person.genderId ?? null,
       comentarios: person.comentarios ?? person.notes ?? '',
       status: person.status ?? 'Activo',
@@ -816,8 +845,19 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async savePerson(): Promise<void> {
-    if (this.personForm.invalid || this.personForm.controls.roleId.value == null) {
+    const isJudge = this.isAdminPersonJudgeRole();
+    if (
+      this.personForm.invalid ||
+      this.personForm.controls.roleId.value == null ||
+      (isJudge && this.personForm.controls.cargoId.value == null)
+    ) {
       this.personForm.markAllAsTouched();
+      if (isJudge && this.personForm.controls.cargoId.value == null) {
+        this.notificationService.addNotification(
+          'Cargo requerido',
+          'Seleccione el cargo / especialización del juez.',
+        );
+      }
       return;
     }
     const raw = this.personForm.getRawValue();
@@ -830,6 +870,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       numeroDocumento: raw.numeroDocumento!.trim(),
       contacto: raw.contacto?.trim() || '',
       roleId: Number(raw.roleId),
+      cargoId: isJudge ? raw.cargoId : null,
       genderId: raw.genderId ?? null,
       comentarios: raw.comentarios?.trim() || '',
       status: raw.status ?? 'Activo',
@@ -848,6 +889,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
           'Se ha guardado el nuevo registro.',
         );
       }
+      this.personService.getPeople();
       this.showPersonForm.set(false);
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };
@@ -908,6 +950,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     this.configService.getAuditLogs();
     this.configService.getRolePermissions();
     this.incidentService.getIncidents();
+    this.personService.getPeople();
   }
 
   filteredAuditLogs = computed(() => {
@@ -942,6 +985,10 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   setTab(tab: AdminTab) {
     this.activeTab.set(tab);
+    if (tab === 'people') {
+      this.personService.getPeople();
+      this.loadPersonCatalogs();
+    }
     if (tab === 'incident_history') {
       this.refreshIncidentHistoryView().catch(() => void 0);
     }
@@ -1198,7 +1245,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (/cerrado|cancelado/i.test(value)) {
       return base + 'bg-red-900/40 text-red-300 border-red-500/30';
     }
-    if (/resuelto|medidas asignadas/i.test(value)) {
+    if (/resuelto|en gestion ponal/i.test(value)) {
       return base + 'bg-green-900/50 text-green-300 border-green-500/30';
     }
     if (/reiteraciones/i.test(value)) {
@@ -1359,7 +1406,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.incidentHistoryMedidasLoading()) return true;
     if (this.incidentHistoryAssignedMedidas().length) return true;
     if (this.hasIncidentGestionData(this.incidentHistoryGestion())) return true;
-    return /medidas asignadas|en gesti[oó]n|cerrem|oseg/i.test(String(incident.status ?? ''));
+    return /en gesti[oó]n ponal|en gesti[oó]n|cerrem|oseg/i.test(String(incident.status ?? ''));
   }
 
   medidaQuantity(medida: IncidentHistoryMedida): number {
@@ -1368,7 +1415,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   isMedidasAsignadasStatus(incident: Incident): boolean {
-    return /medidas asignadas/i.test(String(incident.status ?? ''));
+    return /en gesti[oó]n ponal/i.test(String(incident.status ?? ''));
   }
 
   personDisplayName(person: InvolvedPerson): string {
@@ -1446,7 +1493,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   statusBadgeClass(status: string): string {
-    if (/medidas asignadas/i.test(String(status ?? ''))) return 'ih-badge-status-ok';
+    if (/en gesti[oó]n ponal/i.test(String(status ?? ''))) return 'ih-badge-status-ok';
     if (/cerrado|cancelado/i.test(String(status ?? ''))) return 'ih-badge-status-muted';
     return 'ih-badge-status-default';
   }

@@ -4,7 +4,7 @@ const CSJ_AGENCY = 'CSJ';
 
 const STATUS_TARGETS = {
   GESTION: 'En gestión OSEG',
-  PROTECCION: 'Medidas asignadas',
+  PROTECCION: 'En gestión Ponal',
 };
 
 const INCIDENT_SCOPE_SQL = `(i.ID_visible IS NULL OR i.ID_visible NOT LIKE 'CAT-PERS-%')`;

@@ -285,6 +285,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   priorities: IncidentPriority[] = ['Baja', 'Media', 'Alta', 'Crítica'];
   incidentTypes = this.configService.incidentTypes;
   personRoles = signal<CatalogOption[]>([]);
+  judgeCargos = signal<CatalogOption[]>([]);
   genders = signal<CatalogOption[]>([]);
   documentTypes = signal<DocumentTypeOption[]>([]);
   placeRoles = signal<CatalogOption[]>([]);
@@ -1565,6 +1566,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       primerApellido: [split.primerApellido ?? ''],
       segundoApellido: [split.segundoApellido ?? ''],
       roleId: [p?.roleId ?? null],
+      cargoId: [p?.cargoId ?? null],
       documentType: [p?.documentType ?? ''],
       documentId: [p?.documentId ?? ''],
       genderId: [p?.genderId ?? null],
@@ -1585,6 +1587,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   removePerson(index: number): void {
+    if (this.activeTabId() === 'new' && this.involvedPeople.length <= 1) {
+      this.notificationService.addNotification(
+        'Solicitante requerido',
+        'Al crear un incidente debe registrar al menos un solicitante.',
+      );
+      return;
+    }
     const timer = this.personLookupTimers.get(index);
     if (timer) clearTimeout(timer);
     this.personLookupTimers.delete(index);
@@ -1594,11 +1603,24 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onPersonDocumentInput(index: number): void {
+    this.sanitizePersonDigitsControl(index, 'documentId');
     this.scheduleInvolvedPersonLookup(index, 'document');
   }
 
   onPersonContactInput(index: number): void {
+    this.sanitizePersonDigitsControl(index, 'contact');
     this.scheduleInvolvedPersonLookup(index, 'contact');
+  }
+
+  private sanitizePersonDigitsControl(index: number, controlName: 'documentId' | 'contact'): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+    const ctrl = group.get(controlName);
+    if (!ctrl) return;
+    const digits = String(ctrl.value ?? '').replace(/\D/g, '');
+    if (ctrl.value !== digits) {
+      ctrl.setValue(digits, { emitEvent: false });
+    }
   }
 
   lookupInvolvedPerson(index: number, field: 'document' | 'contact'): void {
@@ -1666,8 +1688,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       primerApellido: '',
       segundoApellido: '',
       roleId: null,
+      cargoId: null,
       documentType: '',
       genderId: null,
+      comentarios: '',
     };
     if (changedField === 'document') {
       patch['contact'] = '';
@@ -1677,41 +1701,69 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     group.patchValue(patch, { emitEvent: false });
   }
 
+  private resolveCargoIdFromPerson(person: Person): number | null {
+    const raw = person.cargoId ?? (person as Person & { id_cargo?: number }).id_cargo;
+    const id = Number(raw);
+    if (Number.isFinite(id) && id > 0) return id;
+    const cargoName = String(person.cargo || '').trim().toLowerCase();
+    if (!cargoName) return null;
+    const found = this.judgeCargos().find(
+      (c) => String(c.name || '').trim().toLowerCase() === cargoName,
+    );
+    return found != null ? Number(found.id) : null;
+  }
+
+  private applyJudgeCargoToRow(index: number, cargoId: number | null): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup) || cargoId == null) return;
+    const ctrl = group.get('cargoId');
+    if (!ctrl) return;
+    ctrl.setValue(Number(cargoId), { emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  private ensureJudgeCargoOption(cargoId: number, cargoName?: string | null): void {
+    if (this.judgeCargos().some((c) => Number(c.id) === Number(cargoId))) return;
+    const name = String(cargoName || '').trim() || `Cargo #${cargoId}`;
+    this.judgeCargos.update((list) => [...list, { id: Number(cargoId), name }]);
+  }
+
   private applyInvolvedPersonLookup(index: number, person: Person, lookupKey: string): void {
     const group = this.involvedPeople.at(index);
     if (!(group instanceof FormGroup)) return;
 
-    const patch: Partial<InvolvedPerson> = {
-      primerNombre: person.primerNombre,
-      segundoNombre: person.segundoNombre,
-      primerApellido: person.primerApellido,
-      segundoApellido: person.segundoApellido,
-      name: person.name,
-      contact: person.phone || person.contacto,
-      phone: person.phone,
-      documentType: this.resolveDocumentType(person),
-      documentId: person.documentId,
-      genderId: person.genderId ?? null,
-      roleId: person.roleId ?? null,
-    };
-    if (!patch.primerNombre && person.name) {
-      Object.assign(patch, splitPersonName(person.name));
+    const names = !person.primerNombre && person.name
+      ? splitPersonName(person.name)
+      : {
+          primerNombre: person.primerNombre ?? '',
+          segundoNombre: person.segundoNombre ?? '',
+          primerApellido: person.primerApellido ?? '',
+          segundoApellido: person.segundoApellido ?? '',
+        };
+
+    const roleId = person.roleId != null ? Number(person.roleId) : null;
+    const cargoId = this.resolveCargoIdFromPerson(person);
+    if (cargoId != null) {
+      this.ensureJudgeCargoOption(cargoId, person.cargo);
     }
 
+    // Rol primero para que isPersonJudgeRole muestre el select; luego cargo.
     group.patchValue(
       {
-        primerNombre: patch.primerNombre ?? '',
-        segundoNombre: patch.segundoNombre ?? '',
-        primerApellido: patch.primerApellido ?? '',
-        segundoApellido: patch.segundoApellido ?? '',
-        roleId: patch.roleId ?? null,
-        documentType: patch.documentType ?? '',
-        documentId: patch.documentId ?? '',
-        genderId: patch.genderId ?? null,
-        contact: patch.contact ?? '',
+        primerNombre: names.primerNombre ?? '',
+        segundoNombre: names.segundoNombre ?? '',
+        primerApellido: names.primerApellido ?? '',
+        segundoApellido: names.segundoApellido ?? '',
+        roleId: Number.isFinite(roleId as number) ? roleId : null,
+        documentType: this.resolveDocumentType(person) ?? '',
+        documentId: person.documentId ?? '',
+        genderId: person.genderId != null ? Number(person.genderId) : null,
+        contact: person.phone || person.contacto || '',
+        comentarios: String(person.comentarios || '').trim(),
       },
       { emitEvent: false },
     );
+    this.applyJudgeCargoToRow(index, cargoId);
 
     this.personLastLookupKey.set(index, lookupKey);
     const notifyKey = `solicitante:${lookupKey}:${person.id}`;
@@ -1740,17 +1792,48 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private isPersonRowSaveable(group: FormGroup): boolean {
     const v = group.getRawValue();
-    return !!(
-      String(v.primerNombre || '').trim() &&
-      String(v.primerApellido || '').trim() &&
-      v.roleId != null
-    );
+    if (
+      !(
+        String(v.primerNombre || '').trim() &&
+        String(v.primerApellido || '').trim() &&
+        v.roleId != null
+      )
+    ) {
+      return false;
+    }
+    if (this.isJudgeRoleId(v.roleId) && v.cargoId == null) return false;
+    return true;
+  }
+
+  isJudgeRoleId(roleId: number | null | undefined): boolean {
+    if (roleId == null) return false;
+    const role = this.personRoles().find((r) => Number(r.id) === Number(roleId));
+    return /^juez$/i.test(String(role?.name ?? '').trim());
+  }
+
+  isPersonJudgeRole(index: number): boolean {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return false;
+    return this.isJudgeRoleId(group.get('roleId')?.value);
+  }
+
+  onPersonRoleChange(index: number): void {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return;
+    if (!this.isPersonJudgeRole(index)) {
+      group.get('cargoId')?.setValue(null, { emitEvent: false });
+    }
+    this.cdr.markForCheck();
   }
 
   private personGroupToInvolvedPerson(group: FormGroup): InvolvedPerson | null {
     if (!this.isPersonRowSaveable(group)) return null;
     const v = group.getRawValue();
     const roleName = this.personRoles().find((r) => r.id === v.roleId)?.name ?? '';
+    const isJudge = this.isJudgeRoleId(v.roleId);
+    const cargoName = isJudge
+      ? (this.judgeCargos().find((c) => Number(c.id) === Number(v.cargoId))?.name ?? undefined)
+      : undefined;
     return {
       primerNombre: String(v.primerNombre).trim(),
       segundoNombre: String(v.segundoNombre || '').trim() || undefined,
@@ -1759,6 +1842,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       name: joinPersonName(v),
       role: roleName,
       roleId: v.roleId,
+      cargoId: isJudge ? v.cargoId : null,
+      cargo: cargoName,
       documentType: v.documentType || undefined,
       documentId: String(v.documentId || '').trim() || undefined,
       genderId: v.genderId,
@@ -1806,12 +1891,31 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private loadPersonCatalogs(): void {
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    this.personService.getPeople();
     this.personService.getPersonRoles(agency).subscribe({
       next: (rows) => {
-        this.personRoles.set(rows);
+        const roles = (Array.isArray(rows) ? rows : [])
+          .map((r) => ({ ...r, id: Number(r.id) }))
+          .filter((r) => Number.isFinite(r.id) && r.id > 0);
+        this.personRoles.set(roles);
         this.cdr.markForCheck();
       },
       error: () => this.personRoles.set([]),
+    });
+    this.personService.getJudgeCargos(agency).subscribe({
+      next: (rows) => {
+        const cargos = (Array.isArray(rows) ? rows : [])
+          .map((r) => ({ ...r, id: Number(r.id) }))
+          .filter((r) => Number.isFinite(r.id) && r.id > 0);
+        this.judgeCargos.set(cargos);
+        this.involvedPeople.controls.forEach((ctrl, index) => {
+          const group = ctrl as FormGroup;
+          const cargoId = group.get('cargoId')?.value;
+          if (cargoId != null) this.applyJudgeCargoToRow(index, Number(cargoId));
+        });
+        this.cdr.markForCheck();
+      },
+      error: () => this.judgeCargos.set([]),
     });
     this.personService.getGenders(agency).subscribe({
       next: (rows) => {
@@ -1902,9 +2006,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   statusLabel(catalogName: string): string {
-    if (isCsjLegacyEnviadoCerremStatus(catalogName)) {
-      return 'En evaluación CERREM';
-    }
     return catalogStatusToUiStatus(catalogName);
   }
 
@@ -2721,74 +2822,40 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private applyPersonLookupResult(person: Person | null): void {
     if (!person) return;
-
-    const phone = this.incidentForm.get('phone')?.value as string;
-    const notifyKey = `${this.normalizePhone(phone)}:${person.id}`;
-    if (!this.personLookupNotified.has(notifyKey)) {
-      this.personLookupNotified.add(notifyKey);
-      this.notificationService.addNotification(
-        'Persona Identificada',
-        `${person.name} reconocido por el sistema.`,
-      );
-    }
-
     this.fillOrAddInvolvedPerson(person);
     this.cdr.markForCheck();
   }
 
   private fillOrAddInvolvedPerson(person: Person): void {
-    const personKey = this.normalizePhone(person.phone);
+    const personKey = this.normalizePhone(person.phone || person.contacto || '');
+    const personDoc = String(person.documentId || '').replace(/\D/g, '');
     const existingIndex = this.involvedPeople.controls.findIndex((ctrl) => {
-      const doc = String(ctrl.get('documentId')?.value || '');
+      const doc = String(ctrl.get('documentId')?.value || '').replace(/\D/g, '');
       const contact = this.normalizePhone(String(ctrl.get('contact')?.value || ''));
-      return doc === person.documentId || (personKey && contact === personKey);
+      return (
+        (!!personDoc && doc === personDoc) || (!!personKey && !!contact && contact === personKey)
+      );
     });
 
-    const patch: Partial<InvolvedPerson> = {
-      primerNombre: person.primerNombre,
-      segundoNombre: person.segundoNombre,
-      primerApellido: person.primerApellido,
-      segundoApellido: person.segundoApellido,
-      name: person.name,
-      contact: person.phone || person.contacto,
-      phone: person.phone,
-      documentType: this.resolveDocumentType(person),
-      documentId: person.documentId,
-      genderId: person.genderId ?? null,
-      roleId: person.roleId ?? null,
-    };
-    if (!patch.primerNombre && person.name) {
-      Object.assign(patch, splitPersonName(person.name));
+    let targetIndex = existingIndex;
+    if (targetIndex < 0) {
+      targetIndex = this.involvedPeople.controls.findIndex(
+        (ctrl) => !this.isPersonRowPartiallyFilled(ctrl as FormGroup),
+      );
     }
-
-    const formPatch = {
-      primerNombre: patch.primerNombre ?? '',
-      segundoNombre: patch.segundoNombre ?? '',
-      primerApellido: patch.primerApellido ?? '',
-      segundoApellido: patch.segundoApellido ?? '',
-      roleId: patch.roleId ?? null,
-      documentType: patch.documentType ?? '',
-      documentId: patch.documentId ?? '',
-      genderId: patch.genderId ?? null,
-      contact: patch.contact ?? '',
-    };
-
-    if (existingIndex >= 0) {
-      this.involvedPeople.at(existingIndex).patchValue(formPatch);
-      return;
+    if (targetIndex < 0 && this.involvedPeople.length < 4) {
+      this.involvedPeople.push(this.createPersonGroup());
+      targetIndex = this.involvedPeople.length - 1;
     }
+    if (targetIndex < 0) return;
 
-    const emptyIndex = this.involvedPeople.controls.findIndex(
-      (ctrl) => !this.isPersonRowPartiallyFilled(ctrl as FormGroup),
-    );
-    if (emptyIndex >= 0) {
-      this.involvedPeople.at(emptyIndex).patchValue(formPatch);
-      return;
-    }
-
-    if (this.involvedPeople.length < 4) {
-      this.involvedPeople.push(this.buildPersonGroup(patch));
-    }
+    const lookupKey = personKey
+      ? `phone:${personKey}`
+      : personDoc
+        ? `doc:${personDoc}`
+        : `person:${person.id}`;
+    // Misma ruta que solicitantes: incluye cargoId cuando el rol es Juez.
+    this.applyInvolvedPersonLookup(targetIndex, person, lookupKey);
   }
 
   isFormSelectEmpty(controlName: string): boolean {
@@ -2835,11 +2902,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private collectInvolvedPeopleErrors(): string[] {
+    if (this.activeTabId() === 'new' && this.involvedPeopleForSave().length === 0) {
+      return ['Al menos un solicitante (primer nombre, primer apellido y rol)'];
+    }
     for (const g of this.involvedPeople.controls) {
       const group = g as FormGroup;
       if (!this.isPersonRowPartiallyFilled(group)) continue;
       if (!this.isPersonRowSaveable(group)) {
-        return ['Persona involucrada (primer nombre, primer apellido y rol)'];
+        return ['Solicitante (primer nombre, primer apellido y rol)'];
       }
     }
     return [];
@@ -3486,7 +3556,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     gestion?: GestionSnapshot | null,
   ): boolean {
     const ui = catalogStatusToUiStatus(String(statusValue ?? '').trim());
-    if (ui === 'Medidas asignadas') return true;
+    if (ui === 'En gestión Ponal') return true;
     if (ui === 'Cerrado') return requiresMedidasBeforeClose(gestion);
     return false;
   }
@@ -3529,12 +3599,12 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           String(this.activeIncident()?.status ?? '').trim(),
         );
 
-        if (savedStatus === 'Medidas asignadas') {
+        if (savedStatus === 'En gestión Ponal') {
           this.notificationService.addNotification(
             'Medidas guardadas',
             this.medidasSavedNotificationMessage(
               incidentId,
-              'Las medidas quedaron registradas. El incidente ya está en «Medidas asignadas».',
+              'Las medidas quedaron registradas. El incidente ya está en «En gestión Ponal».',
               saveDelta,
             ),
           );
@@ -3542,13 +3612,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           return;
         }
 
-        const targetName = this.statusNameForForm('Medidas asignadas');
+        const targetName = this.statusNameForForm('En gestión Ponal');
         if (!targetName || !this.isStatusAllowed(targetName)) {
           this.notificationService.addNotification(
             'Medidas guardadas',
             this.medidasSavedNotificationMessage(
               incidentId,
-              'Seleccione «Medidas asignadas» en Detalle y pulse «Actualizar incidente».',
+              'Seleccione «En gestión Ponal» en Detalle y pulse «Actualizar incidente».',
               saveDelta,
             ),
           );
@@ -3564,7 +3634,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           'Medidas guardadas',
           this.medidasSavedNotificationMessage(
             incidentId,
-            'Se preseleccionó «Medidas asignadas». Pulse «Actualizar incidente» para registrar el estado.',
+            'Se preseleccionó «En gestión Ponal». Pulse «Actualizar incidente» para registrar el estado.',
             saveDelta,
           ),
         );
@@ -3573,7 +3643,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       error: () => {
         this.notificationService.addNotification(
           'Medidas guardadas',
-          'Revise el estado en Detalle y pulse «Actualizar incidente» si aún no está en «Medidas asignadas».',
+          'Revise el estado en Detalle y pulse «Actualizar incidente» si aún no está en «En gestión Ponal».',
         );
         this.cdr.markForCheck();
       },
@@ -3681,7 +3751,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private validateBeforeSave(): boolean {
+  private validateBeforeSave(options?: { requireSolicitante?: boolean }): boolean {
     if (this.incidentForm.invalid) {
       this.incidentForm.markAllAsTouched();
       this.notificationService.addNotification('No se puede guardar', this.describeFormErrors());
@@ -3696,6 +3766,18 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.markForCheck();
         return false;
       }
+    }
+    if (options?.requireSolicitante && this.involvedPeopleForSave().length === 0) {
+      if (this.involvedPeople.length === 0) {
+        this.involvedPeople.push(this.createPersonGroup());
+      }
+      this.involvedPeople.markAllAsTouched();
+      this.notificationService.addNotification(
+        'No se puede guardar',
+        'Complete al menos un solicitante (primer nombre, primer apellido y rol). Lugares y vehículos son opcionales.',
+      );
+      this.cdr.markForCheck();
+      return false;
     }
     return true;
   }
@@ -3714,7 +3796,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private buildNewIncidentFromForm(): Incident | null {
     this.pruneEmptyInvolvedEntries();
 
-    if (!this.validateBeforeSave()) {
+    if (!this.validateBeforeSave({ requireSolicitante: true })) {
       return null;
     }
 
@@ -3776,6 +3858,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     this.showNewIncidentTab.set(false);
     this.newIncidentFormState.set(null);
+
+    // Asegurar que aparezca en la lista aunque falle el socket en tiempo real.
+    this.incidentService.incidents.update((list) => {
+      if (list.some((i) => i.id === saved.id)) {
+        return list.map((i) => (i.id === saved.id ? { ...i, ...saved } : i));
+      }
+      return [saved, ...list];
+    });
 
     if (this.openIncidentTabs().some((tab) => tab.id === saved.id)) {
       this.openIncidentTabs.update((tabs) =>
@@ -3874,21 +3964,21 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
             }
           }
           if (
-            (savedStatus === 'En evaluación CERREM' || savedStatus === 'Reiteraciones') &&
+            (savedStatus === 'En gestión UNP' || savedStatus === 'Reiteraciones') &&
             targetStatus === 'Cerrado' &&
             !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
           ) {
             this.detailTab.set('medidas');
             this.notificationService.addNotification(
               'No se puede guardar',
-              'Riesgo Extraordinario: pase a «Medidas asignadas» y asigne medidas antes de cerrar.',
+              'Riesgo Extraordinario: pase a «En gestión Ponal» y asigne medidas antes de cerrar.',
             );
             this.abortLeaveAfterSave();
             this.cdr.markForCheck();
             return;
           }
           if (
-            targetStatus === 'Medidas asignadas' &&
+            targetStatus === 'En gestión Ponal' &&
             !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
           ) {
             this.detailTab.set('medidas');
@@ -4077,6 +4167,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incidentMunicipalitiesLoaded.set(false);
     this.commentsHistory.set([]);
     this.involvedPeople.clear();
+    this.involvedPeople.push(this.createPersonGroup());
     this.involvedPlaces.clear();
     this.involvedVehicles.clear();
     this.placeMunicipalities.set(new Map());
@@ -4253,13 +4344,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'bg-blue-600/80 text-blue-100';
       case 'En gestión OSEG':
         return 'bg-indigo-600/80 text-indigo-100';
-      case 'Enviado a CERREM':
-        return 'bg-violet-600/80 text-violet-100';
-      case 'En evaluación CERREM':
+      case 'En gestión UNP':
         return 'bg-purple-600/80 text-purple-100';
       case 'Reiteraciones':
         return 'bg-red-600/80 text-red-100';
-      case 'Medidas asignadas':
+      case 'En gestión Ponal':
         return 'bg-orange-600/80 text-orange-100';
       case 'Asignado':
         return 'bg-indigo-600/80 text-indigo-100';

@@ -21,6 +21,8 @@ function mapPerson(r) {
     contacto: r.contacto || '',
     roleId: r.id_rol_p,
     roleName: r.role_name || '',
+    cargoId: r.id_cargo ?? null,
+    cargo: r.cargo_name || '',
     genderId: r.id_genero ?? null,
     gender: r.gender_name || '',
     comentarios: r.comentarios || '',
@@ -47,6 +49,7 @@ exports.create = asyncHandler(async (req, res) => {
     segundoApellido: b.segundoApellido,
     roleId: b.roleId,
     roleName: b.roleName,
+    cargoId: b.cargoId,
     contacto: b.contacto ?? b.phone,
     tipoDocumento: b.tipoDocumento ?? b.documentType,
     numeroDocumento: b.numeroDocumento ?? b.documentId,
@@ -88,6 +91,7 @@ exports.update = asyncHandler(async (req, res) => {
     segundoApellido: b.segundoApellido,
     roleId: b.roleId,
     roleName: b.roleName,
+    cargoId: b.cargoId,
     contacto: b.contacto ?? b.phone,
     tipoDocumento: b.tipoDocumento ?? b.documentType,
     numeroDocumento: b.numeroDocumento ?? b.documentId,
@@ -156,6 +160,7 @@ exports.lookupByPhone = asyncHandler(async (req, res) => {
   if (result.documentType && !person.documentType) {
     person.documentType = result.documentType;
   }
+  res.set('Cache-Control', 'no-store');
   res.json(person);
 });
 
@@ -166,6 +171,7 @@ exports.lookupByDocument = asyncHandler(async (req, res) => {
   const agencyCode = requireSessionAgency(req);
   const row = await giPeople.lookupByDocument(digits, agencyCode);
   if (!row) throw new HttpError(404, 'Documento no registrado');
+  res.set('Cache-Control', 'no-store');
   res.json(mapPerson(row));
 });
 
@@ -181,4 +187,10 @@ exports.genders = asyncHandler(async (req, res) => {
 
 exports.documentTypes = asyncHandler(async (_req, res) => {
   res.json(await giPeople.listDocumentTypes());
+});
+
+exports.judgeCargos = asyncHandler(async (req, res) => {
+  const agency = requireAgencyCode(req, 'Query agency es requerido');
+  const roleId = req.query.roleId ?? null;
+  res.json(await giPeople.listJudgeCargos(agency, roleId));
 });

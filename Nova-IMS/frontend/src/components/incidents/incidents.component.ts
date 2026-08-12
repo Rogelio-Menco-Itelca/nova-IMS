@@ -375,11 +375,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         return '#6366f1';
       case 'Reiteraciones':
         return '#dc2626';
-      case 'Enviado a CERREM':
-        return '#8b5cf6';
-      case 'En evaluación CERREM':
+      case 'En gestión UNP':
         return '#a855f7';
-      case 'Medidas asignadas':
+      case 'En gestión Ponal':
         return '#f97316';
       case 'Asignado':
         return '#6366f1';
@@ -964,11 +962,9 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'bg-indigo-600/80 text-indigo-100';
       case 'Reiteraciones':
         return 'bg-red-600/80 text-red-100';
-      case 'Enviado a CERREM':
-        return 'bg-violet-600/80 text-violet-100';
-      case 'En evaluación CERREM':
+      case 'En gestión UNP':
         return 'bg-purple-600/80 text-purple-100';
-      case 'Medidas asignadas':
+      case 'En gestión Ponal':
         return 'bg-orange-600/80 text-orange-100';
       case 'Asignado':
         return 'bg-indigo-600/80 text-indigo-100';

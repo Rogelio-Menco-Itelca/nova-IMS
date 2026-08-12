@@ -75,7 +75,7 @@ function validateGestionForStatus(status, gestion) {
     }
   }
 
-  if (rank >= WORKFLOW_RANK_CSJ['En evaluación CERREM']) {
+  if (rank >= WORKFLOW_RANK_CSJ['En gestión UNP']) {
     if (!String(gestion?.resolucion_cerrem || '').trim()) {
       return 'Complete «Resolución CERREM» en la pestaña Medidas.';
     }

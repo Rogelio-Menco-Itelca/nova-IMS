@@ -50,6 +50,12 @@ export class PersonService {
     return this.http.get<DocumentTypeOption[]>('/api/document-types');
   }
 
+  getJudgeCargos(agencyCode: string, roleId?: number | null) {
+    const params: Record<string, string | number> = { agency: agencyCode };
+    if (roleId != null && Number(roleId) > 0) params['roleId'] = Number(roleId);
+    return this.http.get<CatalogOption[]>('/api/judge-cargos', { params });
+  }
+
   async addPerson(person: PersonFormPayload): Promise<Person> {
     const created = await firstValueFrom(this.http.post<Person>(this.apiUrl, person));
     this.people.update((list) => [created, ...list]);
@@ -71,24 +77,43 @@ export class PersonService {
   }
 
   lookupByPhone(phone: string) {
-    return this.http.get<Person>(`/api/telephony/lookup/${phone}`);
+    const bust = Date.now();
+    return this.http.get<Person>(`/api/telephony/lookup/${encodeURIComponent(phone)}`, {
+      params: { _ts: String(bust) },
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
   }
 
   lookupRegisteredByPhone(phone: string) {
-    const local = this.findRegisteredPerson({ phone });
-    if (local) return of(local);
+    // cache-bust: evitar 304 con payload viejo sin cargoId
+    const bust = Date.now();
     return this.http
-      .get<Person>(`/api/telephony/lookup/${encodeURIComponent(phone)}`)
-      .pipe(catchError(() => of(null as unknown as Person)));
+      .get<Person>(`/api/telephony/lookup/${encodeURIComponent(phone)}`, {
+        params: { _ts: String(bust) },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      })
+      .pipe(
+        catchError(() => {
+          const local = this.findRegisteredPerson({ phone });
+          return of(local ?? (null as unknown as Person));
+        }),
+      );
   }
 
   lookupByDocument(documentId: string) {
     const digits = String(documentId || '').replace(/\D/g, '');
-    const local = this.findRegisteredPerson({ documentId: digits });
-    if (local) return of(local);
+    const bust = Date.now();
     return this.http
-      .get<Person>(`/api/people/lookup/document/${encodeURIComponent(digits)}`)
-      .pipe(catchError(() => of(null as unknown as Person)));
+      .get<Person>(`/api/people/lookup/document/${encodeURIComponent(digits)}`, {
+        params: { _ts: String(bust) },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      })
+      .pipe(
+        catchError(() => {
+          const local = this.findRegisteredPerson({ documentId: digits });
+          return of(local ?? (null as unknown as Person));
+        }),
+      );
   }
 
   findRegisteredPerson(query: { documentId?: string; phone?: string }): Person | null {

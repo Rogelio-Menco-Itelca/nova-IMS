@@ -88,6 +88,8 @@ const PERSON_SELECT = `
   p.Primer_Apellido AS primer_apellido,
   p.Segundo_Apellido AS segundo_apellido,
   p.ID_RolP AS id_rol_p,
+  p.ID_Cargo AS id_cargo,
+  cj.Cargo AS cargo_name,
   p.Contacto AS contacto,
   p.Tipo_documento AS tipo_documento,
   p.Numero_documento AS numero_documento,
@@ -108,6 +110,7 @@ const PERSON_SELECT = `
   td.Descripcion AS document_type_name
 FROM ${TABLE} p
 LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
 LEFT JOIN genero g ON g.ID_genero = p.ID_genero
 LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento`;
 
@@ -203,6 +206,21 @@ async function deletePersonComments(executor, personId) {
   await executor.query(`DELETE FROM comentariospersonas WHERE ID_persona = ?`, [personId]);
 }
 
+async function resolveJudgeCargoId(roleId, cargoId, agencyCode) {
+  if (cargoId == null || cargoId === '') return null;
+  const n = Number(cargoId);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const [rows] = await pool.query(
+    `SELECT ID_Cargo FROM cargos_juez
+     WHERE ID_Cargo = ?
+       AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       AND (ID_RolP IS NULL OR ID_RolP = ?)
+     LIMIT 1`,
+    [n, agencyCode, agencyCode, roleId],
+  );
+  return rows[0]?.ID_Cargo ?? null;
+}
+
 async function createPerson(data) {
   await ensureAdminPersonasCatalog();
   const agencyCode = normalizeAgencyCode(data.agencyCode);
@@ -217,25 +235,34 @@ async function createPerson(data) {
     normalizeRequiredText(data.tipoDocumento, 'Tipo de documento'),
   );
   const numeroDocumento = normalizeRequiredText(data.numeroDocumento, 'Número de documento');
+  if (!/^\d+$/.test(numeroDocumento)) {
+    throw new HttpError(400, 'Número de documento solo debe contener números');
+  }
   const contacto = normalizeOptional(data.contacto ?? data.phone);
-  const commentText = normalizeOptional(data.comentarios ?? data.notes);
+  if (contacto && !/^\d+$/.test(contacto)) {
+    throw new HttpError(400, 'Contacto / teléfono solo debe contener números');
+  }
+  const commentTextRaw = normalizeOptional(data.comentarios ?? data.notes);
+  const commentText = commentTextRaw ? commentTextRaw.substring(0, 200) : null;
+  const cargoId = await resolveJudgeCargoId(roleId, data.cargoId, agencyCode);
 
   const [result] = await pool.query(
     `INSERT INTO ${TABLE}
-      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
+      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP, ID_Cargo,
        Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
        ID_Agencia, ID_Usuario, ID_genero, estado)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       primerNombre,
       formatNamePart(data.segundoNombre),
       primerApellido,
       formatNamePart(data.segundoApellido),
       roleId,
+      cargoId,
       contacto,
       tipoDocumento,
       numeroDocumento,
-      null,
+      commentText,
       null,
       agencyCode,
       data.userId ?? null,
@@ -280,10 +307,21 @@ async function updatePerson(id, data) {
     data.numeroDocumento ?? existing.numero_documento,
     'Número de documento',
   );
+  if (!/^\d+$/.test(numeroDocumento)) {
+    throw new HttpError(400, 'Número de documento solo debe contener números');
+  }
   const contacto = normalizeOptional(data.contacto ?? data.phone ?? existing.contacto);
-  const newComment = normalizeOptional(data.comentarios ?? data.notes);
+  if (contacto && !/^\d+$/.test(contacto)) {
+    throw new HttpError(400, 'Contacto / teléfono solo debe contener números');
+  }
+  const newCommentRaw = normalizeOptional(data.comentarios ?? data.notes);
+  const newComment = newCommentRaw ? newCommentRaw.substring(0, 200) : null;
   const previousComment = normalizeOptional(existing.comentarios);
   const estado = normalizePersonStatus(data.status ?? existing.estado);
+  const cargoId =
+    data.cargoId !== undefined
+      ? await resolveJudgeCargoId(roleId, data.cargoId, agencyCode)
+      : (existing.id_cargo ?? null);
 
   await pool.query(
     `UPDATE ${TABLE} SET
@@ -292,10 +330,11 @@ async function updatePerson(id, data) {
       Primer_Apellido = ?,
       Segundo_Apellido = ?,
       ID_RolP = ?,
+      ID_Cargo = ?,
       Contacto = ?,
       Tipo_documento = ?,
       Numero_documento = ?,
-      Comentarios = NULL,
+      Comentarios = ?,
       ID_genero = ?,
       ID_Agencia = ?,
       ID_Usuario = COALESCE(?, ID_Usuario),
@@ -308,9 +347,11 @@ async function updatePerson(id, data) {
       primerApellido,
       formatNamePart(data.segundoApellido ?? existing.segundo_apellido),
       roleId,
+      cargoId,
       contacto,
       tipoDocumento,
       numeroDocumento,
+      newComment,
       normalizeGenderId(data.genderId ?? existing.id_genero),
       agencyCode,
       data.userId ?? null,
@@ -426,6 +467,27 @@ async function listDocumentTypes() {
   return rows;
 }
 
+async function listJudgeCargos(agencyCode, roleId = null) {
+  const code = normalizeAgencyCode(agencyCode);
+  const params = [code, code];
+  let roleFilter = '';
+  if (roleId != null && roleId !== '') {
+    const n = Number(roleId);
+    if (Number.isFinite(n) && n > 0) {
+      roleFilter = ' AND ID_RolP = ?';
+      params.push(n);
+    }
+  }
+  const [rows] = await pool.query(
+    `SELECT ID_Cargo AS id, Cargo AS name, Descripcion AS description, ID_RolP AS roleId
+     FROM cargos_juez
+     WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))${roleFilter}
+     ORDER BY Cargo`,
+    params,
+  );
+  return rows;
+}
+
 module.exports = {
   formatPersonId,
   buildDisplayName,
@@ -439,6 +501,7 @@ module.exports = {
   listPersonRoles,
   listGenders,
   listDocumentTypes,
+  listJudgeCargos,
   insertPersonComment,
   deletePersonComments,
 };

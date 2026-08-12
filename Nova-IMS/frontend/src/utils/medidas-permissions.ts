@@ -163,8 +163,7 @@ export function getMedidasPermissions(
         canSaveMedidas: false,
       };
 
-    case 'Enviado a CERREM':
-    case 'En evaluación CERREM':
+    case 'En gestión UNP':
     case 'Reiteraciones':
       return {
         showPanel: true,
@@ -185,7 +184,7 @@ export function getMedidasPermissions(
         canSaveMedidas: false,
       };
 
-    case 'Medidas asignadas':
+    case 'En gestión Ponal':
       if (!isRiesgoExtraordinario(gestion)) {
         return {
           showPanel: true,
@@ -270,22 +269,23 @@ export function getMedidasPermissions(
   }
 }
 
-export function isCsjLegacyEnviadoCerremStatus(status: string): boolean {
-  return catalogStatusToUiStatus(status) === 'Enviado a CERREM';
+/** Antes ocultaba «Enviado a CERREM»; ese estado ya no existe (ahora es «En gestión UNP»). */
+export function isCsjLegacyEnviadoCerremStatus(_status: string): boolean {
+  return false;
 }
 
 export const MEDIADAS_WORKFLOW_STATUSES = [
   'En gestión OSEG',
-  'En evaluación CERREM',
+  'En gestión UNP',
   'Reiteraciones',
-  'Medidas asignadas',
+  'En gestión Ponal',
 ] as const;
 
 export const CSJ_MEDIADAS_WORKFLOW_STEPS = [
   'Nuevo',
   'En gestión OSEG',
-  'En evaluación CERREM',
-  'Medidas asignadas',
+  'En gestión UNP',
+  'En gestión Ponal',
 ] as const;
 
 export function isNuevoLockedMedidasPanel(status: string, agency = 'CSJ'): boolean {
@@ -301,7 +301,7 @@ export function shouldNavigateToMedidasTab(status: string): boolean {
   if (rank === undefined) return false;
   return (
     rank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'] &&
-    rank <= CSJ_STATUS_WORKFLOW_RANK['Medidas asignadas']
+    rank <= CSJ_STATUS_WORKFLOW_RANK['En gestión Ponal']
   );
 }
 
@@ -310,10 +310,9 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
   switch (ui) {
     case 'En gestión OSEG':
       return 'Escriba el código de oficio trámite y seleccione el trámite/destino (Policía, UNP o Régimen Judicial).';
-    case 'Enviado a CERREM':
-    case 'En evaluación CERREM':
+    case 'En gestión UNP':
       if (isRiesgoExtraordinario(gestion)) {
-        return 'Riesgo Extraordinario: registre la decisión CERREM, pase a «Medidas asignadas» y asigne medidas antes de cerrar.';
+        return 'Riesgo Extraordinario: registre la decisión CERREM, pase a «En gestión Ponal» y asigne medidas antes de cerrar.';
       }
       if (isRiesgoOrdinario(gestion)) {
         return 'Riesgo Ordinario: registre la decisión CERREM y cierre el incidente en «Cerrado» sin medidas de seguridad.';
@@ -321,7 +320,7 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
       return 'Registre la decisión CERREM: fechas, resolución y nivel de riesgo.';
     case 'Reiteraciones':
       return 'Extraordinario en reiteración: redacte el comentario en «Agregar comentario» y pulse «Actualizar incidente» para guardar.';
-    case 'Medidas asignadas':
+    case 'En gestión Ponal':
       return 'Asigne al menos una medida de seguridad y pulse «Guardar» en el módulo Medidas antes de actualizar el incidente.';
     case 'Cerrado':
     case 'Cancelado':
@@ -351,18 +350,18 @@ export function isCsjStatusChoiceAllowed(
   const to = catalogStatusToUiStatus(toStatus);
   const from = catalogStatusToUiStatus(fromStatus);
 
-  if (to === 'Medidas asignadas' && isOrdinarioCerremGuardado(gestion)) {
+  if (to === 'En gestión Ponal' && isOrdinarioCerremGuardado(gestion)) {
     return false;
   }
 
   if (to === 'Reiteraciones') {
     if (isOrdinarioCerremGuardado(gestion)) return false;
     if (!isExtraordinarioCerremGuardado(gestion)) return false;
-    return from === 'En evaluación CERREM' || from === 'Reiteraciones';
+    return from === 'En gestión UNP' || from === 'Reiteraciones';
   }
 
   if (
-    (from === 'En evaluación CERREM' || from === 'Reiteraciones') &&
+    (from === 'En gestión UNP' || from === 'Reiteraciones') &&
     to === 'Cerrado' &&
     isExtraordinarioCerremGuardado(gestion)
   ) {
@@ -380,7 +379,7 @@ export function getCsjStatusDisabledReason(
   const to = catalogStatusToUiStatus(toStatus);
   const from = catalogStatusToUiStatus(fromStatus);
 
-  if (to === 'Medidas asignadas' && isOrdinarioCerremGuardado(gestion)) {
+  if (to === 'En gestión Ponal' && isOrdinarioCerremGuardado(gestion)) {
     return 'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre en «Cerrado».';
   }
 
@@ -391,18 +390,18 @@ export function getCsjStatusDisabledReason(
     if (!isExtraordinarioCerremGuardado(gestion)) {
       return 'Registre CERREM con riesgo Extraordinario antes de reiterar.';
     }
-    if (from !== 'En evaluación CERREM' && from !== 'Reiteraciones') {
-      return 'Solo desde «En evaluación CERREM» o repetir estando en «Reiteraciones».';
+    if (from !== 'En gestión UNP' && from !== 'Reiteraciones') {
+      return 'Solo desde «En gestión UNP» o repetir estando en «Reiteraciones».';
     }
   }
 
   if (
-    (from === 'En evaluación CERREM' || from === 'Reiteraciones') &&
+    (from === 'En gestión UNP' || from === 'Reiteraciones') &&
     to === 'Cerrado' &&
     isExtraordinarioCerremGuardado(gestion)
   ) {
     return from === 'Reiteraciones'
-      ? 'Riesgo Extraordinario: pase por «Medidas asignadas» antes de cerrar.'
+      ? 'Riesgo Extraordinario: pase por «En gestión Ponal» antes de cerrar.'
       : 'Riesgo Extraordinario: asigne medidas antes de cerrar.';
   }
 
@@ -419,7 +418,7 @@ export function statusOptionLabel(
   const ui = catalogStatusToUiStatus(catalogName);
   if (
     !isCsjMedidasWorkflow(agency) ||
-    (ui !== 'Medidas asignadas' && ui !== 'Reiteraciones') ||
+    (ui !== 'En gestión Ponal' && ui !== 'Reiteraciones') ||
     !isOrdinarioCerremGuardado(gestion)
   ) {
     return label;

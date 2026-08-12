@@ -792,7 +792,12 @@
                                         <div class="ih-related-meta">{{ personPhone(person) }}</div>
                                       }
                                     </td>
-                                    <td>{{ person.role || '—' }}</td>
+                                    <td>
+                                      {{ person.role || '—' }}
+                                      @if (person.cargo) {
+                                        <div class="ih-related-meta">{{ person.cargo }}</div>
+                                      }
+                                    </td>
                                     <td>
                                       @if (person.documentId || personDocumentLabel(person)) {
                                         <div>{{ personDocumentLabel(person) || 'Doc.' }}</div>
@@ -1001,7 +1006,7 @@
                                 </table>
                               } @else if (isMedidasAsignadasStatus(incident)) {
                                 <p class="ih-empty ih-empty-inline">
-                                  El incidente está en «Medidas asignadas» pero no hay medidas registradas.
+                                  El incidente está en «En gestión Ponal» pero no hay medidas registradas.
                                 </p>
                               } @else {
                                 <p class="ih-empty ih-empty-inline">Sin medidas físicas registradas.</p>
@@ -1684,7 +1689,12 @@
                         <span class="text-gray-500">—</span>
                       }
                     </td>
-                    <td class="px-6 py-4">{{ person.roleName || '—' }}</td>
+                    <td class="px-6 py-4">
+                      {{ person.roleName || '—' }}
+                      @if (person.cargo) {
+                        <div class="text-xs text-gray-400 mt-0.5">{{ person.cargo }}</div>
+                      }
+                    </td>
                     <td class="px-6 py-4">{{ person.gender || '—' }}</td>
                     <td class="px-6 py-4">
                       <span
@@ -2660,7 +2670,11 @@
                 id="admin-person-numeroDocumento"
                 formControlName="numeroDocumento"
                 type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                autocomplete="off"
                 placeholder="Ej: 1234567890"
+                (input)="onAdminPersonDigitsInput('numeroDocumento')"
                 class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"
               />
             </div>
@@ -2674,6 +2688,7 @@
               <select
                 id="admin-person-roleId"
                 formControlName="roleId"
+                (change)="onAdminPersonRoleChange()"
                 class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"
               >
                 <option [ngValue]="null" disabled>
@@ -2690,6 +2705,32 @@
                 }
               </select>
             </div>
+            @if (isAdminPersonJudgeRole()) {
+              <div>
+                <label
+                  for="admin-person-cargoId"
+                  class="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Cargo / especialización <span class="text-red-400">*</span>
+                </label>
+                <select
+                  id="admin-person-cargoId"
+                  formControlName="cargoId"
+                  class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"
+                >
+                  <option [ngValue]="null" disabled>
+                    @if (!judgeCargos().length) {
+                      Sin cargos configurados
+                    } @else {
+                      Seleccione cargo...
+                    }
+                  </option>
+                  @for (cargo of judgeCargos(); track cargo.id) {
+                    <option [ngValue]="cargo.id">{{ cargo.name }}</option>
+                  }
+                </select>
+              </div>
+            }
             <div>
               <label
                 for="admin-person-genderId"
@@ -2729,8 +2770,12 @@
             <input
               id="admin-person-contacto"
               formControlName="contacto"
-              type="tel"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              autocomplete="tel"
               placeholder="Ej: 3001234567"
+              (input)="onAdminPersonDigitsInput('contacto')"
               class="bg-gray-700 border border-gray-600 text-white rounded-md w-full p-2 focus:ring-indigo-500"
             />
           </div>

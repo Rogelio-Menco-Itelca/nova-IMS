@@ -74,31 +74,31 @@ describe('isOrdinarioCerremGuardado', () => {
 });
 
 describe('isCsjStatusChoiceAllowed', () => {
-  it('Ordinario guardado: bloquea Medidas asignadas desde cualquier estado', () => {
+  it('Ordinario guardado: bloquea En gestión Ponal desde cualquier estado', () => {
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', ordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', ordinarioGuardado),
     ).toBe(false);
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', ordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', ordinarioGuardado),
     ).toBe(false);
-    expect(isCsjStatusChoiceAllowed('En evaluación CERREM', 'Cerrado', ordinarioGuardado)).toBe(
+    expect(isCsjStatusChoiceAllowed('En gestión UNP', 'Cerrado', ordinarioGuardado)).toBe(
       true,
     );
   });
 
-  it('sin CERREM guardado: no bloquea Medidas asignadas aún', () => {
-    expect(isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', null)).toBe(true);
+  it('sin CERREM guardado: no bloquea En gestión Ponal aún', () => {
+    expect(isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', null)).toBe(true);
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', { ID_riesgo: 1 }),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', { ID_riesgo: 1 }),
     ).toBe(true);
   });
 
   it('Extraordinario guardado: bloquea Cerrado directo desde CERREM', () => {
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Cerrado', extraordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'Cerrado', extraordinarioGuardado),
     ).toBe(false);
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Medidas asignadas', extraordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', extraordinarioGuardado),
     ).toBe(true);
   });
 
@@ -110,13 +110,13 @@ describe('isCsjStatusChoiceAllowed', () => {
 
   it('Ordinario guardado: bloquea Reiteraciones', () => {
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Reiteraciones', ordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'Reiteraciones', ordinarioGuardado),
     ).toBe(false);
   });
 
   it('Extraordinario guardado: permite Reiteraciones desde CERREM', () => {
     expect(
-      isCsjStatusChoiceAllowed('En evaluación CERREM', 'Reiteraciones', extraordinarioGuardado),
+      isCsjStatusChoiceAllowed('En gestión UNP', 'Reiteraciones', extraordinarioGuardado),
     ).toBe(true);
     expect(
       isCsjStatusChoiceAllowed('Reiteraciones', 'Reiteraciones', extraordinarioGuardado),
@@ -125,23 +125,23 @@ describe('isCsjStatusChoiceAllowed', () => {
 });
 
 describe('statusOptionLabel', () => {
-  it('marca Medidas asignadas como no aplicable con Ordinario guardado', () => {
+  it('marca En gestión Ponal como no aplicable con Ordinario guardado', () => {
     expect(
-      statusOptionLabel('Medidas asignadas', 'En evaluación CERREM', ordinarioGuardado, 'CSJ'),
+      statusOptionLabel('En gestión Ponal', 'En gestión UNP', ordinarioGuardado, 'CSJ'),
     ).toContain('no aplica');
   });
 
   it('marca Reiteraciones como no aplicable con Ordinario guardado', () => {
     expect(
-      statusOptionLabel('Reiteraciones', 'En evaluación CERREM', ordinarioGuardado, 'CSJ'),
+      statusOptionLabel('Reiteraciones', 'En gestión UNP', ordinarioGuardado, 'CSJ'),
     ).toContain('no aplica');
   });
 });
 
 describe('getCsjStatusDisabledReason', () => {
-  it('explica bloqueo de Medidas asignadas con Ordinario guardado', () => {
+  it('explica bloqueo de En gestión Ponal con Ordinario guardado', () => {
     expect(
-      getCsjStatusDisabledReason('En evaluación CERREM', 'Medidas asignadas', ordinarioGuardado),
+      getCsjStatusDisabledReason('En gestión UNP', 'En gestión Ponal', ordinarioGuardado),
     ).toContain('Ordinario');
   });
 });
@@ -205,8 +205,8 @@ describe('getMedidasPermissions — flujo CSJ', () => {
     expect(p.canSaveMedidas).toBe(false);
   });
 
-  it('Medidas asignadas: solo Extraordinario habilita medidas físicas', () => {
-    const p = getMedidasPermissions('Medidas asignadas', 'CSJ', extraordinarioGuardado);
+  it('En gestión Ponal: solo Extraordinario habilita medidas físicas', () => {
+    const p = getMedidasPermissions('En gestión Ponal', 'CSJ', extraordinarioGuardado);
     expect(p.showMedidasBlock).toBe(true);
     expect(p.medidasFisicas).toBe('editable');
     expect(p.tipoEsquema).toBe('editable');
@@ -214,15 +214,15 @@ describe('getMedidasPermissions — flujo CSJ', () => {
     expect(p.canSaveMedidas).toBe(true);
   });
 
-  it('En evaluación CERREM: esquema y observaciones ocultos hasta medidas', () => {
-    const p = getMedidasPermissions('En evaluación CERREM', 'CSJ');
+  it('En gestión UNP: esquema y observaciones ocultos hasta medidas', () => {
+    const p = getMedidasPermissions('En gestión UNP', 'CSJ');
     expect(p.tipoEsquema).toBe('hidden');
     expect(p.observaciones).toBe('hidden');
     expect(p.resolucionCerrem).toBe('editable');
   });
 
-  it('Medidas asignadas: Ordinario no habilita medidas físicas', () => {
-    const p = getMedidasPermissions('Medidas asignadas', 'CSJ', ordinarioGuardado);
+  it('En gestión Ponal: Ordinario no habilita medidas físicas', () => {
+    const p = getMedidasPermissions('En gestión Ponal', 'CSJ', ordinarioGuardado);
     expect(p.showMedidasBlock).toBe(false);
     expect(p.canSaveMedidas).toBe(false);
   });
@@ -238,8 +238,8 @@ describe('requiresMedidasBeforeClose', () => {
 describe('shouldNavigateToMedidasTab', () => {
   it('navega en estados del flujo de medidas', () => {
     expect(shouldNavigateToMedidasTab('En gestión OSEG')).toBe(true);
-    expect(shouldNavigateToMedidasTab('En evaluación CERREM')).toBe(true);
-    expect(shouldNavigateToMedidasTab('Medidas asignadas')).toBe(true);
+    expect(shouldNavigateToMedidasTab('En gestión UNP')).toBe(true);
+    expect(shouldNavigateToMedidasTab('En gestión Ponal')).toBe(true);
   });
 
   it('no navega en Reiteraciones (panel en Detalle)', () => {

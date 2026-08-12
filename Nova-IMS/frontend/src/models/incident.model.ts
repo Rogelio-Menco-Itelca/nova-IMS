@@ -1,10 +1,9 @@
 export type IncidentStatus =
   | 'Nuevo'
   | 'En gestión OSEG'
-  | 'Enviado a CERREM'
-  | 'En evaluación CERREM'
+  | 'En gestión UNP'
+  | 'En gestión Ponal'
   | 'Reiteraciones'
-  | 'Medidas asignadas'
   | 'Cerrado'
   | 'Cancelado'
   | 'Asignado'
@@ -15,9 +14,9 @@ export type IncidentStatus =
 export const DASHBOARD_ACTIVE_STATUSES: readonly IncidentStatus[] = [
   'Nuevo',
   'En gestión OSEG',
-  'En evaluación CERREM',
+  'En gestión UNP',
+  'En gestión Ponal',
   'Reiteraciones',
-  'Medidas asignadas',
 ] as const;
 
 export const DASHBOARD_CLOSED_STATUSES: readonly IncidentStatus[] = [
@@ -29,7 +28,7 @@ export const DASHBOARD_CLOSED_STATUSES: readonly IncidentStatus[] = [
 export function isDashboardActiveStatus(status: string | null | undefined): boolean {
   const value = String(status ?? '').trim();
   const ui = catalogStatusToUiStatus(value);
-  if (ui === 'Enviado a CERREM') return true;
+  if (ui === 'En gestión UNP') return true;
   return (DASHBOARD_ACTIVE_STATUSES as readonly string[]).includes(value);
 }
 
@@ -41,10 +40,9 @@ export function isDashboardClosedStatus(status: string | null | undefined): bool
 export const CATALOG_STATUS_TO_UI: Record<string, IncidentStatus> = {
   Nuevo: 'Nuevo',
   'En gestión OSEG': 'En gestión OSEG',
-  'Enviado a CERREM': 'Enviado a CERREM',
-  'En evaluación CERREM': 'En evaluación CERREM',
+  'En gestión UNP': 'En gestión UNP',
+  'En gestión Ponal': 'En gestión Ponal',
   Reiteraciones: 'Reiteraciones',
-  'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
   Asignado: 'Asignado',
@@ -61,12 +59,11 @@ export function catalogStatusToUiStatus(catalogName: string): string {
 export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 2,
-  'En evaluación CERREM': 3,
-  Reiteraciones: 4,
-  'Medidas asignadas': 5,
-  Cerrado: 6,
-  Cancelado: 6,
+  'En gestión UNP': 2,
+  Reiteraciones: 3,
+  'En gestión Ponal': 4,
+  Cerrado: 5,
+  Cancelado: 5,
 };
 
 export const POL_STATUS_WORKFLOW_RANK: Record<string, number> = {
@@ -109,7 +106,7 @@ export function needsCerremGestionForTransition(targetStatus: string): boolean {
   if (target === 'Cerrado' || target === 'Cancelado') return false;
   const targetRank = CSJ_STATUS_WORKFLOW_RANK[target];
   if (targetRank === undefined) return false;
-  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En evaluación CERREM'];
+  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En gestión UNP'];
 }
 
 export function needsOsegGestionForTransition(targetStatus: string): boolean {
@@ -145,7 +142,13 @@ export function isVisibleInActiveViews(status: string | null | undefined): boole
 
 export function incidentIdSortKey(id: string | null | undefined): number {
   const raw = String(id ?? '').trim();
-  const digits = raw.match(/(\d+)\s*$/)?.[1] ?? raw.replace(/\D/g, '');
+  // INC-00000018-26 → 18; INC-0000022 → 22 (no usar el sufijo de año)
+  const labeled = /^INC-0*(\d+)(?:-\d+)?$/i.exec(raw);
+  if (labeled) {
+    const n = Number.parseInt(labeled[1], 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const digits = raw.replace(/\D/g, '');
   const parsed = Number.parseInt(digits, 10);
   return Number.isFinite(parsed) ? parsed : 0;
 }
@@ -194,6 +197,8 @@ export interface InvolvedPerson {
   segundoApellido?: string;
   role?: string;
   roleId?: number | null;
+  cargoId?: number | null;
+  cargo?: string | null;
   contact?: string;
   comentarios?: string;
   details?: string;
@@ -259,6 +264,8 @@ export interface Person {
   contacto?: string;
   roleId?: number;
   roleName?: string;
+  cargoId?: number | null;
+  cargo?: string | null;
   genderId?: number | null;
   gender?: string;
   comentarios?: string;
@@ -280,6 +287,7 @@ export interface PersonFormPayload {
   numeroDocumento: string;
   contacto?: string;
   roleId: number;
+  cargoId?: number | null;
   genderId?: number | null;
   comentarios?: string;
   status?: 'Activo' | 'Inactivo';

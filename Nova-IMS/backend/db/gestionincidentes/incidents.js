@@ -25,10 +25,10 @@ const {
 const HttpError = require('../../utils/HttpError');
 
 const STATUS_REITERACIONES = 'Reiteraciones';
-const STATUS_MEDIDAS_ASIGNADAS = 'Medidas asignadas';
+const STATUS_MEDIDAS_ASIGNADAS = 'En gestión Ponal';
 const STATUS_CERRADO = 'Cerrado';
-const STATUS_EN_EVALUACION_CERREM = 'En evaluación CERREM';
-const STATUS_ENVIADO_CERREM = 'Enviado a CERREM';
+const STATUS_EN_EVALUACION_CERREM = 'En gestión UNP';
+const STATUS_ENVIADO_CERREM = 'En gestión UNP';
 
 const USER_DISPLAY_NAME_SQL = `TRIM(CONCAT(
   u.Primer_Nombre, ' ',
@@ -315,6 +315,8 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
             TRIM(CONCAT(p.Primer_Nombre, ' ', IFNULL(p.Segundo_Nombre, ''), ' ', p.Primer_Apellido, ' ', IFNULL(p.Segundo_Apellido, ''))) AS name,
             p.ID_RolP AS role_id,
             rp.Nombre AS role,
+            p.ID_Cargo AS cargo_id,
+            cj.Cargo AS cargo,
             p.Contacto AS contact,
             p.Contacto AS phone,
             p.Numero_documento AS documentId,
@@ -330,6 +332,7 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
             ) AS details
      FROM personas p
      LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+     LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
      LEFT JOIN genero g ON g.ID_genero = p.ID_genero
      LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento
      WHERE p.ID_incidente IN (${ph})`,
@@ -346,6 +349,8 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
       segundoApellido: r.segundo_apellido,
       role: r.role || 'Testigo',
       roleId: r.role_id,
+      cargoId: r.cargo_id ?? null,
+      cargo: r.cargo || null,
       contact: r.contact,
       phone: r.phone,
       documentId: r.documentId,
@@ -661,12 +666,30 @@ async function resolvePersonRoleId(conn, person, agencyCode) {
   return rolP;
 }
 
+async function resolveJudgeCargoId(conn, person, roleId, agencyCode) {
+  const raw = person.cargoId ?? person.cargo_id ?? null;
+  if (raw == null || raw === '') return null;
+  const cargoId = Number(raw);
+  if (!Number.isFinite(cargoId) || cargoId <= 0) return null;
+
+  const [rows] = await conn.query(
+    `SELECT ID_Cargo FROM cargos_juez
+     WHERE ID_Cargo = ?
+       AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       AND (ID_RolP IS NULL OR ID_RolP = ?)
+     LIMIT 1`,
+    [cargoId, agencyCode, agencyCode, roleId],
+  );
+  return rows[0]?.ID_Cargo ?? null;
+}
+
 async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCode) {
   const { primerNombre, segundoNombre, primerApellido, segundoApellido } =
     pickPersonNameFields(person);
   if (!primerNombre || !primerApellido) return;
 
   const rolP = await resolvePersonRoleId(conn, person, agencyCode);
+  const cargoId = await resolveJudgeCargoId(conn, person, rolP, agencyCode);
   const comentarios = person.comentarios ?? person.details ?? null;
   const genderId = person.genderId ?? person.gender_id ?? null;
   const tipoDocumento = await resolveDocumentTypeCode(
@@ -676,16 +699,17 @@ async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCod
 
   const [personResult] = await conn.query(
     `INSERT INTO personas
-      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP,
+      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP, ID_Cargo,
        Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
        ID_Agencia, ID_Usuario, ID_genero)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       primerNombre,
       segundoNombre,
       primerApellido,
       segundoApellido,
       rolP,
+      cargoId,
       person.contact || person.phone || null,
       tipoDocumento,
       person.documentId || null,
@@ -897,7 +921,7 @@ function checkMedidasAsignadasRequiereCerrem(newStatus, currentStatus, cerremGua
   ) {
     throw new HttpError(
       409,
-      'Guarde la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo) antes de pasar a «Medidas asignadas».',
+      'Guarde la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo) antes de pasar a «En gestión Ponal».',
     );
   }
 }
@@ -917,7 +941,7 @@ function checkReiteracionesRules(newStatus, currentStatus, cerremGuardado, gesti
   if (currentStatus !== STATUS_EN_EVALUACION_CERREM && currentStatus !== STATUS_REITERACIONES) {
     throw new HttpError(
       409,
-      'Solo puede pasar a «Reiteraciones» desde «En evaluación CERREM» o repetir estando ya en «Reiteraciones».',
+      'Solo puede pasar a «Reiteraciones» desde «En gestión UNP» o repetir estando ya en «Reiteraciones».',
     );
   }
 }
@@ -931,7 +955,7 @@ function checkCierreExtraordinarioRequiereMedidas(currentStatus, newStatus, cerr
   ) {
     throw new HttpError(
       409,
-      'El nivel de riesgo Extraordinario requiere pasar por «Medidas asignadas» antes de cerrar.',
+      'El nivel de riesgo Extraordinario requiere pasar por «En gestión Ponal» antes de cerrar.',
     );
   }
 }
@@ -997,7 +1021,7 @@ async function assertMedidasIfRequired(newStatus, visibleId, agencyCode) {
   if (!tieneMedidas) {
     throw new HttpError(
       409,
-      'Debe asignar al menos una medida de seguridad antes de guardar el estado «Medidas asignadas».',
+      'Debe asignar al menos una medida de seguridad antes de guardar el estado «En gestión Ponal».',
     );
   }
 }

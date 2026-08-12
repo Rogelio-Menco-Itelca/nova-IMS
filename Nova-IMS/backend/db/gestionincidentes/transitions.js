@@ -5,25 +5,21 @@ const TRANSITIONS = {
     requiresMedidas: false,
   },
   'En gestión OSEG': {
-    next: ['En evaluación CERREM', 'Cerrado', 'Cancelado'],
+    next: ['En gestión UNP', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
     requiredFields: ['codigo_oficio'],
   },
-  'Enviado a CERREM': {
-    next: ['En evaluación CERREM', 'Medidas asignadas', 'Cerrado', 'Cancelado'],
-    requiresMedidas: false,
-  },
-  'En evaluación CERREM': {
-    next: ['Reiteraciones', 'Medidas asignadas', 'Cerrado'],
+  'En gestión UNP': {
+    next: ['Reiteraciones', 'En gestión Ponal', 'Cerrado'],
     requiresMedidas: false,
     requiredFields: ['resolucion_cerrem', 'ID_riesgo'],
   },
   Reiteraciones: {
-    next: ['Reiteraciones', 'Medidas asignadas'],
+    next: ['Reiteraciones', 'En gestión Ponal'],
     requiresMedidas: false,
     requiresComment: true,
   },
-  'Medidas asignadas': {
+  'En gestión Ponal': {
     next: ['Cerrado'],
     requiresMedidas: true,
   },
@@ -42,17 +38,16 @@ const TRANSITIONS = {
 const WORKFLOW_RANK_CSJ = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'Enviado a CERREM': 2,
-  'En evaluación CERREM': 3,
-  Reiteraciones: 4,
-  'Medidas asignadas': 5,
-  Cerrado: 6,
-  Cancelado: 6,
+  'En gestión UNP': 2,
+  Reiteraciones: 3,
+  'En gestión Ponal': 4,
+  Cerrado: 5,
+  Cancelado: 5,
 };
 
 const WORKFLOW_RANK_POL = {
   Nuevo: 0,
-  'En proceso': 1,
+  'En progreso': 1,
   Asignado: 2,
   'En camino': 3,
   Resuelto: 4,

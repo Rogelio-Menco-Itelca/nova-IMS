@@ -106,6 +106,7 @@ router.post('/people', peopleCtrl.create);
 router.put('/people/:id', peopleCtrl.update);
 router.patch('/people/:id/status', peopleCtrl.setStatus);
 router.get('/person-roles', peopleCtrl.personRoles);
+router.get('/judge-cargos', peopleCtrl.judgeCargos);
 router.get('/genders', peopleCtrl.genders);
 router.get('/document-types', peopleCtrl.documentTypes);
 

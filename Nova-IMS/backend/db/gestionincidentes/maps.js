@@ -2,30 +2,28 @@
 const STATUS_TO_GI = {
   Nuevo: 'Nuevo',
   'En gestión OSEG': 'En gestión OSEG',
-  'Enviado a CERREM': 'Enviado a CERREM',
-  'En evaluación CERREM': 'En evaluación CERREM',
+  'En gestión UNP': 'En gestión UNP',
+  'En gestión Ponal': 'En gestión Ponal',
   Reiteraciones: 'Reiteraciones',
-  'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
   Asignado: 'Asignado',
   'En camino': 'En camino',
-  'En proceso': 'En proceso',
+  'En progreso': 'En progreso',
   Resuelto: 'Resuelto',
 };
 
 const STATUS_FROM_GI = {
   Nuevo: 'Nuevo',
   'En gestión OSEG': 'En gestión OSEG',
-  'Enviado a CERREM': 'Enviado a CERREM',
-  'En evaluación CERREM': 'En evaluación CERREM',
+  'En gestión UNP': 'En gestión UNP',
+  'En gestión Ponal': 'En gestión Ponal',
   Reiteraciones: 'Reiteraciones',
-  'Medidas asignadas': 'Medidas asignadas',
   Cerrado: 'Cerrado',
   Cancelado: 'Cancelado',
   Asignado: 'Asignado',
   'En camino': 'En camino',
-  'En proceso': 'En proceso',
+  'En progreso': 'En progreso',
   Resuelto: 'Resuelto',
 };
 
