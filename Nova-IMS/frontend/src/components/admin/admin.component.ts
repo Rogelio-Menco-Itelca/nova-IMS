@@ -1060,52 +1060,55 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   userActionSourceClasses(source: string): string {
+    const base = 'audit-pill';
     switch (source) {
       case 'sesion':
       case 'login':
-        return 'border border-amber-500/30 bg-amber-500/10 text-amber-400';
+        return `${base} audit-pill--amber`;
       case 'seguridad':
       case '2fa':
-        return 'border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-400';
+        return `${base} audit-pill--fuchsia`;
       case 'incidente':
       case 'incident':
-        return 'border border-sky-500/30 bg-sky-500/10 text-sky-400';
+        return `${base} audit-pill--sky`;
       case 'configuracion':
-        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+        return `${base} audit-pill--emerald`;
       case 'comunicacion':
-        return 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-400';
+        return `${base} audit-pill--cyan`;
       case 'consulta':
-        return 'border border-slate-500/30 bg-slate-500/10 text-slate-400';
+        return `${base} audit-pill--slate`;
       default:
-        return 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-400';
+        return `${base} audit-pill--indigo`;
     }
   }
 
   userActionModuleClasses(module: string | null | undefined): string {
+    const base = 'audit-pill';
     switch (module) {
       case 'Autenticación':
-        return 'border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300';
+        return `${base} audit-pill--fuchsia`;
       case 'Incidentes':
-        return 'border border-sky-500/30 bg-sky-500/10 text-sky-300';
+        return `${base} audit-pill--sky`;
       case 'Administración':
-        return 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+        return `${base} audit-pill--indigo`;
       case 'Reportes':
-        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+        return `${base} audit-pill--emerald`;
       case 'Dashboard':
-        return 'border border-amber-500/30 bg-amber-500/10 text-amber-300';
+        return `${base} audit-pill--amber`;
       default:
-        return 'border border-gray-600/40 bg-gray-600/10 text-gray-400';
+        return `${base} audit-pill--slate`;
     }
   }
 
   userActionOutcomeClasses(outcome: string | null | undefined): string {
+    const base = 'audit-pill';
     switch (outcome) {
       case 'exitoso':
-        return 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+        return `${base} audit-pill--success`;
       case 'fallido':
-        return 'border border-red-500/30 bg-red-500/10 text-red-400';
+        return `${base} audit-pill--danger`;
       case 'pendiente':
-        return 'border border-amber-500/30 bg-amber-500/10 text-amber-400';
+        return `${base} audit-pill--warning`;
       default:
         return '';
     }

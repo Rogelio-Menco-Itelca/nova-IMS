@@ -30,6 +30,7 @@ import { IncidentLeaveGuardService } from './services/incident-leave-guard.servi
 import { IncidentService } from './services/incident.service';
 import { ConfigurationService } from './services/configuration.service';
 import { PersonService } from './services/person.service';
+import { isCsjMedidasWorkflow } from './utils/medidas-permissions';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
 
@@ -77,6 +78,11 @@ export class AppComponent implements OnInit {
   isAuthenticated = this.authService.isAuthenticated;
   currentUser = this.authService.currentUser;
   mustChangePassword = this.authService.mustChangePassword;
+
+  /** Branding institucional CSJ (Opción A: logo apilado en sidebar). */
+  readonly isCsjAgency = computed(() =>
+    isCsjMedidasWorkflow(this.currentUser()?.agency ?? ''),
+  );
 
   activeView = this.authService.currentView;
   readonly activeViewLabel = computed(() => {
@@ -171,8 +177,14 @@ export class AppComponent implements OnInit {
     root.classList.toggle('theme-light', isLight);
     root.classList.toggle('dark', isDark);
     body.classList.toggle('theme-light', isLight);
-    body.classList.toggle('bg-gray-900', isDark);
-    body.classList.toggle('text-gray-100', isDark);
+  }
+
+  /** Logo CSJ a color: versión oscura (texto blanco) / clara (texto navy). */
+  csjLogoSrc(): string {
+    const v = 'v5-black-text';
+    return this.isDarkTheme()
+      ? `/assets/branding/csj-logo-negativo.png?${v}`
+      : `/assets/branding/csj-logo-positivo.png?${v}`;
   }
 
   @HostListener('document:click', ['$event'])

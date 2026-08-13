@@ -3,7 +3,7 @@
   @if (isAuthenticated() && mustChangePassword()) {
     <app-change-password />
   } @else if (isAuthenticated()) {
-    <div class="ims-layout flex h-screen min-h-0 font-sans bg-gray-900 text-gray-200">
+    <div class="ims-layout flex h-screen min-h-0 font-sans bg-bg-app text-text-base">
       @if (isSidebarOpen()) {
         <button
           type="button"
@@ -15,30 +15,19 @@
       <!-- Sidebar: drawer hasta tablet/iPad; fijo solo en escritorio (>=1024) -->
       <aside
         [class]="
-          'ims-sidebar-mobile absolute lg:relative inset-y-0 left-0 z-30 flex min-h-0 w-64 flex-col overflow-hidden bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out lg:w-56 ' +
+          'ims-sidebar ims-sidebar-mobile absolute lg:relative inset-y-0 left-0 z-30 flex min-h-0 w-[min(18rem,85vw)] flex-col overflow-hidden bg-bg-sidebar shadow-lg transition-transform duration-300 ease-in-out ' +
+          (isCsjAgency() ? 'lg:w-64 ' : 'lg:w-56 ') +
           (isSidebarOpen() ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')
         "
-        class="shrink-0 border-r border-gray-700 lg:my-2 lg:rounded-2xl"
+        class="shrink-0 border-r border-border-subtle lg:my-2 lg:rounded-2xl"
       >
-        <div class="flex shrink-0 items-center justify-between border-b border-gray-700 p-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <svg
-              class="h-12 w-12 shrink-0 text-indigo-400"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-              />
-            </svg>
-            <span class="text-3xl font-bold tracking-wide text-white">IMS</span>
-          </div>
-          <button type="button" (click)="toggleSidebar()" class="shrink-0 text-gray-400 hover:text-white lg:hidden">
+        <div class="ims-sidebar-brand relative min-w-0 shrink-0 border-b border-border-subtle max-lg:pr-10">
+          <button
+            type="button"
+            (click)="toggleSidebar()"
+            class="absolute right-3 top-3 z-10 shrink-0 text-text-dim hover:text-white lg:hidden"
+            aria-label="Cerrar menú"
+          >
             <svg
               class="h-6 w-6"
               fill="none"
@@ -54,6 +43,61 @@
               ></path>
             </svg>
           </button>
+
+          <!-- Logo IMS primero -->
+          <div class="flex min-w-0 flex-col gap-1 px-4 pb-3 pt-5">
+            <div class="flex min-w-0 items-center gap-3">
+              <svg
+                class="h-12 w-12 shrink-0"
+                [class.text-indigo-600]="!isDarkTheme()"
+                [class.text-indigo-300]="isDarkTheme()"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
+              </svg>
+              <span
+                class="text-3xl font-extrabold tracking-wide"
+                [ngClass]="isDarkTheme() ? '!text-white' : '!text-black'"
+              >IMS</span>
+            </div>
+            <p
+              class="pl-0.5 text-xs font-semibold leading-snug"
+              [ngClass]="isDarkTheme() ? '!text-gray-300' : '!text-black'"
+            >
+              Incident Management Software
+            </p>
+          </div>
+
+          @if (isCsjAgency()) {
+            <div class="flex w-full min-w-0 flex-col gap-2.5 px-4 pb-4 pt-1">
+              <img
+                class="block h-auto min-h-11 w-full max-w-full object-contain object-left"
+                [ngClass]="
+                  isDarkTheme()
+                    ? 'contrast-[1.05] saturate-[1.08] drop-shadow-[0_0_0.35px_rgba(255,255,255,0.35)]'
+                    : 'contrast-[1.04] saturate-[1.1] drop-shadow-sm'
+                "
+                [src]="csjLogoSrc()"
+                alt="Consejo Superior de la Judicatura"
+                width="1896"
+                height="564"
+                decoding="async"
+              />
+              <div
+                class="h-1 w-full rounded-sm shadow-sm bg-[linear-gradient(to_right,#FCD116_0_33%,#003893_33%_66%,#CE1126_66%_100%)]"
+                aria-hidden="true"
+              ></div>
+            </div>
+          }
         </div>
 
         <nav class="mt-4 min-h-0 flex-1 overflow-y-auto px-3">
@@ -63,8 +107,8 @@
             (click)="setView('dashboard')"
             [class]="
               activeView() === 'dashboard'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                ? 'bg-accent-purple/10 text-[#cfc8ff] border border-accent-purple/30'
+                : 'text-gray-300 border border-transparent hover:bg-bg-panel-alt hover:text-white'
             "
             class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
@@ -91,8 +135,8 @@
             (click)="setView('incidents')"
             [class]="
               activeView() === 'incidents'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                ? 'bg-accent-purple/10 text-[#cfc8ff] border border-accent-purple/30'
+                : 'text-gray-300 border border-transparent hover:bg-bg-panel-alt hover:text-white'
             "
             class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
@@ -119,8 +163,8 @@
             (click)="setView('reports')"
             [class]="
               activeView() === 'reports'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                ? 'bg-accent-purple/10 text-[#cfc8ff] border border-accent-purple/30'
+                : 'text-gray-300 border border-transparent hover:bg-bg-panel-alt hover:text-white'
             "
             class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
@@ -147,8 +191,8 @@
             (click)="setView('admin')"
             [class]="
               activeView() === 'admin'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                ? 'bg-accent-purple/10 text-[#cfc8ff] border border-accent-purple/30'
+                : 'text-gray-300 border border-transparent hover:bg-bg-panel-alt hover:text-white'
             "
             class="flex w-full items-center mt-2 py-2 px-3 rounded-lg cursor-pointer transition-colors duration-200"
           >
@@ -392,7 +436,7 @@
       <!-- Main content -->
       <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <!-- Header -->
-        <header class="ims-header mx-4 flex shrink-0 items-center justify-between border-b border-gray-700 bg-gray-800 px-4 py-2.5 md:mt-2 md:rounded-2xl md:border md:border-gray-700">
+        <header class="ims-header mx-4 flex shrink-0 items-center justify-between border-b border-border-subtle bg-bg-panel px-4 py-2.5 md:mt-2 md:rounded-2xl md:border md:border-border-subtle">
           <div class="flex items-center gap-3">
             <button
               (click)="toggleSidebar()"
@@ -488,7 +532,7 @@
         </header>
 
         <main
-          class="ims-main min-h-0 flex-1 overflow-x-hidden bg-gray-900"
+          class="ims-main min-h-0 flex-1 overflow-x-hidden bg-bg-app"
           [ngClass]="{
             'max-lg:overflow-y-auto': activeView() !== 'reports',
             'overflow-y-auto': activeView() === 'reports',

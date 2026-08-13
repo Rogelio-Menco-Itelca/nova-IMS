@@ -16,6 +16,7 @@
   <script>
     tailwind.config = {
       darkMode: 'class',
+      safelist: ['!text-black', '!text-white', '!text-gray-300', 'text-indigo-600', 'text-indigo-300'],
       theme: {
         extend: {
           fontFamily: {
@@ -30,6 +31,37 @@
             '2xl': ['1.5rem', { lineHeight: '2rem' }],
             '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
           },
+          colors: {
+            /* Tokens oscuros (default del markup). El modo claro lo aplica theme-light.css */
+            'bg-app': '#0a0e1a',
+            'bg-sidebar': '#080b13',
+            'bg-panel': '#0f1420',
+            'bg-panel-alt': '#121a2b',
+            'border-subtle': '#1a2130',
+            'border-soft': '#1e293b',
+            'text-base': '#e8ecf3',
+            'text-dim': '#7b8697',
+            'accent-purple': '#6d5ef1',
+            'accent-red': '#ff5c6c',
+            'accent-orange': '#f5a623',
+            'accent-cyan': '#5fd0e6',
+            'tricolor-yellow': '#FCD116',
+            'tricolor-blue': '#003893',
+            'tricolor-red': '#CE1126',
+            gray: {
+              50: '#f9fafb',
+              100: '#f3f4f6',
+              200: '#e5e7eb',
+              300: '#d1d5db',
+              400: '#9ca3af',
+              500: '#6b7280',
+              600: '#4b5563',
+              700: '#1a2130',
+              800: '#0f1420',
+              900: '#0a0e1a',
+              950: '#080b13',
+            },
+          },
         },
       },
     };
@@ -41,8 +73,8 @@
     }
 
     ::-webkit-scrollbar-track {
-      background: #1f2937;
-      /* bg-gray-800 */
+      background: #0f1420;
+      /* --bg-panel */
     }
 
     ::-webkit-scrollbar-thumb {
@@ -125,7 +157,7 @@
     </script>
 </head>
 
-<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+<body class="bg-bg-app text-text-base font-sans antialiased">
   <app-root></app-root>
 </body>
 
