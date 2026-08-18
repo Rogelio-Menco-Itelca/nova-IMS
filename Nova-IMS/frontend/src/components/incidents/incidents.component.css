@@ -52,6 +52,11 @@
 .ims-dashboard-kpi__icon {
   width: clamp(0.875rem, 2vw, 2rem);
   height: clamp(0.875rem, 2vw, 2rem);
+  font-size: clamp(0.875rem, 2vw, 2rem) !important;
+  line-height: 1 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ims-dashboard-kpi__label {
@@ -150,6 +155,9 @@
 
 .ims-dashboard-panel__title {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: clamp(0.95rem, 1.5vw, 1.125rem);
   font-weight: 600;
   color: #fff;

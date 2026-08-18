@@ -1,5 +1,8 @@
 <div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-gray-800 p-6 shadow-lg">
-  <h2 class="mb-6 shrink-0 text-2xl font-bold text-white">Panel de Administración</h2>
+  <h2 class="mb-6 flex shrink-0 items-center gap-2 text-2xl font-bold text-white">
+    <span class="material-icons ims-title-icon text-[28px] leading-none" aria-hidden="true">admin_panel_settings</span>
+    Panel de Administración
+  </h2>
 
   <!-- Tabs -->
   <div class="mb-6 shrink-0 border-b border-gray-700">
@@ -11,8 +14,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">group</span>
         Usuarios
       </button>
       <button
@@ -22,8 +26,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">event</span>
         Configurar Eventos
       </button>
       <button
@@ -33,8 +38,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">forum</span>
         Configurar Respuestas
       </button>
       <button
@@ -44,8 +50,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">mail</span>
         Correos Autorizados
       </button>
       <button
@@ -55,8 +62,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">history</span>
         Historial de Incidentes
       </button>
       <button
@@ -66,8 +74,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">lock</span>
         Permisos
       </button>
       <button
@@ -77,8 +86,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">badge</span>
         Personas
       </button>
       <button
@@ -88,8 +98,9 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
       >
+        <span class="material-icons text-[18px] leading-none" aria-hidden="true">manage_search</span>
         Auditoría por Usuario
       </button>
     </nav>
@@ -473,7 +484,10 @@
         <div class="admin-list-panel flex min-h-0 flex-1 flex-col gap-4">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h3 class="text-xl font-semibold text-white">Correos Autorizados</h3>
+              <h3 class="flex items-center gap-2 text-xl font-semibold text-white">
+                <span class="material-icons ims-title-icon text-[22px] leading-none" aria-hidden="true">mail</span>
+                Correos Autorizados
+              </h3>
               <p class="text-sm text-gray-400 mt-1">
                 Lista de distribución para alertas del sistema.
               </p>
@@ -1230,7 +1244,10 @@
         <div class="perm-panel flex min-h-0 flex-1 flex-col gap-4">
           <div class="perm-header shrink-0">
             <div class="perm-header-text">
-              <h3 class="text-xl font-bold text-white">Gestión de Permisos por Rol</h3>
+              <h3 class="flex items-center gap-2 text-xl font-bold text-white">
+                <span class="material-icons ims-title-icon text-[22px] leading-none" aria-hidden="true">lock</span>
+                Gestión de Permisos por Rol
+              </h3>
               <p class="text-sm text-gray-400 mt-1">
                 Elija un rol y configure el acceso y las acciones permitidas para cada módulo.
               </p>
@@ -1629,7 +1646,10 @@
       @case ('people') {
         <div class="admin-list-panel flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-            <h3 class="text-xl font-bold text-white">Registro de Personas</h3>
+            <h3 class="flex items-center gap-2 text-xl font-bold text-white">
+              <span class="material-icons ims-title-icon text-[22px] leading-none" aria-hidden="true">badge</span>
+              Registro de Personas
+            </h3>
             <button
               (click)="openAddPersonForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
@@ -1794,7 +1814,10 @@
         <div class="flex min-h-0 flex-1 flex-col gap-4 animate-fadeIn">
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
-              <h3 class="text-xl font-bold text-white">Auditoría General por Usuario</h3>
+              <h3 class="flex items-center gap-2 text-xl font-bold text-white">
+                <span class="material-icons ims-title-icon text-[22px] leading-none" aria-hidden="true">manage_search</span>
+                Auditoría General por Usuario
+              </h3>
               <p class="text-sm text-gray-400">
                 Selecciona un usuario para ver el historial completo de todas sus acciones en el
                 sistema: inicios de sesión, incidentes, configuración y más.

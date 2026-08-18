@@ -3,9 +3,7 @@
   <div class="ims-dashboard-kpis">
     <div class="ims-dashboard-kpi border border-border-subtle bg-bg-panel">
       <div class="ims-dashboard-kpi__icon-wrap bg-accent-purple/15 text-accent-purple">
-        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <span class="material-icons ims-dashboard-kpi__icon" aria-hidden="true">bolt</span>
       </div>
       <div class="min-w-0 flex-1 text-left">
         <p class="ims-dashboard-kpi__label">En curso</p>
@@ -16,9 +14,7 @@
 
     <div class="ims-dashboard-kpi border border-border-subtle bg-bg-panel">
       <div class="ims-dashboard-kpi__icon-wrap bg-accent-red/15 text-accent-red">
-        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
+        <span class="material-icons ims-dashboard-kpi__icon" aria-hidden="true">priority_high</span>
       </div>
       <div class="min-w-0 flex-1 text-left">
         <p class="ims-dashboard-kpi__label">Atención</p>
@@ -29,9 +25,7 @@
 
     <div class="ims-dashboard-kpi border border-border-subtle bg-bg-panel">
       <div class="ims-dashboard-kpi__icon-wrap bg-accent-cyan/15 text-accent-cyan">
-        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-        </svg>
+        <span class="material-icons ims-dashboard-kpi__icon" aria-hidden="true">timer</span>
       </div>
       <div class="min-w-0 flex-1 text-left">
         <p class="ims-dashboard-kpi__label">Respuesta</p>
@@ -43,9 +37,7 @@
 
     <div class="ims-dashboard-kpi border border-border-subtle bg-bg-panel">
       <div class="ims-dashboard-kpi__icon-wrap bg-accent-orange/15 text-accent-orange">
-        <svg class="ims-dashboard-kpi__icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
+        <span class="material-icons ims-dashboard-kpi__icon" aria-hidden="true">replay</span>
       </div>
       <div class="min-w-0 flex-1 text-left">
         <p class="ims-dashboard-kpi__label">Seguimiento</p>
@@ -59,7 +51,10 @@
   <div class="ims-dashboard-panels">
     <div class="ims-dashboard-panel ims-dashboard-panel--list">
       <div class="ims-dashboard-panel__head">
-        <h3 class="ims-dashboard-panel__title">Incidentes Activos</h3>
+        <h3 class="ims-dashboard-panel__title">
+          <span class="material-icons text-[20px] leading-none" aria-hidden="true">assignment</span>
+          Incidentes Activos
+        </h3>
         <div class="ims-dashboard-panel__filters">
           <label for="dashboard-incident-search" class="sr-only">Buscar incidentes activos</label>
           <input
@@ -271,7 +266,10 @@
 
     <div class="ims-dashboard-panel ims-dashboard-panel--map">
       <div class="flex shrink-0 items-center justify-between border-b border-border-subtle p-3">
-        <h3 class="ims-dashboard-panel__title">Geolocalización</h3>
+        <h3 class="ims-dashboard-panel__title">
+          <span class="material-icons text-[20px] leading-none" aria-hidden="true">location_on</span>
+          Geolocalización
+        </h3>
         <span class="text-[10px] text-text-dim">
           {{ mapMarkersCount() }}/{{ activeIncidentsCount() }} en mapa
         </span>

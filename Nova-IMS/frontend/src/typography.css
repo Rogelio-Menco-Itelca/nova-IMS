@@ -199,3 +199,20 @@ body,
     overflow: hidden;
   }
 }
+
+/* Material Icons: siguen el color del texto padre (modo claro/oscuro) */
+.material-icons {
+  color: inherit;
+  font-size: inherit;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* Acento de títulos de página (oscuro por defecto) */
+.ims-title-icon {
+  color: #818cf8; /* indigo-400 */
+}
+
+.ims-dashboard-panel__title .material-icons {
+  color: inherit;
+}
