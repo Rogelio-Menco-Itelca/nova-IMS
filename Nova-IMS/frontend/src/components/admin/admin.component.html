@@ -209,41 +209,47 @@
                           </svg>
                           Editar
                         </button>
-                        <button
-                          type="button"
-                          (click)="toggleOperatorStatus(operator)"
-                          [attr.aria-label]="
-                            operator.status === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'
-                          "
-                          [class]="
-                            operator.status === 'Activo'
-                              ? 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
-                              : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20'
-                          "
-                        >
-                          <svg
-                            class="h-3.5 w-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
+                        @if (!isCurrentSessionOperator(operator)) {
+                          <button
+                            type="button"
+                            (click)="toggleOperatorStatus(operator)"
+                            [attr.aria-label]="
+                              operator.status === 'Activo' ? 'Desactivar usuario' : 'Activar usuario'
+                            "
+                            [class]="
+                              operator.status === 'Activo'
+                                ? 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                : 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20'
+                            "
                           >
-                            @if (operator.status === 'Activo') {
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM18 8l4 4m0-4l-4 4"
-                              />
-                            } @else {
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM17.5 8.5l1.5 1.5 3-3"
-                              />
-                            }
-                          </svg>
-                          {{ operator.status === 'Activo' ? 'Desactivar' : 'Activar' }}
-                        </button>
+                            <svg
+                              class="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="2"
+                            >
+                              @if (operator.status === 'Activo') {
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM18 8l4 4m0-4l-4 4"
+                                />
+                              } @else {
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M17 20v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 10a4 4 0 100-8 4 4 0 000 8zM17.5 8.5l1.5 1.5 3-3"
+                                />
+                              }
+                            </svg>
+                            {{ operator.status === 'Activo' ? 'Desactivar' : 'Activar' }}
+                          </button>
+                        } @else {
+                          <span class="text-[11px] text-gray-500" title="No puede cambiar el estado de su propio usuario">
+                            Su sesión
+                          </span>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -1870,11 +1876,9 @@
                       <span>·</span>
                       <span class="uppercase">{{ u.agencyCode }}</span>
                       <span
-                        class="ml-auto"
-                        [class]="
-                          'audit-pill ' +
-                          (u.status === 'Activo' ? 'audit-pill--success' : 'audit-pill--danger')
-                        "
+                        class="ml-auto text-[10px] font-medium uppercase tracking-wide"
+                        [class.text-emerald-400]="u.status === 'Activo'"
+                        [class.text-red-400]="u.status !== 'Activo'"
                       >
                         {{ u.status }}
                       </span>
@@ -2255,12 +2259,17 @@
             <select
               id="status"
               formControlName="status"
-              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60 disabled:cursor-not-allowed"
               required
             >
               <option value="Activo">Activo</option>
               <option value="Inactivo">Inactivo</option>
             </select>
+            @if (selectedOperator(); as op) {
+              @if (isCurrentSessionOperator(op)) {
+                <p class="mt-1 text-xs text-gray-500">No puede cambiar el estado de su propio usuario.</p>
+              }
+            }
           </div>
         </div>
         <div class="border-t border-gray-700 p-4 flex justify-end gap-3">

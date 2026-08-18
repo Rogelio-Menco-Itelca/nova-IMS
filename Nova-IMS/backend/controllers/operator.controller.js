@@ -125,12 +125,41 @@ exports.create = asyncHandler(async (req, res) => {
   res.status(201).json(mapOperator(user));
 });
 
+function isSelfUser(jwtUser, operatorId, existingUser = null) {
+  if (!jwtUser) return false;
+  const normalize = (value) =>
+    String(value || '')
+      .trim()
+      .toLowerCase();
+  const targetId = normalize(operatorId);
+  const sub = normalize(jwtUser.sub);
+  const username = normalize(jwtUser.username);
+  const email = normalize(jwtUser.email);
+  const bareSub = sub.startsWith('ldap:') ? sub.slice(5) : sub;
+  const existingId = normalize(existingUser?.id);
+  const existingUserName = normalize(existingUser?.username);
+  const existingEmail = normalize(existingUser?.email);
+
+  if (targetId && (targetId === sub || targetId === bareSub || targetId === username)) return true;
+  if (existingId && (existingId === sub || existingId === bareSub || existingId === username)) return true;
+  if (existingUserName && (existingUserName === sub || existingUserName === bareSub || existingUserName === username)) {
+    return true;
+  }
+  if (email && existingEmail && email === existingEmail) return true;
+  return false;
+}
+
 exports.update = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const b = req.body || {};
   const agencyCode = requireSessionAgency(req);
   const existing = await giUsers.findUserById(id, agencyCode);
   if (!existing) throw new HttpError(404, 'Operador no encontrado');
+
+  const nextStatus = b.status != null ? String(b.status).trim() : null;
+  if (nextStatus && nextStatus !== existing.status && isSelfUser(req.user, id, existing)) {
+    throw new HttpError(400, 'No puede cambiar el estado de su propio usuario.');
+  }
 
   assertRequiredNames({
     primerNombre: b.primerNombre ?? existing.primer_nombre,
@@ -165,6 +194,11 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const agencyCode = requireSessionAgency(req);
+  const existing = await giUsers.findUserById(id, agencyCode);
+  if (!existing) throw new HttpError(404, 'Operador no encontrado');
+  if (isSelfUser(req.user, id, existing)) {
+    throw new HttpError(400, 'No puede eliminar su propio usuario.');
+  }
   const affected = await giUsers.deleteOperator(id, agencyCode);
   if (!affected) throw new HttpError(404, 'Operador no encontrado');
   await writeAdminLog(req.user, 'Eliminación de Operador', `Se eliminó el operador ${id}`, req, {

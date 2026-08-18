@@ -921,13 +921,47 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleOperatorStatus(operator: Operator): void {
+    if (this.isCurrentSessionOperator(operator)) {
+      this.notificationService.addNotification(
+        'Acción no permitida',
+        'No puede desactivar ni cambiar el estado de su propio usuario.',
+      );
+      return;
+    }
     const nextStatus = operator.status === 'Activo' ? 'Inactivo' : 'Activo';
     this.operatorStatusConfirm.set({ operator, nextStatus });
+  }
+
+  /** Evita que el admin se bloquee a sí mismo desde la lista de usuarios. */
+  isCurrentSessionOperator(operator: Operator): boolean {
+    const current = this.authService.currentUser();
+    if (!current || !operator?.id) return false;
+
+    const normalize = (value: string | undefined | null) => String(value || '').trim().toLowerCase();
+    const sessionId = normalize(current.id);
+    const sessionBare = sessionId.startsWith('ldap:') ? sessionId.slice(5) : sessionId;
+    const sessionEmail = normalize(current.email);
+    const opId = normalize(operator.id);
+    const opUser = normalize(operator.username);
+    const opEmail = normalize(operator.email);
+
+    if (sessionId && (sessionId === opId || sessionId === opUser)) return true;
+    if (sessionBare && (sessionBare === opId || sessionBare === opUser)) return true;
+    if (sessionEmail && opEmail && sessionEmail === opEmail) return true;
+    return false;
   }
 
   async confirmOperatorStatusChange(): Promise<void> {
     const data = this.operatorStatusConfirm();
     if (!data) return;
+    if (this.isCurrentSessionOperator(data.operator)) {
+      this.operatorStatusConfirm.set(null);
+      this.notificationService.addNotification(
+        'Acción no permitida',
+        'No puede desactivar ni cambiar el estado de su propio usuario.',
+      );
+      return;
+    }
     this.operatorStatusConfirm.set(null);
     try {
       await this.configService.setOperatorStatus(data.operator.id, data.nextStatus);
@@ -1059,58 +1093,25 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  userActionSourceClasses(source: string): string {
-    const base = 'audit-pill';
-    switch (source) {
-      case 'sesion':
-      case 'login':
-        return `${base} audit-pill--amber`;
-      case 'seguridad':
-      case '2fa':
-        return `${base} audit-pill--fuchsia`;
-      case 'incidente':
-      case 'incident':
-        return `${base} audit-pill--sky`;
-      case 'configuracion':
-        return `${base} audit-pill--emerald`;
-      case 'comunicacion':
-        return `${base} audit-pill--cyan`;
-      case 'consulta':
-        return `${base} audit-pill--slate`;
-      default:
-        return `${base} audit-pill--indigo`;
-    }
+  userActionSourceClasses(_source: string): string {
+    return 'text-xs font-medium uppercase tracking-wide text-gray-400';
   }
 
-  userActionModuleClasses(module: string | null | undefined): string {
-    const base = 'audit-pill';
-    switch (module) {
-      case 'Autenticación':
-        return `${base} audit-pill--fuchsia`;
-      case 'Incidentes':
-        return `${base} audit-pill--sky`;
-      case 'Administración':
-        return `${base} audit-pill--indigo`;
-      case 'Reportes':
-        return `${base} audit-pill--emerald`;
-      case 'Dashboard':
-        return `${base} audit-pill--amber`;
-      default:
-        return `${base} audit-pill--slate`;
-    }
+  userActionModuleClasses(_module: string | null | undefined): string {
+    return 'text-xs font-medium uppercase tracking-wide text-gray-400';
   }
 
   userActionOutcomeClasses(outcome: string | null | undefined): string {
-    const base = 'audit-pill';
+    const base = 'text-xs font-medium uppercase tracking-wide';
     switch (outcome) {
       case 'exitoso':
-        return `${base} audit-pill--success`;
+        return `${base} text-emerald-400`;
       case 'fallido':
-        return `${base} audit-pill--danger`;
+        return `${base} text-red-400`;
       case 'pendiente':
-        return `${base} audit-pill--warning`;
+        return `${base} text-amber-400`;
       default:
-        return '';
+        return `${base} text-gray-400`;
     }
   }
 
@@ -1564,6 +1565,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     // Agencia fija a la del login; no se puede crear usuarios en otra agencia.
     this.operatorForm.controls.agency.disable({ emitEvent: false });
     this.operatorForm.controls.role.disable({ emitEvent: false });
+    this.operatorForm.controls.status.enable({ emitEvent: false });
     this.operatorPasswordError.set(null);
     this.operatorFormError.set(null);
     this.showOperatorForm.set(true);
@@ -1596,6 +1598,12 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     this.operatorForm.controls.username.disable({ emitEvent: false });
     this.operatorForm.controls.agency.disable({ emitEvent: false });
     this.operatorForm.controls.role.enable({ emitEvent: false });
+    if (this.isCurrentSessionOperator(operator)) {
+      this.operatorForm.controls.status.disable({ emitEvent: false });
+      this.operatorForm.controls.status.setValue(operator.status, { emitEvent: false });
+    } else {
+      this.operatorForm.controls.status.enable({ emitEvent: false });
+    }
     if (operator.agency) {
       this.loadRolesForAgency(operator.agency);
     }
