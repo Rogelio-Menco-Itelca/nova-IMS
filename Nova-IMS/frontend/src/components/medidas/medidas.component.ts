@@ -296,7 +296,7 @@ interface ModuloMensaje {
                   d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
                 />
               </svg>
-              Decisión CERREM
+              En gestión UNP
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @if (fieldVisible('fechaCerrem')) {
@@ -369,7 +369,7 @@ interface ModuloMensaje {
                     [class.text-red-400]="m.tipo === 'error'"
                   >{{ m.texto }}</span>
                 } @else if (cerremGuardada() && !cerremEditMode()) {
-                  <span class="text-xs text-gray-400">Guardado. Pulse «Editar» si debe actualizar la decisión CERREM.</span>
+                  <span class="text-xs text-gray-400">Guardado. Pulse «Editar» si debe actualizar la gestión UNP.</span>
                 }
                 <button
                   type="button"
@@ -663,7 +663,7 @@ export class MedidasComponent implements OnInit, OnChanges {
       return 'Gestión OSEG registrada. Los datos quedaron bloqueados; avance el flujo o cierre el caso en «Cerrado» (pestaña Detalle).';
     }
     if (this.cerremGuardada() && !this.cerremEditMode() && this.permissions().showCerremBlock) {
-      return 'Decisión CERREM guardada. Pulse «Editar» al final del módulo para modificar.';
+      return 'Gestión UNP guardada. Pulse «Editar» al final del módulo para modificar.';
     }
     if (this.medidasGuardadas() && !this.medidasEditMode() && this.permissions().showMedidasBlock) {
       return 'En gestión Ponal. Pulse «Editar» al final del módulo para agregar o cambiar medidas.';
@@ -828,7 +828,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     }
     return this.postGestionAsync(
       'cerrem',
-      'Decisión CERREM guardada correctamente',
+      'Gestión UNP guardada correctamente',
       () => this.cerremEditMode.set(false),
       true,
     );
@@ -1124,7 +1124,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     }
     this.postGestion(
       'cerrem',
-      'Decisión CERREM guardada correctamente',
+      'Gestión UNP guardada correctamente',
       () => this.cerremEditMode.set(false),
       true,
     );

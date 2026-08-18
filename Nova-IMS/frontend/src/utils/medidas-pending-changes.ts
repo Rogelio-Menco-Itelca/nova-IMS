@@ -117,7 +117,7 @@ export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
 
 export const MEDIDAS_PENDING_SECTION_LABELS: Record<MedidasPendingSection, string> = {
   oseg: 'Gestión OSEG (oficio / trámite)',
-  cerrem: 'Decisión CERREM',
+  cerrem: 'En gestión UNP',
   medidas: 'Medidas de protección',
 };
 

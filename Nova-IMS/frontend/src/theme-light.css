@@ -1004,6 +1004,29 @@ html.theme-light .ims-dashboard-panel__filters input,
   color: #1a2130 !important;
 }
 
+/* Filtro de estado (dashboard): mismo look claro que módulo Incidentes */
+html.theme-light .ims-dashboard-panel__filters select,
+html.theme-light .ims-dashboard-panel__filters select.dashboard-status-filter,
+.theme-light .ims-dashboard-panel__filters select,
+.theme-light .ims-dashboard-panel__filters select.dashboard-status-filter {
+  background-color: #ffffff !important;
+  border-color: #e2e6ee !important;
+  color: #0f172a !important;
+}
+
+html.theme-light .ims-dashboard-panel__filters select:hover,
+.theme-light .ims-dashboard-panel__filters select:hover {
+  background-color: #f8fafc !important;
+}
+
+html.theme-light .ims-dashboard-panel__filters select option,
+html.theme-light .ims-main select option,
+.theme-light .ims-dashboard-panel__filters select option,
+.theme-light .ims-main select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
 html.theme-light .ims-dashboard-map,
 .theme-light .ims-dashboard-map {
   background-color: #eef1f7 !important;
@@ -1654,6 +1677,134 @@ html.theme-light .ih-change-arrow,
 html.theme-light .ih-back,
 .theme-light .ih-back {
   font-weight: 700 !important;
+}
+
+/* ——— Historial comentarios / cambios (formulario) en modo claro ——— */
+html.theme-light .activity-timeline,
+.theme-light .activity-timeline {
+  background: #ffffff !important;
+  border-color: #e2e6ee !important;
+}
+
+html.theme-light .activity-timeline-header,
+.theme-light .activity-timeline-header {
+  background: #ffffff !important;
+  border-bottom-color: #e2e6ee !important;
+}
+
+html.theme-light .activity-timeline-header h4,
+html.theme-light .activity-timeline-header h5,
+.theme-light .activity-timeline-header h4,
+.theme-light .activity-timeline-header h5 {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+html.theme-light .activity-timeline-count,
+.theme-light .activity-timeline-count {
+  color: #64748b !important;
+}
+
+html.theme-light .activity-timeline-scroll,
+.theme-light .activity-timeline-scroll {
+  background: #ffffff !important;
+}
+
+html.theme-light .activity-timeline-item:not(:last-child)::before,
+.theme-light .activity-timeline-item:not(:last-child)::before {
+  background: #cbd5e1 !important;
+}
+
+html.theme-light .activity-timeline-icon,
+.theme-light .activity-timeline-icon {
+  border-color: #ffffff !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='comment'],
+.theme-light .activity-timeline-icon[data-kind='comment'] {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='status'],
+.theme-light .activity-timeline-icon[data-kind='status'] {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='create'],
+.theme-light .activity-timeline-icon[data-kind='create'] {
+  background: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='update'],
+.theme-light .activity-timeline-icon[data-kind='update'] {
+  background: #e0e7ff !important;
+  color: #4338ca !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='medidas'],
+.theme-light .activity-timeline-icon[data-kind='medidas'] {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+}
+
+html.theme-light .activity-timeline-icon[data-kind='gestion'],
+.theme-light .activity-timeline-icon[data-kind='gestion'] {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+}
+
+html.theme-light .activity-timeline-avatar,
+.theme-light .activity-timeline-avatar {
+  background: #dbeafe !important;
+  color: #1e3a8a !important;
+}
+
+html.theme-light .activity-timeline-summary,
+.theme-light .activity-timeline-summary {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+html.theme-light .activity-timeline-time,
+.theme-light .activity-timeline-time {
+  color: #64748b !important;
+}
+
+html.theme-light .activity-timeline-body,
+.theme-light .activity-timeline-body {
+  background: #f8fafc !important;
+  border-color: #e2e6ee !important;
+  color: #0f172a !important;
+}
+
+html.theme-light .activity-timeline-detail-label,
+.theme-light .activity-timeline-detail-label {
+  color: #475569 !important;
+}
+
+html.theme-light .activity-timeline-old,
+.theme-light .activity-timeline-old {
+  color: #64748b !important;
+}
+
+html.theme-light .activity-timeline-arrow,
+.theme-light .activity-timeline-arrow {
+  color: #94a3b8 !important;
+}
+
+html.theme-light .activity-timeline-badge,
+.theme-light .activity-timeline-badge {
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+  color: #166534 !important;
+}
+
+html.theme-light .activity-timeline-empty,
+.theme-light .activity-timeline-empty {
+  color: #64748b !important;
 }
 
 /* ——— Badges / pills auditoría: texto oscuro sobre pastel ——— */

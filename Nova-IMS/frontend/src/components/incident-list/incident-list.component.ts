@@ -3956,7 +3956,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
               this.detailTab.set('medidas');
               this.notificationService.addNotification(
                 'No se puede guardar',
-                'Complete la decisión CERREM en la pestaña Medidas (resolución y nivel de riesgo).',
+                'Complete la gestión UNP en la pestaña Medidas (resolución y nivel de riesgo).',
               );
               this.abortLeaveAfterSave();
               this.cdr.markForCheck();

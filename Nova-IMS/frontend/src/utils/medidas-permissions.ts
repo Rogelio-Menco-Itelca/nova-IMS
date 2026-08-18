@@ -79,7 +79,7 @@ export function describeClosedReviewStages(
 ): string {
   const stages: string[] = [];
   if (hasOsegGestionData(gestion)) stages.push('Gestión OSEG');
-  if (hasCerremGestionData(gestion)) stages.push('Decisión CERREM');
+  if (hasCerremGestionData(gestion)) stages.push('En gestión UNP');
   if (medidasCount > 0) stages.push('Medidas de seguridad');
   if (!stages.length) return '';
   return `Etapas registradas: ${stages.join(' · ')}.`;
@@ -312,12 +312,12 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
       return 'Escriba el código de oficio trámite y seleccione el trámite/destino (Policía, UNP o Régimen Judicial).';
     case 'En gestión UNP':
       if (isRiesgoExtraordinario(gestion)) {
-        return 'Riesgo Extraordinario: registre la decisión CERREM, pase a «En gestión Ponal» y asigne medidas antes de cerrar.';
+        return 'Riesgo Extraordinario: registre la gestión UNP, pase a «En gestión Ponal» y asigne medidas antes de cerrar.';
       }
       if (isRiesgoOrdinario(gestion)) {
-        return 'Riesgo Ordinario: registre la decisión CERREM y cierre el incidente en «Cerrado» sin medidas de seguridad.';
+        return 'Riesgo Ordinario: registre la gestión UNP y cierre el incidente en «Cerrado» sin medidas de seguridad.';
       }
-      return 'Registre la decisión CERREM: fechas, resolución y nivel de riesgo.';
+      return 'Registre la gestión UNP: fechas, resolución y nivel de riesgo.';
     case 'Reiteraciones':
       return 'Extraordinario en reiteración: redacte el comentario en «Agregar comentario» y pulse «Actualizar incidente» para guardar.';
     case 'En gestión Ponal':

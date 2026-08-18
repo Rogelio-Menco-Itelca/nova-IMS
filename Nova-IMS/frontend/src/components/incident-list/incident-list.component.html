@@ -1582,11 +1582,14 @@
                   >{{ incident.status }}</span
                 >
               </td>
-              <td
-                class="px-4 py-3 font-medium text-white max-w-[10rem] truncate"
-                [title]="incident.operator || ''"
-              >
-                {{ incident.operator || '—' }}
+              <td class="px-4 py-3 font-medium text-white max-w-[6.5rem] sm:max-w-[8.5rem] md:max-w-[10rem]">
+                <span
+                  class="ims-truncate-tip block max-w-full truncate"
+                  tabindex="0"
+                  [attr.title]="incident.operator || null"
+                  [attr.data-full]="incident.operator || null"
+                  [attr.aria-label]="incident.operator ? 'Operador: ' + incident.operator : null"
+                >{{ incident.operator || '—' }}</span>
               </td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">

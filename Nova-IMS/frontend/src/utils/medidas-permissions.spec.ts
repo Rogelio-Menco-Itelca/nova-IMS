@@ -153,7 +153,7 @@ describe('describeClosedReviewStages', () => {
       2,
     );
     expect(text).toContain('Gestión OSEG');
-    expect(text).toContain('Decisión CERREM');
+    expect(text).toContain('En gestión UNP');
     expect(text).toContain('Medidas de seguridad');
   });
 
