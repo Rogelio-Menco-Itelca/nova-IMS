@@ -209,7 +209,7 @@
                           </svg>
                           Editar
                         </button>
-                        @if (!isCurrentSessionOperator(operator)) {
+                        @if (selfOperatorId() !== operator.id && !isCurrentSessionOperator(operator)) {
                           <button
                             type="button"
                             (click)="toggleOperatorStatus(operator)"
@@ -246,7 +246,10 @@
                             {{ operator.status === 'Activo' ? 'Desactivar' : 'Activar' }}
                           </button>
                         } @else {
-                          <span class="text-[11px] text-gray-500" title="No puede cambiar el estado de su propio usuario">
+                          <span
+                            class="text-[11px] font-medium text-gray-500"
+                            title="No puede desactivar su propio usuario mientras la sesión está activa"
+                          >
                             Su sesión
                           </span>
                         }
@@ -1069,16 +1072,24 @@
                             </td>
                             <td>
                               <div class="flex items-center gap-2">
-                                <span class="ih-operator-avatar">{{
-                                  historyUserInitials(log.user)
-                                }}</span>
+                                @if (historyUserPhotoUrl(log.user); as photo) {
+                                  <img
+                                    [src]="photo"
+                                    alt=""
+                                    class="ih-operator-avatar ih-operator-avatar--photo"
+                                  />
+                                } @else {
+                                  <span class="ih-operator-avatar">{{
+                                    historyUserInitials(log.user)
+                                  }}</span>
+                                }
                                 <span class="font-medium text-slate-200">{{
                                   historyAuthorName(log.user, incident)
                                 }}</span>
                               </div>
                             </td>
                             <td>
-                              <span class="ih-action-badge">{{ auditActionLabel(log) }}</span>
+                              <span class="ih-action-text">{{ auditActionLabel(log) }}</span>
                             </td>
                             <td>
                               @if (auditChangeSummary(log); as summary) {
@@ -2185,9 +2196,24 @@
               type="email"
               formControlName="email"
               placeholder="ej: a.rodriguez@ims.co"
-              class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+              class="bg-gray-700 border text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+              [class.border-red-500]="
+                operatorForm.controls.email.touched && operatorForm.controls.email.invalid
+              "
+              [class.border-gray-600]="
+                !(operatorForm.controls.email.touched && operatorForm.controls.email.invalid)
+              "
               required
             />
+            @if (operatorForm.controls.email.touched && operatorForm.controls.email.errors?.['required']) {
+              <p class="mt-1 text-xs text-red-400">El correo es obligatorio.</p>
+            } @else if (
+              operatorForm.controls.email.touched && operatorForm.controls.email.errors?.['email']
+            ) {
+              <p class="mt-1 text-xs text-red-400">
+                El correo debe ser válido e incluir @ (ejemplo: usuario&#64;dominio.com).
+              </p>
+            }
           </div>
           <div>
             <label for="telefono" class="block text-sm font-medium text-gray-300 mb-1"
@@ -2267,7 +2293,9 @@
             </select>
             @if (selectedOperator(); as op) {
               @if (isCurrentSessionOperator(op)) {
-                <p class="mt-1 text-xs text-gray-500">No puede cambiar el estado de su propio usuario.</p>
+                <p class="mt-1 text-xs text-amber-200/90">
+                  Sobre su propio usuario solo puede actualizar datos básicos. Rol, estado y correo los gestiona otro administrador.
+                </p>
               }
             }
           </div>

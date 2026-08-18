@@ -1,6 +1,7 @@
 const HttpError = require('../utils/HttpError');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireSessionAgency } = require('../utils/requestAgency');
+const { isValidEmail, normalizeEmail } = require('../utils/emailValidation');
 const giNotifications = require('../db/gestionincidentes/notifications');
 
 async function listForAgency(req) {
@@ -15,8 +16,11 @@ exports.list = asyncHandler(async (req, res) => {
 exports.add = asyncHandler(async (req, res) => {
   const { email } = req.body || {};
   if (!email) throw new HttpError(400, 'email requerido');
+  if (!isValidEmail(email)) {
+    throw new HttpError(400, 'El correo debe ser válido e incluir @ (ejemplo: usuario@dominio.com).');
+  }
   const agency = requireSessionAgency(req);
-  await giNotifications.addNotificationEmail(email, agency);
+  await giNotifications.addNotificationEmail(normalizeEmail(email), agency);
   res.status(201).json(await giNotifications.listNotificationEmails(agency));
 });
 

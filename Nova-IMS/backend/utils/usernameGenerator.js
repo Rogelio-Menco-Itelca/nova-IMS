@@ -1,13 +1,24 @@
 const { pool } = require('../config/db');
 
-async function generateUniqueUsername(fullName) {
-  const base =
-    String(fullName || 'user')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '')
-      .slice(0, 12) || 'user';
+function normalizePart(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function buildUsernameBase(primerNombre, primerApellido) {
+  const first = normalizePart(primerNombre);
+  const last = normalizePart(primerApellido);
+  if (!first && !last) return 'user';
+  if (!last) return first.slice(0, 20);
+  if (!first) return last.slice(0, 20);
+  return (first.charAt(0) + last).slice(0, 20);
+}
+
+async function generateUniqueUsername(primerNombre, primerApellido) {
+  const base = buildUsernameBase(primerNombre, primerApellido);
 
   let candidate = base;
   let n = 1;
@@ -26,4 +37,4 @@ async function exists(username) {
   return rows.length > 0;
 }
 
-module.exports = { generateUniqueUsername };
+module.exports = { generateUniqueUsername, buildUsernameBase };

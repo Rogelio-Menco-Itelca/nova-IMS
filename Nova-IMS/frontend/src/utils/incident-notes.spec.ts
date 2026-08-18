@@ -89,6 +89,11 @@ describe('noteAuthorInitials', () => {
   it('usa iniciales de dos palabras', () => {
     expect(noteAuthorInitials('Ana Pérez')).toBe('AP');
   });
+
+  it('usa primer nombre y primer apellido con nombres compuestos', () => {
+    expect(noteAuthorInitials('Rogelio Andrés Menco Benavides')).toBe('RM');
+    expect(noteAuthorInitials('Juan García López')).toBe('JG');
+  });
 });
 
 describe('latestIncidentNoteText', () => {

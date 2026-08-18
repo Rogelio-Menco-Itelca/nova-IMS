@@ -34,6 +34,7 @@ import { ConfigurationService, NotificationEmailEntry } from '../../services/con
 import { IncidentService } from '../../services/incident.service';
 import { PersonService } from '../../services/person.service';
 import { AuthService } from '../../services/auth.service';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
 import { Agency, RoleOption } from '../../models/user.model';
 import { AdminPaginationComponent } from './admin-pagination.component';
 import { AuditLog } from '../../models/admin.model';
@@ -130,6 +131,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly incidentService = inject(IncidentService);
   readonly personService = inject(PersonService);
   private readonly authService = inject(AuthService);
+  private readonly profilePhotoService = inject(ProfilePhotoService);
   private readonly http = inject(HttpClient);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -376,6 +378,30 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   paginatedOperators = computed(() =>
     adminSlicePage(this.searchedOperators(), this.operatorsPage(), this.adminListPageSize()),
   );
+
+  private readonly sessionOperatorMatchKeys = computed(() => {
+    const current = this.authService.currentUser();
+    const keys = new Set<string>();
+    if (!current) return keys;
+    const add = (value: string | undefined | null) => {
+      const n = String(value || '')
+        .trim()
+        .toLowerCase();
+      if (!n) return;
+      keys.add(n);
+      if (n.startsWith('ldap:')) keys.add(n.slice(5));
+    };
+    add(current.id);
+    add(current.email);
+    return keys;
+  });
+
+  selfOperatorId = computed(() => {
+    const keys = this.sessionOperatorMatchKeys();
+    if (!keys.size) return null;
+    const match = this.operators().find((op) => this.operatorMatchesSessionKeys(op, keys));
+    return match?.id ?? null;
+  });
 
   incidentTypesTotalPages = computed(() =>
     adminTotalPages(this.incidentTypes().length, this.adminListPageSize()),
@@ -934,21 +960,23 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Evita que el admin se bloquee a sí mismo desde la lista de usuarios. */
   isCurrentSessionOperator(operator: Operator): boolean {
-    const current = this.authService.currentUser();
-    if (!current || !operator?.id) return false;
+    if (!operator) return false;
+    const selfId = this.selfOperatorId();
+    if (selfId && String(operator.id).toLowerCase() === String(selfId).toLowerCase()) {
+      return true;
+    }
+    return this.operatorMatchesSessionKeys(operator, this.sessionOperatorMatchKeys());
+  }
 
-    const normalize = (value: string | undefined | null) => String(value || '').trim().toLowerCase();
-    const sessionId = normalize(current.id);
-    const sessionBare = sessionId.startsWith('ldap:') ? sessionId.slice(5) : sessionId;
-    const sessionEmail = normalize(current.email);
-    const opId = normalize(operator.id);
-    const opUser = normalize(operator.username);
-    const opEmail = normalize(operator.email);
-
-    if (sessionId && (sessionId === opId || sessionId === opUser)) return true;
-    if (sessionBare && (sessionBare === opId || sessionBare === opUser)) return true;
-    if (sessionEmail && opEmail && sessionEmail === opEmail) return true;
-    return false;
+  private operatorMatchesSessionKeys(operator: Operator, keys: Set<string>): boolean {
+    if (!keys.size) return false;
+    const values = [operator.id, operator.username, operator.email];
+    return values.some((value) => {
+      const n = String(value || '')
+        .trim()
+        .toLowerCase();
+      return !!n && keys.has(n);
+    });
   }
 
   async confirmOperatorStatusChange(): Promise<void> {
@@ -1314,6 +1342,39 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     return noteAuthorInitials(this.historyAuthorName(name));
   }
 
+  historyUserPhotoUrl(raw: string | null | undefined): string | null {
+    this.profilePhotoService.photoUrl();
+
+    const value = String(raw ?? '').trim();
+    if (!value) return null;
+
+    const current = this.authService.currentUser();
+    const normalize = (v: string | undefined | null) => String(v || '').trim().toLowerCase();
+    const rawKey = normalize(value);
+
+    if (current?.id) {
+      const sessionId = normalize(current.id);
+      const sessionBare = sessionId.startsWith('ldap:') ? sessionId.slice(5) : sessionId;
+      const sessionName = normalize(current.name);
+      if (rawKey === sessionId || rawKey === sessionBare || rawKey === sessionName) {
+        return this.profilePhotoService.getPhotoUrl(current.id);
+      }
+    }
+
+    const operator = this.operators().find(
+      (o) =>
+        normalize(o.id) === rawKey ||
+        normalize(o.username) === rawKey ||
+        normalize(o.name) === rawKey ||
+        normalize(o.email) === rawKey,
+    );
+    if (operator?.id) {
+      return this.profilePhotoService.getPhotoUrl(operator.id);
+    }
+
+    return this.profilePhotoService.getPhotoUrl(value);
+  }
+
   incidentDescriptionEntries(incident: Incident): string[] {
     const entries = buildCommentHistoryView(incident.comments, incident.details);
     return entries
@@ -1566,6 +1627,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     this.operatorForm.controls.agency.disable({ emitEvent: false });
     this.operatorForm.controls.role.disable({ emitEvent: false });
     this.operatorForm.controls.status.enable({ emitEvent: false });
+    this.operatorForm.controls.email.enable({ emitEvent: false });
     this.operatorPasswordError.set(null);
     this.operatorFormError.set(null);
     this.showOperatorForm.set(true);
@@ -1601,8 +1663,12 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.isCurrentSessionOperator(operator)) {
       this.operatorForm.controls.status.disable({ emitEvent: false });
       this.operatorForm.controls.status.setValue(operator.status, { emitEvent: false });
+      this.operatorForm.controls.role.disable({ emitEvent: false });
+      this.operatorForm.controls.email.disable({ emitEvent: false });
     } else {
       this.operatorForm.controls.status.enable({ emitEvent: false });
+      this.operatorForm.controls.role.enable({ emitEvent: false });
+      this.operatorForm.controls.email.enable({ emitEvent: false });
     }
     if (operator.agency) {
       this.loadRolesForAgency(operator.agency);
@@ -1785,7 +1851,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.newEmailControl.invalid) {
       this.notificationEmailFeedback.set({
         type: 'warn',
-        message: 'Ingrese un correo electrónico válido.',
+        message: 'El correo debe ser válido e incluir @ (ejemplo: usuario@dominio.com).',
       });
       return;
     }
@@ -1941,6 +2007,26 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   async savePermissions(): Promise<void> {
     const role = this.activeRolePermission();
     if (!role || this.isSavingPermissions()) return;
+
+    const sessionRole = String(this.authService.currentUser()?.role || '').trim().toLowerCase();
+    if (sessionRole && String(role.role || '').trim().toLowerCase() === sessionRole) {
+      const adminPerm = this.permissionsDraft().find((p) => {
+        const mod = String(p.module || '')
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        return mod === 'administracion';
+      });
+      if (!adminPerm?.enabled || !adminPerm.actions?.view) {
+        this.notificationService.addNotification(
+          'Acción no permitida',
+          'No puede quitar el acceso a Administración de su propio rol. Eso debe hacerlo otro administrador.',
+        );
+        return;
+      }
+    }
+
     this.isSavingPermissions.set(true);
     this._skipDraftSync = true;
     try {

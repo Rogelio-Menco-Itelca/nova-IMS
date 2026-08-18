@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { writeAdminLog } = require('../utils/adminLog');
 const { generateUniqueUsername } = require('../utils/usernameGenerator');
 const { validatePassword } = require('../utils/passwordPolicy');
+const { isValidEmail, normalizeEmail } = require('../utils/emailValidation');
 const { sendWelcomeEmail } = require('../services/email.service');
 const { resolveAgency } = require('../db/gestionincidentes/agencies');
 const { requireSessionAgency } = require('../utils/requestAgency');
@@ -56,6 +57,9 @@ exports.create = asyncHandler(async (req, res) => {
   if (!b.email || !b.role) {
     throw new HttpError(400, 'email y role son requeridos');
   }
+  if (!isValidEmail(b.email)) {
+    throw new HttpError(400, 'El correo debe ser válido e incluir @ (ejemplo: usuario@dominio.com).');
+  }
 
   // Tenant = agencia de la sesión; el cliente no puede crear usuarios en otra agencia.
   const agencyCode = requireSessionAgency(req);
@@ -68,11 +72,11 @@ exports.create = asyncHandler(async (req, res) => {
   const displayName = buildDisplayName(b);
   let loginId = String(b.username || '').trim();
   if (!loginId) {
-    loginId = await generateUniqueUsername(`${b.primerNombre} ${b.primerApellido}`);
+    loginId = await generateUniqueUsername(b.primerNombre, b.primerApellido);
   }
   loginId = loginId.toUpperCase();
 
-  const email = b.email.trim().toLowerCase();
+  const email = normalizeEmail(b.email);
 
   if (await giUsers.emailExists(email, agencyCode)) {
     throw new HttpError(409, 'Ya existe un usuario con ese correo en esta agencia');
@@ -159,6 +163,26 @@ exports.update = asyncHandler(async (req, res) => {
   const nextStatus = b.status != null ? String(b.status).trim() : null;
   if (nextStatus && nextStatus !== existing.status && isSelfUser(req.user, id, existing)) {
     throw new HttpError(400, 'No puede cambiar el estado de su propio usuario.');
+  }
+
+  if (b.role && isSelfUser(req.user, id, existing)) {
+    const currentRole = String(existing.role_name || '').trim();
+    const nextRole = String(b.role || '').trim();
+    if (nextRole && currentRole && nextRole.toLowerCase() !== currentRole.toLowerCase()) {
+      throw new HttpError(400, 'No puede cambiar el rol de su propio usuario.');
+    }
+  }
+
+  if (b.email != null && isSelfUser(req.user, id, existing)) {
+    const currentEmail = normalizeEmail(existing.email);
+    const nextEmail = normalizeEmail(b.email);
+    if (nextEmail && currentEmail && nextEmail !== currentEmail) {
+      throw new HttpError(400, 'No puede cambiar el correo de su propio usuario desde Administración.');
+    }
+  }
+
+  if (b.email != null && String(b.email).trim() !== '' && !isValidEmail(b.email)) {
+    throw new HttpError(400, 'El correo debe ser válido e incluir @ (ejemplo: usuario@dominio.com).');
   }
 
   assertRequiredNames({

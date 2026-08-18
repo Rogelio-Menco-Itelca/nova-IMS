@@ -14,6 +14,14 @@ const ACTION_LABELS = {
   export: 'Exportar',
 };
 
+function normalizeModuleName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 function describeModulePermissionChanges(prev, nextPerm) {
   const changes = [];
 
@@ -84,6 +92,19 @@ exports.update = asyncHandler(async (req, res) => {
   const agencyCode = requireSessionAgency(req);
   if (!(await giRoles.roleExists(id, agencyCode))) {
     throw new HttpError(404, 'Rol no encontrado');
+  }
+
+  const sessionRoleId = String(req.user?.role_id || '').trim();
+  if (sessionRoleId && String(id) === sessionRoleId) {
+    const adminPerm = permissions.find((p) => normalizeModuleName(p?.module) === 'administracion');
+    const keepsAdmin =
+      adminPerm && adminPerm.enabled !== false && adminPerm.actions?.view !== false;
+    if (!keepsAdmin) {
+      throw new HttpError(
+        400,
+        'No puede quitar el acceso a Administración de su propio rol. Pida a otro administrador que lo haga.',
+      );
+    }
   }
 
   const before = await giRoles.getPermissionsForRole(id, agencyCode);

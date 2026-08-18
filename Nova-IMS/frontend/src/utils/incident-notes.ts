@@ -194,7 +194,8 @@ export function noteAuthorInitials(author: string): string {
     .filter(Boolean);
   if (!parts.length) return 'OP';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+  const surnameIdx = parts.length >= 3 ? parts.length - 2 : parts.length - 1;
+  return `${parts[0][0] ?? ''}${parts[surnameIdx]?.[0] ?? ''}`.toUpperCase();
 }
 
 export function latestIncidentNoteText(raw: string | null | undefined): string {
