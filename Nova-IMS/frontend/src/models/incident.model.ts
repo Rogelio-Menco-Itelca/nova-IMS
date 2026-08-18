@@ -169,7 +169,7 @@ export const DOCUMENT_TYPE_OPTIONS: readonly DocumentType[] = [
   'Pasaporte',
 ] as const;
 
-export type VehicleRole = 'Vehículo Víctima' | 'Vehículo Victimario' | 'Vehículo Involucrado';
+export type VehicleRole = string;
 
 export type PersonGender = 'Masculino' | 'Femenino';
 

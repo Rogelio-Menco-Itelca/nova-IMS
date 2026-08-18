@@ -49,6 +49,7 @@ router.get('/roles/list', catCtrl.rolesSimple);
 router.get('/departments', catCtrl.departments);
 router.get('/municipalities', catCtrl.municipalities);
 router.get('/place-roles', catCtrl.placeRoles);
+router.get('/vehicle-roles', catCtrl.vehicleRoles);
 router.get('/origins', catCtrl.origins);
 router.get('/incident-statuses', catCtrl.incidentStatuses);
 router.get('/incident-statuses/allowed', authRequired, async (req, res, next) => {

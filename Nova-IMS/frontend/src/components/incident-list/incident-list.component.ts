@@ -301,7 +301,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   incidentMunicipalities = signal<ColombiaMunicipality[]>([]);
   incidentMunicipalitiesLoaded = signal(false);
   placeMunicipalitiesLoaded = signal<Map<number, boolean>>(new Map());
-  vehicleRoles: VehicleRole[] = ['Vehículo Víctima', 'Vehículo Victimario', 'Vehículo Involucrado'];
+  vehicleRoles = signal<CatalogOption[]>([]);
   readonly personService = inject(PersonService);
 
   incidentForm = this.fb.group({
@@ -2289,10 +2289,24 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  private loadVehicleRoles(): void {
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    this.http.get<CatalogOption[]>('/api/vehicle-roles', { params: { agency } }).subscribe({
+      next: (rows) => {
+        const roles = (Array.isArray(rows) ? rows : [])
+          .map((r) => ({ ...r, id: Number(r.id), name: String(r.name || '').trim() }))
+          .filter((r) => Number.isFinite(r.id) && r.id > 0 && r.name);
+        this.vehicleRoles.set(roles);
+        this.cdr.markForCheck();
+      },
+      error: () => this.vehicleRoles.set([]),
+    });
+  }
+
   createVehicleGroup(): FormGroup {
     return this.fb.group({
       plate: ['', this.validateOptionalPlate],
-      role: ['' as VehicleRole | '', Validators.required],
+      role: ['' as VehicleRole | ''],
       make: [''],
       model: [''],
       color: [''],
@@ -2546,6 +2560,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.configService.getOperators().catch(() => void 0);
     this.loadDepartments().catch(() => void 0);
     this.loadPlaceRoles();
+    this.loadVehicleRoles();
     this.loadPersonCatalogs();
     this.loadIncidentCatalogs();
     this.setupIncidentDepartmentFilter();
@@ -2936,9 +2951,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       const group = g as FormGroup;
       if (!this.isVehicleRowFilled(group)) continue;
       const plate = String(group.get('plate')?.value || '').trim();
-      if (!String(group.get('role')?.value || '').trim()) {
-        missing.push('Rol del vehículo involucrado');
-      }
       if (plate && group.get('plate')?.invalid) {
         missing.push(`Placa inválida (${plate}: use 5-8 caracteres, letras o números)`);
       }
@@ -4249,7 +4261,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.involvedVehicles.push(
         this.fb.group({
           plate: [v.plate ?? '', this.validateOptionalPlate],
-          role: [(v.role || '') as VehicleRole | '', Validators.required],
+          role: [(v.role || '') as VehicleRole | ''],
           make: [v.make],
           model: [v.model],
           color: [v.color],

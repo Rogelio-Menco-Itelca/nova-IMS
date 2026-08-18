@@ -36,6 +36,12 @@ exports.placeRoles = asyncHandler(async (req, res) => {
   res.json(await giPlaces.listPlaceRoles(agency));
 });
 
+exports.vehicleRoles = asyncHandler(async (req, res) => {
+  const agency = requireAgencyCode(req, 'Query agency es requerido');
+  const giVehicles = require('../db/gestionincidentes/vehicles');
+  res.json(await giVehicles.listVehicleRoles(agency));
+});
+
 exports.origins = asyncHandler(async (req, res) => {
   const agency = requireAgencyCode(req, 'Query agency es requerido');
   res.json(await giIncidentCatalog.listOrigins(agency));
