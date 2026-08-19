@@ -3,7 +3,9 @@ import {
   IncidentLocationCoordSync,
   buildGeocodeQuery,
   buildLocationFingerprint,
+  geoCatalogNamesLooselyEqual,
   hasValidIncidentCoords,
+  parseIncidentCoords,
   shouldApplyIncomingGpsLocation,
 } from './incident-location-coords';
 import { IMS_GEO } from './ims-geo.constants';
@@ -23,6 +25,15 @@ describe('incident-location-coords', () => {
     expect(hasValidIncidentCoords(null, null)).toBe(false);
     expect(hasValidIncidentCoords(0, 0)).toBe(false);
     expect(hasValidIncidentCoords(4.645771, -74.11311)).toBe(true);
+    expect(hasValidIncidentCoords('4.622381', '-74.130277')).toBe(true);
+  });
+
+  it('parseIncidentCoords convierte strings de DECIMAL a número', () => {
+    expect(parseIncidentCoords('4.622381', '-74.130277')).toEqual({
+      lat: 4.622381,
+      lng: -74.130277,
+    });
+    expect(parseIncidentCoords(0, 0)).toBeNull();
   });
 
   it('IncidentLocationCoordSync invalida coords huérfanas', () => {
@@ -77,5 +88,12 @@ describe('incident-location-coords', () => {
         hasAddress: true,
       }),
     ).toBe(true);
+  });
+
+  it('geoCatalogNamesLooselyEqual no confunde CALI con CALIMA', () => {
+    expect(geoCatalogNamesLooselyEqual('CALIMA', 'CALI')).toBe(false);
+    expect(geoCatalogNamesLooselyEqual('CALI', 'CALI')).toBe(true);
+    expect(geoCatalogNamesLooselyEqual('SANTIAGO DE CALI', 'CALI')).toBe(true);
+    expect(geoCatalogNamesLooselyEqual('BOGOTA D C', 'BOGOTA')).toBe(true);
   });
 });

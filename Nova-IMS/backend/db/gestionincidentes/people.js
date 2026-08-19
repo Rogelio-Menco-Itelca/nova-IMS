@@ -41,6 +41,20 @@ async function ensurePersonStatusColumn() {
   await pool.query(`UPDATE personas SET estado = 'Activo' WHERE estado IS NULL OR estado = ''`);
 }
 
+let personSharePointReady = false;
+
+async function ensurePersonSharePointStorage() {
+  if (personSharePointReady) return;
+  const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'Comentarios'");
+  const col = cols[0];
+  const match = col && /varchar\((\d+)\)/i.exec(String(col.Type || ''));
+  const len = match ? Number(match[1]) : 0;
+  if (len > 0 && len < 500) {
+    await pool.query('ALTER TABLE personas MODIFY COLUMN Comentarios varchar(500) NULL');
+  }
+  personSharePointReady = true;
+}
+
 async function ensureAdminPersonasCatalog() {
   if (adminCatalogReady) return;
   const [cols] = await pool.query("SHOW COLUMNS FROM personas LIKE 'ID_incidente'");
@@ -49,7 +63,9 @@ async function ensureAdminPersonasCatalog() {
     await pool.query('ALTER TABLE personas MODIFY COLUMN ID_incidente int NULL');
   }
   await ensurePersonStatusColumn();
+  await ensurePersonSharePointStorage();
   await repairLegacyAdminPersonas();
+  await backfillCatalogFromIncidentPeople();
   await pool.query(
     `UPDATE personas SET
       Primer_Nombre = CONCAT(UPPER(LEFT(Primer_Nombre, 1)), LOWER(SUBSTRING(Primer_Nombre, 2))),
@@ -81,7 +97,41 @@ function buildDisplayName(row) {
     .join(' ');
 }
 
-const PERSON_SELECT = `
+let personCommentColumnPromise = null;
+
+async function resolvePersonCommentColumn() {
+  if (!personCommentColumnPromise) {
+    personCommentColumnPromise = pool
+      .query('SHOW COLUMNS FROM comentariospersonas')
+      .then(([cols]) => {
+        const names = new Set((cols || []).map((c) => c.Field));
+        if (names.has('Comentarios')) return 'Comentarios';
+        if (names.has('RutaDeSharePoint')) return 'RutaDeSharePoint';
+        return null;
+      });
+  }
+  return personCommentColumnPromise;
+}
+
+async function personCommentHistoryExpr(alias = 'comentarios') {
+  const col = await resolvePersonCommentColumn();
+  if (!col) return `p.Comentarios AS ${alias}`;
+  return `COALESCE(
+    NULLIF(TRIM((SELECT cp.\`${col}\` FROM comentariospersonas cp
+     WHERE cp.ID_persona = p.ID_persona
+     ORDER BY cp.FechaHora DESC, cp.ID_transaccion_persona DESC LIMIT 1)), ''),
+    NULLIF(TRIM(p.Comentarios), '')
+  ) AS ${alias}`;
+}
+
+const PERSON_IDENTITY_FROM = `
+FROM ${TABLE} p
+LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
+LEFT JOIN genero g ON g.ID_genero = p.ID_genero
+LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento`;
+
+const PERSON_IDENTITY_COLUMNS = `
   p.ID_persona AS internal_id,
   p.Primer_Nombre AS primer_nombre,
   p.Segundo_Nombre AS segundo_nombre,
@@ -93,12 +143,6 @@ const PERSON_SELECT = `
   p.Contacto AS contacto,
   p.Tipo_documento AS tipo_documento,
   p.Numero_documento AS numero_documento,
-  COALESCE(
-    (SELECT cp.Comentarios FROM comentariospersonas cp
-     WHERE cp.ID_persona = p.ID_persona
-     ORDER BY cp.FechaHora DESC LIMIT 1),
-    p.Comentarios
-  ) AS comentarios,
   p.ID_genero AS id_genero,
   p.ID_Agencia AS id_agencia,
   p.ID_incidente AS id_incidente,
@@ -107,12 +151,20 @@ const PERSON_SELECT = `
   COALESCE(NULLIF(p.estado, ''), 'Activo') AS estado,
   rp.Nombre AS role_name,
   g.Descripcion_genero AS gender_name,
-  td.Descripcion AS document_type_name
-FROM ${TABLE} p
-LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
-LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
-LEFT JOIN genero g ON g.ID_genero = p.ID_genero
-LEFT JOIN tipodocumentos td ON td.Tipo_documento = p.Tipo_documento`;
+  td.Descripcion AS document_type_name`;
+
+const PERSON_LOOKUP_SELECT = `
+  ${PERSON_IDENTITY_COLUMNS},
+  NULL AS comentarios
+${PERSON_IDENTITY_FROM}`;
+
+async function getPersonSelect() {
+  const comments = await personCommentHistoryExpr('comentarios');
+  return `
+  ${PERSON_IDENTITY_COLUMNS},
+  ${comments}
+${PERSON_IDENTITY_FROM}`;
+}
 
 function adminCatalogWhere(alias = 'p') {
   return `${alias}.ID_incidente IS NULL`;
@@ -127,7 +179,7 @@ async function listPeople(agencyCode = null) {
     params.push(agencyCode, agencyCode);
   }
   const [rows] = await pool.query(
-    `SELECT ${PERSON_SELECT} ${where} ORDER BY p.FechaRegistro DESC`,
+    `SELECT ${await getPersonSelect()} ${where} ORDER BY p.FechaRegistro DESC`,
     params,
   );
   return rows;
@@ -139,7 +191,10 @@ async function getPersonByInternalId(internalId, adminOnly = false) {
   if (adminOnly) {
     where += ` AND ${adminCatalogWhere('p')}`;
   }
-  const [rows] = await pool.query(`SELECT ${PERSON_SELECT} ${where} LIMIT 1`, params);
+  const [rows] = await pool.query(
+    `SELECT ${await getPersonSelect()} ${where} LIMIT 1`,
+    params,
+  );
   return rows[0] || null;
 }
 
@@ -194,11 +249,14 @@ function normalizePersonStatus(value) {
 
 async function insertPersonComment(executor, personId, text, userId, agencyCode) {
   const commentText = String(text || '').trim();
-  if (!commentText || !userId) return;
+  if (!commentText || !userId || !personId) return;
+  await ensurePersonSharePointStorage();
+  const col = (await resolvePersonCommentColumn()) || 'Comentarios';
+  const maxLen = col === 'RutaDeSharePoint' ? 500 : 200;
   await executor.query(
-    `INSERT INTO comentariospersonas (ID_persona, ID_Usuario, ID_Agencia, Comentarios)
+    `INSERT INTO comentariospersonas (ID_persona, ID_Usuario, ID_Agencia, \`${col}\`)
      VALUES (?,?,?,?)`,
-    [personId, userId, normalizeAgencyCode(agencyCode), commentText.substring(0, 200)],
+    [personId, userId, normalizeAgencyCode(agencyCode), commentText.substring(0, maxLen)],
   );
 }
 
@@ -383,6 +441,94 @@ async function setPersonStatus(id, status) {
   return getPersonByInternalId(internalId);
 }
 
+async function ensureCatalogPerson(executor, data, agencyCode) {
+  const primerNombre = formatNamePart(data.primerNombre);
+  const primerApellido = formatNamePart(data.primerApellido);
+  if (!primerNombre || !primerApellido) return null;
+
+  const numeroDocumento = String(data.numeroDocumento || '').replace(/\D/g, '') || null;
+  const contacto = String(data.contacto || '').replace(/\D/g, '') || null;
+  if ((!numeroDocumento || numeroDocumento.length < 5) && (!contacto || contacto.length < 7)) {
+    return null;
+  }
+
+  const code = normalizeAgencyCode(agencyCode || data.agencyCode);
+  const params = [code, code];
+  let where = `WHERE ${adminCatalogWhere('p')} AND UPPER(p.ID_Agencia) IN (UPPER(?), LOWER(?))`;
+
+  if (numeroDocumento && numeroDocumento.length >= 5) {
+    where += ` AND REPLACE(REPLACE(REPLACE(IFNULL(p.Numero_documento, ''), '.', ''), '-', ''), ' ', '') = ?`;
+    params.push(numeroDocumento);
+  } else {
+    where += ` AND REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(p.Contacto, ''), '+', ''), '-', ''), ' ', ''), '.', '') IN (?, ?)`;
+    params.push(contacto);
+    params.push(contacto.length === 10 ? `57${contacto}` : String(contacto).replace(/^57/, ''));
+  }
+
+  const [rows] = await executor.query(
+    `SELECT p.ID_persona FROM ${TABLE} p ${where} LIMIT 1`,
+    params,
+  );
+  if (rows[0]?.ID_persona) return rows[0].ID_persona;
+
+  const [result] = await executor.query(
+    `INSERT INTO ${TABLE}
+      (Primer_Nombre, Segundo_Nombre, Primer_Apellido, Segundo_Apellido, ID_RolP, ID_Cargo,
+       Contacto, Tipo_documento, Numero_documento, Comentarios, ID_incidente,
+       ID_Agencia, ID_Usuario, ID_genero, estado)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      primerNombre,
+      formatNamePart(data.segundoNombre),
+      primerApellido,
+      formatNamePart(data.segundoApellido),
+      data.roleId || 1,
+      data.cargoId ?? null,
+      contacto,
+      data.tipoDocumento || null,
+      numeroDocumento,
+      null,
+      null,
+      code,
+      data.userId ?? null,
+      normalizeGenderId(data.genderId),
+      'Activo',
+    ],
+  );
+  return result.insertId || null;
+}
+
+async function backfillCatalogFromIncidentPeople() {
+  const [rows] = await pool.query(
+    `SELECT p.Primer_Nombre AS primerNombre,
+            p.Segundo_Nombre AS segundoNombre,
+            p.Primer_Apellido AS primerApellido,
+            p.Segundo_Apellido AS segundoApellido,
+            p.ID_RolP AS roleId,
+            p.ID_Cargo AS cargoId,
+            p.Contacto AS contacto,
+            p.Tipo_documento AS tipoDocumento,
+            p.Numero_documento AS numeroDocumento,
+            p.ID_Agencia AS agencyCode,
+            p.ID_Usuario AS userId,
+            p.ID_genero AS genderId
+     FROM personas p
+     INNER JOIN (
+       SELECT MAX(ID_persona) AS id
+       FROM personas
+       WHERE ID_incidente IS NOT NULL
+       GROUP BY ID_Agencia,
+                COALESCE(
+                  NULLIF(REPLACE(REPLACE(REPLACE(IFNULL(Numero_documento, ''), '.', ''), '-', ''), ' ', ''), ''),
+                  CONCAT('TEL:', REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(Contacto, ''), '+', ''), '-', ''), ' ', ''), '.', ''))
+                )
+     ) latest ON latest.id = p.ID_persona`,
+  );
+  for (const row of rows) {
+    await ensureCatalogPerson(pool, row, row.agencyCode);
+  }
+}
+
 async function lookupByDocument(documentId, agencyCode = null) {
   await ensureAdminPersonasCatalog();
   const digits = String(documentId || '').replace(/\D/g, '');
@@ -396,12 +542,12 @@ async function lookupByDocument(documentId, agencyCode = null) {
   }
 
   const [rows] = await pool.query(
-    `SELECT ${PERSON_SELECT}
+    `SELECT ${PERSON_LOOKUP_SELECT}
      WHERE ${adminCatalogWhere('p')}
        AND COALESCE(NULLIF(p.estado, ''), 'Activo') = 'Activo'
        AND (
          p.Numero_documento = ?
-         OR REPLACE(REPLACE(REPLACE(p.Numero_documento, '.', ''), '-', ''), ' ', '') = ?
+         OR REPLACE(REPLACE(REPLACE(IFNULL(p.Numero_documento, ''), '.', ''), '-', ''), ' ', '') = ?
        )
        ${agencyClause}
      ORDER BY p.FechaRegistro DESC
@@ -413,18 +559,23 @@ async function lookupByDocument(documentId, agencyCode = null) {
 
 async function lookupByPhone(candidates, agencyCode = null) {
   await ensureAdminPersonasCatalog();
-  const ph = candidates.map(() => '?').join(',');
-  const params = [...candidates];
+  const list = [...new Set((candidates || []).map((v) => String(v || '').trim()).filter(Boolean))];
+  if (!list.length) return null;
+  const ph = list.map(() => '?').join(',');
+  const params = [...list, ...list];
   let agencyClause = '';
   if (agencyCode) {
-    agencyClause = ' AND UPPER(p.ID_Agencia) = ?';
-    params.push(normalizeAgencyCode(agencyCode));
+    agencyClause = ' AND UPPER(p.ID_Agencia) IN (UPPER(?), LOWER(?))';
+    params.push(agencyCode, agencyCode);
   }
   const [rows] = await pool.query(
-    `SELECT ${PERSON_SELECT}
+    `SELECT ${PERSON_LOOKUP_SELECT}
      WHERE ${adminCatalogWhere('p')}
        AND COALESCE(NULLIF(p.estado, ''), 'Activo') = 'Activo'
-       AND p.Contacto IN (${ph})
+       AND (
+         p.Contacto IN (${ph})
+         OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(p.Contacto, ''), '+', ''), '-', ''), ' ', ''), '.', '') IN (${ph})
+       )
        ${agencyClause}
      ORDER BY p.FechaRegistro DESC
      LIMIT 1`,
@@ -504,4 +655,7 @@ module.exports = {
   listJudgeCargos,
   insertPersonComment,
   deletePersonComments,
+  personCommentHistoryExpr,
+  ensureCatalogPerson,
+  ensurePersonSharePointStorage,
 };

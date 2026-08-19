@@ -2,7 +2,6 @@ const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
 const { locationChannelToGi, locationChannelFromGi } = require('./maps');
 const { resolveActorForDb } = require('../../utils/jwtUser');
-const { getInternalId } = require('./incidents');
 const { requireAgencyInput } = require('./agencyContext');
 
 const NO_DB_USER_MSG =
@@ -14,6 +13,7 @@ async function createLocationRequest({ phone, channel, incidentId, user, request
   if (!actor?.userId) {
     throw new HttpError(400, NO_DB_USER_MSG);
   }
+  const { getInternalId } = require('./incidents');
   const internalIncident = incidentId ? await getInternalId(incidentId) : null;
 
   const [result] = await pool.query(

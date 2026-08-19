@@ -51,6 +51,7 @@ async function listAuditLogs(agencyCode) {
      FROM auditoria_incidente a
      INNER JOIN incidentes i ON i.ID_incidente = a.incidentes_id
      WHERE UPPER(i.IDAgencias) = ?
+       AND a.fecha >= i.FechaHora
      ORDER BY a.fecha DESC
      LIMIT 500`,
     [agency],

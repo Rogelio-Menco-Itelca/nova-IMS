@@ -32,6 +32,10 @@ function mapPerson(r) {
   };
 }
 
+function mapPersonLookup(r) {
+  return { ...mapPerson(r), comentarios: '' };
+}
+
 exports.list = asyncHandler(async (req, res) => {
   const agencyCode = requireSessionAgency(req);
   const rows = await giPeople.listPeople(agencyCode);
@@ -156,7 +160,7 @@ exports.lookupByPhone = asyncHandler(async (req, res) => {
   const result = await giPeople.lookupByPhone(list, agencyCode);
   if (!result) throw new HttpError(404, 'Número no registrado');
 
-  const person = mapPerson(result.person);
+  const person = mapPersonLookup(result.person);
   if (result.documentType && !person.documentType) {
     person.documentType = result.documentType;
   }
@@ -172,7 +176,7 @@ exports.lookupByDocument = asyncHandler(async (req, res) => {
   const row = await giPeople.lookupByDocument(digits, agencyCode);
   if (!row) throw new HttpError(404, 'Documento no registrado');
   res.set('Cache-Control', 'no-store');
-  res.json(mapPerson(row));
+  res.json(mapPersonLookup(row));
 });
 
 exports.personRoles = asyncHandler(async (req, res) => {

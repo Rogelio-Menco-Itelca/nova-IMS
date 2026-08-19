@@ -53,7 +53,10 @@ function mapIncidentRow(r) {
     agency: r.agency_code || r.agency || '',
     timestamp: r.created_at || r.timestamp,
     updatedAt: r.updated_at || r.updatedAt || r.created_at || r.timestamp,
-    involvedPeople: r.involvedPeople || [],
+    involvedPeople: (r.involvedPeople || []).map((p) => {
+      const expediente = String(p.comentarios || p.details || '').trim();
+      return { ...p, comentarios: expediente, details: expediente };
+    }),
     involvedPlaces: r.involvedPlaces || [],
     involvedVehicles: r.involvedVehicles || [],
   };
@@ -250,12 +253,14 @@ const dashboardMetrics = asyncHandler(async (req, res) => {
 
 const list = asyncHandler(async (req, res) => {
   const agencyCode = requireSessionAgency(req);
+  res.set('Cache-Control', 'no-store');
   const rows = await giIncidents.listIncidents(100, agencyCode);
   res.json(rows.map(mapIncidentRow));
 });
 
 const getOne = asyncHandler(async (req, res) => {
   const agencyCode = requireSessionAgency(req);
+  res.set('Cache-Control', 'no-store');
   const inc = await giIncidents.getIncident(req.params.id, agencyCode);
   if (!inc) throw new HttpError(404, 'Incidente no encontrado');
   res.json(mapIncidentRow(inc));

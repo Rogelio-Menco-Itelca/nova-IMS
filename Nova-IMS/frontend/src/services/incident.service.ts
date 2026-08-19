@@ -23,7 +23,12 @@ export class IncidentService {
   constructor() {
     this.socketService.on('incident:created', (newIncident: Incident) => {
       if (!this.belongsToLoadedAgency(newIncident)) return;
-      this.incidents.update((list) => [newIncident, ...list]);
+      this.incidents.update((list) => {
+        if (list.some((i) => i.id === newIncident.id)) {
+          return list.map((i) => (i.id === newIncident.id ? { ...i, ...newIncident } : i));
+        }
+        return [newIncident, ...list];
+      });
       this.refreshDashboardMetrics();
     });
 
@@ -61,7 +66,7 @@ export class IncidentService {
       const nb = b == null ? Number.NaN : Number(b);
       if (isValidCoordComponent(na)) return na;
       if (isValidCoordComponent(nb)) return nb;
-      return a ?? b ?? 0;
+      return null;
     };
 
     for (const inc of list) {
@@ -121,6 +126,10 @@ export class IncidentService {
     return this.http.post<Incident>(this.apiUrl, incident);
   }
 
+  fetchIncident(id: string): Observable<Incident> {
+    return this.http.get<Incident>(`${this.apiUrl}/${encodeURIComponent(id)}`);
+  }
+
   addIncident(incident: Incident): void {
     this.createIncident(incident).subscribe({
       next: () => {
@@ -139,7 +148,11 @@ export class IncidentService {
     this.notificationService.addNotification('Error al guardar', msg);
   }
 
-  updateIncident(updatedIncident: Incident, onSuccess?: (saved: Incident) => void): void {
+  updateIncident(
+    updatedIncident: Incident,
+    onSuccess?: (saved: Incident) => void,
+    onError?: () => void,
+  ): void {
     this.http.put<Incident>(`${this.apiUrl}/${updatedIncident.id}`, updatedIncident).subscribe({
       next: (saved) => {
         this.incidents.update((list) =>
@@ -154,6 +167,7 @@ export class IncidentService {
           err?.error?.message ||
           'No se pudo actualizar el incidente en el servidor.';
         this.notificationService.addNotification('Error al guardar', msg);
+        onError?.();
       },
     });
   }

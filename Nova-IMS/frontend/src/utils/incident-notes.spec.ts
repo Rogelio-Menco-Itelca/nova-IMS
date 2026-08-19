@@ -163,6 +163,28 @@ describe('buildCommentHistoryView', () => {
     expect(view[0].text).toBe('Descripción antigua');
     expect(view[1].text).toBe('Comentario nuevo');
   });
+
+  it('no duplica comentarios repetidos en el historial serializado', () => {
+    const comments = [
+      '[10/06/2026, 10:00:00] Ana\nprueba',
+      '[10/06/2026, 10:00:02] Ana\nprueba',
+      '[10/06/2026, 10:01:00] Ana\nprueba 1',
+    ].join(INCIDENT_NOTE_SEPARATOR);
+    const view = buildCommentHistoryView(comments, null);
+    expect(view).toHaveLength(2);
+    expect(view.map((e) => e.text)).toEqual(['prueba', 'prueba 1']);
+  });
+
+  it('no mezcla de nuevo el historial legado ya presente en comentarios', () => {
+    const comments = [
+      '[10/06/2026, 10:00:00]\nprueba',
+      '[10/06/2026, 10:01:00]\nprueba 1',
+    ].join(INCIDENT_NOTE_SEPARATOR);
+    const legacy = comments;
+    const view = buildCommentHistoryView(comments, legacy);
+    expect(view).toHaveLength(2);
+    expect(view.map((e) => e.text)).toEqual(['prueba', 'prueba 1']);
+  });
 });
 
 describe('countReiteracionNotes', () => {

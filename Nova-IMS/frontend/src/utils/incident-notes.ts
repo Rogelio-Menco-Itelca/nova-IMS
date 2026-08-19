@@ -204,21 +204,58 @@ export function latestIncidentNoteText(raw: string | null | undefined): string {
   return entries.at(-1)?.text ?? '';
 }
 
+function normalizeNoteText(text: string): string {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function dedupeIncidentNoteEntries(entries: IncidentNoteEntry[]): IncidentNoteEntry[] {
+  const seen = new Set<string>();
+  const out: IncidentNoteEntry[] = [];
+  for (const entry of entries) {
+    const key = normalizeNoteText(entry.text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+}
+
+function noteTextAlreadyCovered(seen: Set<string>, text: string): boolean {
+  const key = normalizeNoteText(text);
+  if (!key) return true;
+  return seen.has(key);
+}
+
 export function buildCommentHistoryView(
   comments?: string | null,
   legacyDetails?: string | null,
 ): IncidentNoteEntry[] {
-  const fromComments = parseIncidentNotes(comments);
+  const fromComments = dedupeIncidentNoteEntries(parseIncidentNotes(comments));
   const legacy = String(legacyDetails ?? '').trim();
   if (!legacy) return fromComments;
+
   if (!fromComments.length) {
-    return parseIncidentNotes(legacy);
+    return dedupeIncidentNoteEntries(parseIncidentNotes(legacy));
   }
-  const alreadyThere = fromComments.some(
-    (e) => e.text.trim() === legacy || legacy.includes(e.text.trim()),
-  );
-  if (alreadyThere) return fromComments;
-  return [{ timestamp: null, author: 'Descripción inicial', text: legacy }, ...fromComments];
+
+  const looksSerialized =
+    legacy.includes(INCIDENT_NOTE_SEPARATOR) || /^\s*\[[^\]]+\]/.test(legacy);
+  const fromLegacy = looksSerialized
+    ? parseIncidentNotes(legacy)
+    : [{ timestamp: null, author: 'Descripción inicial', text: legacy }];
+
+  const seen = new Set(fromComments.map((e) => normalizeNoteText(e.text)).filter(Boolean));
+  const extra: IncidentNoteEntry[] = [];
+  for (const entry of fromLegacy) {
+    if (noteTextAlreadyCovered(seen, entry.text)) continue;
+    const key = normalizeNoteText(entry.text);
+    seen.add(key);
+    extra.push(entry);
+  }
+  return [...extra, ...fromComments];
 }
 
 export function latestIncidentCommentEntry(

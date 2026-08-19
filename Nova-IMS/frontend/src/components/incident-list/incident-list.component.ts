@@ -78,6 +78,7 @@ import { PermissionService } from '../../services/permission.service';
 import { PersonService } from '../../services/person.service';
 import { ColombiaGeoService } from '../../services/colombia-geo.service';
 import { AuditClientService } from '../../services/audit-client.service';
+import { ProfilePhotoService } from '../../services/profile-photo.service';
 import { HttpClient } from '@angular/common/http';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import { MedidasComponent } from '../medidas/medidas.component';
@@ -90,7 +91,6 @@ import {
 } from '../../utils/google-maps-legacy';
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
 import {
-  appendIncidentNote,
   displayCommentBody,
   formatNoteForDisplay,
   IncidentNoteEntry,
@@ -105,8 +105,9 @@ import { AuditLog } from '../../models/admin.model';
 import {
   IncidentLocationCoordSync,
   buildGeocodeQuery,
-  geocodeAddressQuery,
+  geoCatalogNamesLooselyEqual,
   hasValidIncidentCoords,
+  parseIncidentCoords,
   shouldApplyIncomingGpsLocation,
 } from '../../utils/incident-location-coords';
 import {
@@ -186,6 +187,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly vehicleLookupNotified = new Set<string>();
   private readonly personLookupTimers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly personLastLookupKey = new Map<number, string>();
+  private readonly personLookupNotified = new Set<string>();
+  private personRowSeq = 0;
   private placeDeptSubs: Subscription[] = [];
   private readonly fb = inject(FormBuilder);
   private readonly notificationService = inject(NotificationService);
@@ -203,11 +206,19 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly incidentService = inject(IncidentService);
   private readonly authService = inject(AuthService);
   readonly permissionService = inject(PermissionService);
+  private readonly profilePhotoService = inject(ProfilePhotoService);
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly colombiaGeo = inject(ColombiaGeoService);
   private readonly http = inject(HttpClient);
   private readonly auditClient = inject(AuditClientService);
+  private incidentSaveInFlight = false;
+  private hydratingIncidentForm = false;
+  private hydrateLookupTimer: ReturnType<typeof setTimeout> | null = null;
+  private trustedIncidentCoords: { lat: number; lng: number } | null = null;
+  private trustedLocationText = '';
+  private trustedExpedientePeople: InvolvedPerson[] = [];
+  private locationFieldsEditedByUser = false;
 
   openIncidentTabs = signal<Incident[]>([]);
   showNewIncidentTab = signal(false);
@@ -255,6 +266,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private marker: MapPin | null = null;
   private geocoder: google.maps.Geocoder | null = null;
   private autocomplete: PlaceAutocompleteControl | null = null;
+  /** Solo sesga geocode/autocomplete a depto/ciudad si el usuario los eligió a mano. */
+  private locationAreaPinnedByUser = false;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -266,13 +279,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private priorityManuallyOverridden = false;
   private incidentDeptSub: Subscription | undefined;
   private locationTextSub: Subscription | undefined;
-  private locationResolveSub: Subscription | undefined;
   private readonly locationCoordSync = new IncidentLocationCoordSync();
   private formSyncEpoch = 0;
   private syncedFormFingerprint: { incidentId: string; fp: string } | null = null;
   private formSyncStableTimer: ReturnType<typeof setTimeout> | null = null;
   private medidasEngaged = false;
-  private readonly personLookupNotified = new Set<string>();
 
   incidents = this.incidentService.incidents;
   auditLogs = this.configService.auditLogs;
@@ -426,13 +437,22 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           const incident = this.resolveIncidentForTab(tabId);
           if (incident) {
             this.setupStatusDropdownForEdit(agency, incident.status);
-            this.populateFormWithState(incident, { trustCoords: true });
+            this.populateFormWithState(incident);
+            this.refreshIncidentFromServer(incident.id);
             this.refreshWorkflowGestion(incident.id);
             if (shouldNavigateToMedidasTab(String(incident.status ?? ''))) {
               this.applyDetailTab('medidas');
             }
             setTimeout(() => {
-              void this.initMap(incident.lat, incident.lng).finally(() => {
+              const parsed =
+                parseIncidentCoords(
+                  this.incidentForm.get('lat')?.value,
+                  this.incidentForm.get('lng')?.value,
+                ) ??
+                this.trustedIncidentCoords ??
+                parseIncidentCoords(incident.lat, incident.lng);
+              void this.initMap(parsed?.lat, parsed?.lng).finally(() => {
+                this.restoreHydratedIncidentFields();
                 this.scheduleFormSyncAfterStable(incident.id);
               });
             }, 0);
@@ -576,6 +596,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private markLocationCoordsSynced(): void {
     this.locationCoordSync.markSynced(this.getLocationSnapshot());
+    const raw = this.incidentForm.getRawValue();
+    this.rememberTrustedIncidentCoords(raw.lat, raw.lng, raw.location);
   }
 
   private shouldApplyIncomingLocation(locationData: LocationData): boolean {
@@ -620,35 +642,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       return false;
     }
 
-    await this.ensureGeocoderReady();
-    if (!this.geocoder) {
-      this.notificationService.addNotification(
-        'Mapa no disponible',
-        'No se pudo validar la ubicación en el mapa. Intente de nuevo.',
-      );
-      return false;
-    }
-
-    const query = buildGeocodeQuery(
-      snapshot,
-      (id) => this.departments().find((d) => d.id === id)?.name,
-      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
+    await this.forwardGeocodeAddress(address);
+    const nextLat = this.incidentForm.get('lat')?.value;
+    const nextLng = this.incidentForm.get('lng')?.value;
+    return (
+      this.locationCoordSync.isSynced(this.getLocationSnapshot()) &&
+      hasValidIncidentCoords(nextLat, nextLng)
     );
-    const geocoded = await geocodeAddressQuery(this.geocoder, query);
-    if (!geocoded) {
-      this.notificationService.addNotification(
-        'Dirección no ubicada',
-        'No se pudo ubicar la dirección en el mapa. Use el buscador, Enter o el pin del mapa.',
-      );
-      return false;
-    }
-
-    await this.applyLocationFromGeocode(
-      geocoded.lat,
-      geocoded.lng,
-      geocoded.formattedAddress,
-    );
-    return true;
   }
 
   private ensureFormCoords(lat: number, lng: number): void {
@@ -662,36 +662,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       );
     });
     this.markLocationCoordsSynced();
-  }
-
-  private async resolveLocationFromForm(): Promise<void> {
-    if (this.locationCoordSync.isPatching()) return;
-    const epoch = this.formSyncEpoch;
-    const snapshot = this.getLocationSnapshot();
-    if (!String(snapshot.location ?? '').trim()) return;
-
-    const lat = this.incidentForm.get('lat')?.value;
-    const lng = this.incidentForm.get('lng')?.value;
-    if (this.locationCoordSync.isSynced(snapshot) && hasValidIncidentCoords(lat, lng)) {
-      return;
-    }
-
-    await this.ensureGeocoderReady();
-    if (epoch !== this.formSyncEpoch || !this.geocoder) return;
-
-    const query = buildGeocodeQuery(
-      snapshot,
-      (id) => this.departments().find((d) => d.id === id)?.name,
-      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
-    );
-    const geocoded = await geocodeAddressQuery(this.geocoder, query);
-    if (epoch !== this.formSyncEpoch || !geocoded) return;
-
-    await this.applyLocationFromGeocode(
-      geocoded.lat,
-      geocoded.lng,
-      geocoded.formattedAddress,
-    );
   }
 
   private async ensureGeocoderReady(): Promise<void> {
@@ -834,9 +804,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const formLat = this.incidentForm.get('lat')?.value;
     const formLng = this.incidentForm.get('lng')?.value;
-    const centerLat = Number(lat ?? formLat ?? IMS_DEFAULT_MAP_CENTER.lat);
-    const centerLng = Number(lng ?? formLng ?? IMS_DEFAULT_MAP_CENTER.lng);
-    const hasCoords = hasValidIncidentCoords(centerLat, centerLng);
+    const parsed =
+      parseIncidentCoords(formLat, formLng) ??
+      this.trustedIncidentCoords ??
+      parseIncidentCoords(lat, lng);
+    const centerLat = parsed?.lat ?? IMS_DEFAULT_MAP_CENTER.lat;
+    const centerLng = parsed?.lng ?? IMS_DEFAULT_MAP_CENTER.lng;
+    const hasCoords = !!parsed;
 
     this.map = new google.maps.Map(mapEl, {
       center: { lat: centerLat, lng: centerLng },
@@ -855,43 +829,294 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       });
     }
 
-    this.marker = createMapPin({
-      map: this.map,
-      position: hasCoords
-        ? { lat: centerLat, lng: centerLng }
-        : { lat: IMS_DEFAULT_MAP_CENTER.lat, lng: IMS_DEFAULT_MAP_CENTER.lng },
-      draggable: true,
-      title: 'Ubicación del incidente',
-    });
+    const bindMarkerDrag = (pin: google.maps.Marker) => {
+      pin.addListener('dragend', () => {
+        const pos = pin.getPosition();
+        if (!pos) return;
+        const clamped = clampLatLngToColombia(pos.lat(), pos.lng());
+        pin.setPosition(clamped);
+        this.ngZone.run(() => {
+          this.locationFieldsEditedByUser = true;
+          this.updateFormCoords(clamped.lat, clamped.lng);
+          this.reverseGeocode(clamped.lat, clamped.lng);
+        });
+      });
+    };
+
+    if (hasCoords) {
+      this.marker = createMapPin({
+        map: this.map,
+        position: { lat: centerLat, lng: centerLng },
+        draggable: true,
+        title: 'Ubicación del incidente',
+      });
+      bindMarkerDrag(this.marker);
+    }
 
     const map = this.map;
-    const marker = this.marker;
-    if (!map || !marker) return;
+    if (!map) return;
 
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
       const clamped = clampLatLngToColombia(e.latLng.lat(), e.latLng.lng());
-      marker.setPosition(clamped);
+      if (!this.marker) {
+        this.marker = createMapPin({
+          map,
+          position: clamped,
+          draggable: true,
+          title: 'Ubicación del incidente',
+        });
+        bindMarkerDrag(this.marker);
+      } else {
+        this.marker.setPosition(clamped);
+      }
       this.ngZone.run(() => {
-        this.updateFormCoords(clamped.lat, clamped.lng);
-        this.reverseGeocode(clamped.lat, clamped.lng);
-      });
-    });
-
-    marker.addListener('dragend', () => {
-      const pos = marker.getPosition();
-      if (!pos) return;
-      const clamped = clampLatLngToColombia(pos.lat(), pos.lng());
-      marker.setPosition(clamped);
-      this.ngZone.run(() => {
+        this.locationFieldsEditedByUser = true;
         this.updateFormCoords(clamped.lat, clamped.lng);
         this.reverseGeocode(clamped.lat, clamped.lng);
       });
     });
 
     this.initAutocomplete();
+    this.bindAutocompleteAreaBias();
     this.mapReady.set(true);
     this.cdr.markForCheck();
+  }
+
+  private hasPinnedLocationArea(): boolean {
+    if (!this.locationAreaPinnedByUser) return false;
+    return (
+      this.incidentForm.get('departmentId')?.value != null ||
+      this.incidentForm.get('municipalityId')?.value != null
+    );
+  }
+
+  private initAutocomplete(): void {
+    const locationInput = document.getElementById('location');
+    if (!(locationInput instanceof HTMLInputElement)) return;
+
+    // Por defecto: solo sugerencias dentro del área de Bogotá (calles homónimas en otras ciudades).
+    this.autocomplete = createPlaceAutocomplete(locationInput, {
+      componentRestrictions: googleMapsCountryRestriction(),
+      fields: ['geometry', 'formatted_address', 'address_components', 'name'],
+      types: ['geocode'],
+      bounds: this.bogotaBiasBounds(),
+      strictBounds: false,
+    });
+
+    this.autocomplete.addListener('place_changed', () => {
+      const place = this.autocomplete!.getPlace();
+      this.ngZone.run(() => {
+        this.locationFieldsEditedByUser = true;
+        const typedText = String(locationInput.value || place.formatted_address || '').trim();
+        const loc = place.geometry?.location;
+        if (!loc) {
+          if (typedText) void this.forwardGeocodeAddress(typedText);
+          return;
+        }
+        const lat = loc.lat();
+        const lng = loc.lng();
+        const hasArea = this.hasPinnedLocationArea();
+
+        if (hasArea && !this.placeMatchesSelectedArea(place)) {
+          this.notificationService.addNotification(
+            'Ubicación fuera del área',
+            this.selectedAreaHint(),
+          );
+          this.cdr.markForCheck();
+          return;
+        }
+
+        if (!hasArea && !this.isBogotaPlace(place, lat, lng)) {
+          if (typedText) {
+            this.locationCoordSync.runPatch(() => {
+              this.incidentForm.patchValue({ location: typedText }, { emitEvent: false });
+            });
+            void this.forwardGeocodeAddress(typedText);
+          }
+          return;
+        }
+
+        if (typedText) {
+          this.locationCoordSync.runPatch(() => {
+            this.incidentForm.patchValue({ location: typedText }, { emitEvent: false });
+          });
+        }
+        this.applyLocationFromGeocode(lat, lng, place).catch(() => void 0);
+      });
+    });
+  }
+
+  private bogotaBiasBounds(): google.maps.LatLngBoundsLiteral {
+    const { lat, lng } = IMS_DEFAULT_MAP_CENTER;
+    const delta = 0.32;
+    return {
+      north: lat + delta,
+      south: lat - delta,
+      east: lng + delta,
+      west: lng - delta,
+    };
+  }
+
+  private isWithinBogotaArea(lat: number, lng: number): boolean {
+    return lat >= 4.28 && lat <= 4.95 && lng >= -74.35 && lng <= -73.85;
+  }
+
+  private isBogotaPlace(
+    place: google.maps.places.PlaceResult,
+    lat?: number,
+    lng?: number,
+  ): boolean {
+    const la = lat ?? place.geometry?.location?.lat();
+    const ln = lng ?? place.geometry?.location?.lng();
+    if (la != null && ln != null && this.isWithinBogotaArea(la, ln)) return true;
+    const hay = this.normalizeGeoName(
+      [
+        place.formatted_address,
+        place.name,
+        ...(place.address_components ?? []).map((c) => c.long_name),
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    return hay.includes('BOGOTA');
+  }
+
+  private selectedAreaHint(): string {
+    const deptId = this.incidentForm.get('departmentId')?.value;
+    const muniId = this.incidentForm.get('municipalityId')?.value;
+    const dept = this.departments().find((d) => d.id === deptId)?.name;
+    const muni = this.incidentMunicipalities().find((m) => m.id === muniId)?.name;
+    if (muni && dept) {
+      return `Esa sugerencia no está en ${muni}, ${dept}. Elija otra o marque el punto en el mapa.`;
+    }
+    if (dept) {
+      return `Esa sugerencia no está en ${dept}. Elija otra o marque el punto en el mapa.`;
+    }
+    return 'No se pudo ubicar en Bogotá. Marque el punto en el mapa o seleccione departamento/ciudad.';
+  }
+
+  private buildAutocompleteBiasBounds(): google.maps.LatLngBoundsLiteral {
+    return this.bogotaBiasBounds();
+  }
+
+  private bindAutocompleteAreaBias(): void {
+    const refresh = () => {
+      void this.refreshAutocompleteBias();
+    };
+    this.incidentForm.get('departmentId')?.valueChanges.subscribe(refresh);
+    this.incidentForm.get('municipalityId')?.valueChanges.subscribe(refresh);
+    void this.refreshAutocompleteBias();
+  }
+
+  private async refreshAutocompleteBias(): Promise<void> {
+    if (!this.autocomplete) return;
+    const pinned = this.hasPinnedLocationArea();
+    const snapshot = this.getLocationSnapshot();
+    const deptName =
+      pinned && snapshot.departmentId != null
+        ? String(this.departments().find((d) => d.id === snapshot.departmentId)?.name ?? '').trim()
+        : '';
+    const muniName =
+      pinned && snapshot.municipalityId != null
+        ? String(
+            this.incidentMunicipalities().find((m) => m.id === snapshot.municipalityId)?.name ?? '',
+          ).trim()
+        : '';
+
+    if (!deptName && !muniName) {
+      this.autocomplete.setBounds(this.buildAutocompleteBiasBounds());
+      this.autocomplete.setStrictBounds(false);
+      return;
+    }
+
+    const geocoder = await this.ensureGeocoder();
+    if (!geocoder || !this.autocomplete) return;
+    const query = appendCountryToGeocodeQuery([muniName, deptName].filter(Boolean).join(', '));
+    geocoder.geocode(
+      {
+        address: query,
+        region: IMS_GEO.countryCode,
+        componentRestrictions: { country: IMS_GEO.countryCode.toUpperCase() },
+      },
+      (results, status) => {
+        if (status !== 'OK' || !results?.[0]?.geometry) {
+          this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
+          this.autocomplete?.setStrictBounds(true);
+          return;
+        }
+        const viewport = results[0].geometry.viewport;
+        if (viewport) {
+          this.autocomplete?.setBounds(viewport);
+          this.autocomplete?.setStrictBounds(true);
+          return;
+        }
+        const loc = results[0].geometry.location;
+        if (!loc) {
+          this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
+          this.autocomplete?.setStrictBounds(true);
+          return;
+        }
+        const lat = loc.lat();
+        const lng = loc.lng();
+        const delta = 0.22;
+        this.autocomplete?.setBounds({
+          north: lat + delta,
+          south: lat - delta,
+          east: lng + delta,
+          west: lng - delta,
+        });
+        this.autocomplete?.setStrictBounds(true);
+      },
+    );
+  }
+
+  private placeMatchesSelectedArea(place: google.maps.places.PlaceResult): boolean {
+    const deptId = this.incidentForm.get('departmentId')?.value;
+    const muniId = this.incidentForm.get('municipalityId')?.value;
+    const hay = this.normalizeGeoName(
+      [
+        place.formatted_address,
+        ...(place.address_components ?? []).map((c) => c.long_name),
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+
+    // Sin área fijada por el usuario: aceptar Bogotá por nombre o por coordenadas.
+    if (!this.hasPinnedLocationArea()) {
+      const la = place.geometry?.location?.lat();
+      const ln = place.geometry?.location?.lng();
+      return this.isBogotaPlace(place, la, ln);
+    }
+
+    if (deptId != null) {
+      const deptName = this.normalizeGeoName(
+        String(this.departments().find((d) => d.id === deptId)?.name ?? ''),
+      );
+      if (deptName && !hay.includes(deptName) && !this.geoNamesLooselyMatch(hay, deptName)) {
+        return false;
+      }
+    }
+
+    if (muniId != null) {
+      const muniName = this.normalizeGeoName(
+        String(this.incidentMunicipalities().find((m) => m.id === muniId)?.name ?? ''),
+      );
+      if (muniName && !hay.includes(muniName) && !this.geoNamesLooselyMatch(hay, muniName)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private geoNamesLooselyMatch(haystack: string, name: string): boolean {
+    if (!name || !haystack) return false;
+    if (haystack.includes(name)) return true;
+    // Bogotá D.C. vs Bogota / Bogotá
+    if (name.includes('BOGOTA') && haystack.includes('BOGOTA')) return true;
+    return false;
   }
 
   private async syncMapToCoords(lat: number, lng: number, zoom = 17): Promise<void> {
@@ -914,26 +1139,18 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private initAutocomplete() {
-    const locationInput = document.getElementById('location');
-    if (!(locationInput instanceof HTMLInputElement)) return;
+  private isPlacesSuggestionOpen(): boolean {
+    const pac = document.querySelector('.pac-container');
+    if (!(pac instanceof HTMLElement)) return false;
+    if (pac.style.display === 'none') return false;
+    return pac.offsetHeight > 0 && pac.childElementCount > 0;
+  }
 
-    this.autocomplete = createPlaceAutocomplete(locationInput, {
-      componentRestrictions: googleMapsCountryRestriction(),
-      fields: ['geometry', 'formatted_address', 'address_components'],
-    });
-
-    this.autocomplete.addListener('place_changed', () => {
-      const place = this.autocomplete!.getPlace();
-      if (!place.geometry?.location) return;
-
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-
-      this.ngZone.run(() => {
-        this.applyLocationFromGeocode(lat, lng, place.formatted_address, place).catch(() => void 0);
-      });
-    });
+  onLocationEnter(event: Event): void {
+    if (this.isPlacesSuggestionOpen()) return;
+    event.preventDefault();
+    this.locationFieldsEditedByUser = true;
+    this.geocodeManualLocation();
   }
 
   geocodeManualLocation(): void {
@@ -959,43 +1176,157 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const geocoder = await this.ensureGeocoder();
     if (epoch !== this.formSyncEpoch || !geocoder) return;
 
-    const query = appendCountryToGeocodeQuery(address);
+    const snapshot = this.getLocationSnapshot();
+    const pinned = this.hasPinnedLocationArea();
+    const effectiveSnapshot = pinned
+      ? snapshot
+      : { ...snapshot, departmentId: null, municipalityId: null };
 
-    geocoder.geocode({ address: query, region: IMS_GEO.countryCode }, (results, status) => {
-      this.ngZone.run(() => {
-        if (epoch !== this.formSyncEpoch) return;
-        if (status !== 'OK' || !results?.[0]?.geometry?.location) {
-          this.notificationService.addNotification(
-            'Dirección no encontrada',
-            'No se pudo ubicar esa dirección. Revise el texto o elija una sugerencia del listado.',
-          );
-          this.cdr.markForCheck();
-          return;
-        }
-        const loc = results[0].geometry.location;
-        this.applyLocationFromGeocode(
-          loc.lat(),
-          loc.lng(),
-          results[0].formatted_address,
-          results[0],
-        ).catch(() => void 0);
+    let query = buildGeocodeQuery(
+      effectiveSnapshot,
+      (id) => this.departments().find((d) => d.id === id)?.name,
+      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
+    );
+    if (!query) return;
+
+    // Sin área fijada: forzar Bogotá (calles homónimas en Cali, Medellín, etc.).
+    if (!pinned && !/bogot/i.test(query)) {
+      query = appendCountryToGeocodeQuery(`${address}, Bogotá`);
+    }
+
+    const request: google.maps.GeocoderRequest = {
+      address: query,
+      region: IMS_GEO.countryCode,
+      componentRestrictions: { country: IMS_GEO.countryCode.toUpperCase() },
+      bounds: new google.maps.LatLngBounds(
+        {
+          lat: IMS_DEFAULT_MAP_CENTER.lat - 0.35,
+          lng: IMS_DEFAULT_MAP_CENTER.lng - 0.35,
+        },
+        {
+          lat: IMS_DEFAULT_MAP_CENTER.lat + 0.35,
+          lng: IMS_DEFAULT_MAP_CENTER.lng + 0.35,
+        },
+      ),
+    };
+
+    if (pinned) {
+      delete request.bounds;
+    }
+
+    const { results, status } = await new Promise<{
+      results: google.maps.GeocoderResult[] | null;
+      status: google.maps.GeocoderStatusString;
+    }>((resolve) => {
+      geocoder.geocode(request, (res, st) => {
+        resolve({ results: res ?? null, status: st });
       });
     });
+
+    if (epoch !== this.formSyncEpoch) return;
+
+    await new Promise<void>((resolve) => {
+      this.ngZone.run(() => {
+        void (async () => {
+          try {
+            const best = this.pickBestGeocodeResult(results, status, effectiveSnapshot);
+            if (!best?.geometry?.location) {
+              this.notificationService.addNotification(
+                'Dirección no encontrada',
+                pinned
+                  ? 'No se ubicó esa dirección en la ciudad seleccionada. Revise el texto o marque el punto en el mapa.'
+                  : 'No se ubicó en Bogotá. Seleccione departamento/ciudad o marque el punto en el mapa.',
+              );
+              this.cdr.markForCheck();
+              return;
+            }
+            const loc = best.geometry.location;
+            if (!this.geocodeResultMatchesSelectedArea(best)) {
+              this.notificationService.addNotification(
+                'Ubicación fuera del área',
+                this.selectedAreaHint(),
+              );
+              this.cdr.markForCheck();
+              return;
+            }
+            await this.applyLocationFromGeocode(loc.lat(), loc.lng(), best);
+          } finally {
+            resolve();
+          }
+        })();
+      });
+    });
+  }
+
+  private geocodeResultMatchesSelectedArea(result: google.maps.GeocoderResult): boolean {
+    return this.placeMatchesSelectedArea({
+      formatted_address: result.formatted_address,
+      address_components: result.address_components,
+    });
+  }
+
+  private pickBestGeocodeResult(
+    results: google.maps.GeocoderResult[] | null,
+    status: google.maps.GeocoderStatusString,
+    snapshot: { departmentId: number | null; municipalityId: number | null },
+  ): google.maps.GeocoderResult | null {
+    if (status !== 'OK' || !results?.length) return null;
+
+    const deptName =
+      snapshot.departmentId != null
+        ? String(this.departments().find((d) => d.id === snapshot.departmentId)?.name ?? '')
+            .trim()
+            .toLowerCase()
+        : '';
+    const muniName =
+      snapshot.municipalityId != null
+        ? String(
+            this.incidentMunicipalities().find((m) => m.id === snapshot.municipalityId)?.name ?? '',
+          )
+            .trim()
+            .toLowerCase()
+        : '';
+
+    if (!deptName && !muniName) {
+      const byName = results.find((r) => /bogot/i.test(String(r.formatted_address ?? '')));
+      if (byName) return byName;
+      return (
+        results.find((r) => {
+          const loc = r.geometry?.location;
+          return !!loc && this.isWithinBogotaArea(loc.lat(), loc.lng());
+        }) ?? null
+      );
+    }
+
+    const scored = results.map((result) => {
+      const hay = String(result.formatted_address ?? '').toLowerCase();
+      let score = 0;
+      if (muniName && hay.includes(muniName)) score += 3;
+      if (deptName && hay.includes(deptName)) score += 2;
+      if (/bogot/i.test(hay) && /bogot/i.test(deptName + muniName)) score += 1;
+      return { result, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.score > 0 ? scored[0].result : null;
   }
 
   private async applyLocationFromGeocode(
     lat: number,
     lng: number,
-    formattedAddress?: string,
     geocodeResult?: google.maps.GeocoderResult | google.maps.places.PlaceResult,
   ): Promise<void> {
     const epoch = this.formSyncEpoch;
     this.locationCoordSync.runPatch(() => {
+      const address = String(
+        geocodeResult && 'formatted_address' in geocodeResult
+          ? (geocodeResult.formatted_address ?? '')
+          : '',
+      ).trim();
       this.incidentForm.patchValue(
         {
           lat: roundCoord(lat),
           lng: roundCoord(lng),
-          ...(formattedAddress ? { location: formattedAddress } : {}),
+          ...(address ? { location: address } : {}),
         },
         { emitEvent: false },
       );
@@ -1040,9 +1371,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private catalogPartialMatchScore(itemName: string, candidate: string): number {
     if (!candidate) return 0;
-    if (candidate.includes(itemName)) return itemName.length;
-    if (itemName.includes(candidate) && candidate.length >= 4) return candidate.length;
-    return 0;
+    if (itemName === candidate) return itemName.length + 100;
+    if (!geoCatalogNamesLooselyEqual(itemName, candidate)) return 0;
+    // Prefer exact city names over longer catalog names that only contain the candidate as a word.
+    if (candidate.includes(itemName)) return itemName.length + 10;
+    return candidate.length;
   }
 
   private findBestCatalogMatch<T extends { name: string }>(
@@ -1131,6 +1464,12 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private async applyDepartmentMunicipalityFromGeocode(
     result: google.maps.GeocoderResult | google.maps.places.PlaceResult,
   ): Promise<void> {
+    const currentDept = this.normalizeOptionalId(this.incidentForm.get('departmentId')?.value);
+    const currentMuni = this.normalizeOptionalId(this.incidentForm.get('municipalityId')?.value);
+    const keepDept = this.locationAreaPinnedByUser && currentDept != null;
+    const keepMuni = this.locationAreaPinnedByUser && currentMuni != null;
+    if (keepDept && keepMuni) return;
+
     const components = result.address_components ?? [];
     const formattedAddress =
       'formatted_address' in result ? String(result.formatted_address ?? '') : '';
@@ -1169,8 +1508,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.locationCoordSync.runPatch(() => {
         this.incidentForm.patchValue(
           {
-            departmentId: department.id,
-            municipalityId: municipality?.id ?? null,
+            departmentId: keepDept ? currentDept : department.id,
+            municipalityId: keepMuni ? currentMuni : (municipality?.id ?? null),
           },
           { emitEvent: false },
         );
@@ -1289,10 +1628,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   incidentAuditLogs = computed(() => {
     const incident = this.activeIncident();
     if (!incident) return [];
+    const createdAt = this.parseTimelineDate(String(incident.timestamp ?? ''));
     return this.auditLogs()
-      .filter(
-        (log) => log.incidentId === incident.id && !this.isCommentOnlyAuditLog(log),
-      )
+      .filter((log) => log.incidentId === incident.id && !this.isCommentOnlyAuditLog(log))
+      .filter((log) => {
+        if (!createdAt) return true;
+        const at = this.parseTimelineDate(String(log.timestamp ?? ''));
+        return !at || at.getTime() >= createdAt.getTime() - 2000;
+      })
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   });
 
@@ -1333,6 +1676,45 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   timelineUserInitials(name: string): string {
     return noteAuthorInitials(this.historyAuthorName(name));
+  }
+
+  timelineAuthorPhoto(raw: string | null | undefined): string | null {
+    // Reactividad cuando cambia la foto del usuario en sesión.
+    this.profilePhotoService.photoUrl();
+
+    const value = String(raw ?? '').trim();
+    if (!value) return null;
+
+    const current = this.authService.currentUser();
+    const normalize = (v: string | undefined | null) => String(v || '').trim().toLowerCase();
+    const rawKey = normalize(value);
+    const displayName = normalize(this.historyAuthorName(value));
+
+    if (current?.id) {
+      const sessionId = normalize(current.id);
+      const sessionBare = sessionId.startsWith('ldap:') ? sessionId.slice(5) : sessionId;
+      const sessionName = normalize(current.name);
+      if (
+        rawKey === sessionId ||
+        rawKey === sessionBare ||
+        rawKey === sessionName ||
+        displayName === sessionName
+      ) {
+        return this.profilePhotoService.getPhotoUrl(current.id);
+      }
+    }
+
+    const operator = this.configService
+      .operators()
+      .find(
+        (o) =>
+          normalize(o.id) === rawKey ||
+          normalize(o.username) === rawKey ||
+          normalize(o.name) === rawKey ||
+          normalize(o.name) === displayName ||
+          normalize(o.email) === rawKey,
+      );
+    return operator?.id ? this.profilePhotoService.getPhotoUrl(operator.id) : null;
   }
 
   private historyFallbackAuthor(): string {
@@ -1534,7 +1916,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.incidentForm.patchValue({ municipalityId }, { emitEvent: false });
       }
       this.incidentMunicipalitiesLoaded.set(true);
-      this.cdr.markForCheck();
+      this.restoreHydratedIncidentFields();
     } catch {
       this.incidentMunicipalities.set([]);
       this.incidentMunicipalitiesLoaded.set(true);
@@ -1545,7 +1927,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.incidentDeptSub?.unsubscribe();
     const control = this.incidentForm.get('departmentId');
     if (!control) return;
-    this.incidentDeptSub = control.valueChanges.subscribe((val) => {
+    this.incidentDeptSub = control.valueChanges.pipe(distinctUntilChanged()).subscribe((val) => {
+      if (this.hydratingIncidentForm) return;
       this.refreshIncidentMunicipalities(Number(val)).catch(() => void 0);
     });
   }
@@ -1560,19 +1943,33 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
             segundoApellido: p?.segundoApellido ?? '',
           }
         : splitPersonName(p.name);
-    return this.fb.group({
+    const roleId = this.normalizePositiveId(p?.roleId);
+    const cargoId = this.normalizePositiveId(p?.cargoId);
+    const group = this.fb.group({
       primerNombre: [split.primerNombre ?? ''],
       segundoNombre: [split.segundoNombre ?? ''],
       primerApellido: [split.primerApellido ?? ''],
       segundoApellido: [split.segundoApellido ?? ''],
-      roleId: [p?.roleId ?? null],
-      cargoId: [p?.cargoId ?? null],
+      roleId: [roleId],
+      cargoId: [cargoId],
       documentType: [p?.documentType ?? ''],
       documentId: [p?.documentId ?? ''],
       genderId: [p?.genderId ?? null],
       contact: [p?.contact ?? p?.phone ?? ''],
-      comentarios: [p?.comentarios ?? p?.details ?? ''],
+      comentarios: [String(p?.comentarios || p?.details || '')],
     });
+    (group as FormGroup & { rowKey?: number }).rowKey = ++this.personRowSeq;
+    return group;
+  }
+
+  trackPersonRow(_index: number, control: AbstractControl): number {
+    return (control as FormGroup & { rowKey?: number }).rowKey ?? _index;
+  }
+
+  private normalizePositiveId(value: unknown): number | null {
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   createPersonGroup(): FormGroup {
@@ -1624,6 +2021,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   lookupInvolvedPerson(index: number, field: 'document' | 'contact'): void {
+    if (this.hydratingIncidentForm) return;
     const group = this.involvedPeople.at(index);
     if (!(group instanceof FormGroup)) return;
 
@@ -1691,7 +2089,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       cargoId: null,
       documentType: '',
       genderId: null,
-      comentarios: '',
     };
     if (changedField === 'document') {
       patch['contact'] = '';
@@ -1699,6 +2096,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       patch['documentId'] = '';
     }
     group.patchValue(patch, { emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   private resolveCargoIdFromPerson(person: Person): number | null {
@@ -1747,7 +2145,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.ensureJudgeCargoOption(cargoId, person.cargo);
     }
 
-    // Rol primero para que isPersonJudgeRole muestre el select; luego cargo.
+    const existingExpediente = String(group.get('comentarios')?.value ?? '').trim();
     group.patchValue(
       {
         primerNombre: names.primerNombre ?? '',
@@ -1759,7 +2157,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         documentId: person.documentId ?? '',
         genderId: person.genderId != null ? Number(person.genderId) : null,
         contact: person.phone || person.contacto || '',
-        comentarios: String(person.comentarios || '').trim(),
+        comentarios: existingExpediente,
       },
       { emitEvent: false },
     );
@@ -1786,22 +2184,24 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       String(v.segundoApellido || '').trim() ||
       String(v.documentId || '').trim() ||
       String(v.contact || '').trim() ||
-      String(v.comentarios || '').trim()
+      String(v.comentarios || '').trim() ||
+      this.normalizePositiveId(v.roleId) != null
     );
   }
 
   private isPersonRowSaveable(group: FormGroup): boolean {
     const v = group.getRawValue();
+    const roleId = this.normalizePositiveId(v.roleId);
     if (
       !(
         String(v.primerNombre || '').trim() &&
         String(v.primerApellido || '').trim() &&
-        v.roleId != null
+        roleId != null
       )
     ) {
       return false;
     }
-    if (this.isJudgeRoleId(v.roleId) && v.cargoId == null) return false;
+    if (this.isJudgeRoleId(roleId) && this.normalizePositiveId(v.cargoId) == null) return false;
     return true;
   }
 
@@ -1820,6 +2220,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   onPersonRoleChange(index: number): void {
     const group = this.involvedPeople.at(index);
     if (!(group instanceof FormGroup)) return;
+    const roleCtrl = group.get('roleId');
+    if (roleCtrl) {
+      roleCtrl.setValue(this.normalizePositiveId(roleCtrl.value), { emitEvent: false });
+    }
     if (!this.isPersonJudgeRole(index)) {
       group.get('cargoId')?.setValue(null, { emitEvent: false });
     }
@@ -1829,10 +2233,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private personGroupToInvolvedPerson(group: FormGroup): InvolvedPerson | null {
     if (!this.isPersonRowSaveable(group)) return null;
     const v = group.getRawValue();
-    const roleName = this.personRoles().find((r) => r.id === v.roleId)?.name ?? '';
-    const isJudge = this.isJudgeRoleId(v.roleId);
+    const roleId = this.normalizePositiveId(v.roleId);
+    const roleName =
+      this.personRoles().find((r) => Number(r.id) === Number(roleId))?.name ?? '';
+    const isJudge = this.isJudgeRoleId(roleId);
+    const cargoId = isJudge ? this.normalizePositiveId(v.cargoId) : null;
     const cargoName = isJudge
-      ? (this.judgeCargos().find((c) => Number(c.id) === Number(v.cargoId))?.name ?? undefined)
+      ? (this.judgeCargos().find((c) => Number(c.id) === Number(cargoId))?.name ?? undefined)
       : undefined;
     return {
       primerNombre: String(v.primerNombre).trim(),
@@ -1841,8 +2248,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       segundoApellido: String(v.segundoApellido || '').trim() || undefined,
       name: joinPersonName(v),
       role: roleName,
-      roleId: v.roleId,
-      cargoId: isJudge ? v.cargoId : null,
+      roleId,
+      cargoId,
       cargo: cargoName,
       documentType: v.documentType || undefined,
       documentId: String(v.documentId || '').trim() || undefined,
@@ -2380,6 +2787,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           make: vehicle.make || '',
           model: vehicle.model || '',
           color: vehicle.color || '',
+          details: '',
         };
         group.patchValue(patch, { emitEvent: false });
         this.vehicleLastLookupPlate.set(index, normalizedPlate);
@@ -2410,7 +2818,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private clearVehicleCatalogFields(index: number): void {
     const group = this.involvedVehicles.at(index);
     if (!(group instanceof FormGroup)) return;
-    group.patchValue({ make: '', model: '', color: '' }, { emitEvent: false });
+    group.patchValue({ make: '', model: '', color: '', details: '' }, { emitEvent: false });
     this.cdr.markForCheck();
   }
 
@@ -2603,7 +3011,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.setupPhoneLookup();
     this.setupLocationTextGuard();
-    this.setupLocationGeoResolve();
     this.setupStatusChangeHandler();
     this.formDirtySub = this.incidentForm.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
@@ -2772,12 +3179,18 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         }),
         debounceTime(400),
         distinctUntilChanged(),
-        filter((phone): phone is string => !!phone && this.normalizePhone(phone).length >= 7),
+        filter((phone): phone is string => {
+          if (this.hydratingIncidentForm || this.activeTabId() !== 'new') return false;
+          return !!phone && this.normalizePhone(phone).length >= 7;
+        }),
         switchMap((phone) =>
           this.personService.lookupByPhone(phone).pipe(catchError(() => of(null))),
         ),
       )
-      .subscribe((person) => this.applyPersonLookupResult(person));
+      .subscribe((person) => {
+        if (this.hydratingIncidentForm || this.activeTabId() !== 'new') return;
+        this.applyPersonLookupResult(person);
+      });
   }
 
   private setupLocationTextGuard(): void {
@@ -2787,7 +3200,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const municipalityControl = this.incidentForm.get('municipalityId');
 
     const invalidateCoordsIfStale = () => {
+      if (this.hydratingIncidentForm) return;
       if (this.locationCoordSync.isPatching()) return;
+      if (!this.locationFieldsEditedByUser) return;
       const latCtrl = this.incidentForm.get('lat');
       const lngCtrl = this.incidentForm.get('lng');
       const hasCoords = hasValidIncidentCoords(latCtrl?.value, lngCtrl?.value);
@@ -2797,42 +3212,45 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       latCtrl?.setValue(null, { emitEvent: false });
       lngCtrl?.setValue(null, { emitEvent: false });
       this.locationCoordSync.clearSync();
+      this.trustedIncidentCoords = null;
       this.cdr.markForCheck();
     };
 
     const subs: Subscription[] = [];
-    if (locationControl) subs.push(locationControl.valueChanges.subscribe(invalidateCoordsIfStale));
-    if (departmentControl) subs.push(departmentControl.valueChanges.subscribe(invalidateCoordsIfStale));
+    if (locationControl) {
+      subs.push(
+        locationControl.valueChanges.subscribe(() => {
+          if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
+          this.locationFieldsEditedByUser = true;
+          this.locationAreaPinnedByUser = false;
+          void this.refreshAutocompleteBias();
+        }),
+      );
+    }
+    if (departmentControl) {
+      subs.push(
+        departmentControl.valueChanges.subscribe(() => {
+          if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
+          this.locationFieldsEditedByUser = true;
+          this.locationAreaPinnedByUser = true;
+          void this.refreshAutocompleteBias();
+          invalidateCoordsIfStale();
+        }),
+      );
+    }
     if (municipalityControl) {
-      subs.push(municipalityControl.valueChanges.subscribe(invalidateCoordsIfStale));
+      subs.push(
+        municipalityControl.valueChanges.subscribe(() => {
+          if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
+          this.locationFieldsEditedByUser = true;
+          this.locationAreaPinnedByUser = true;
+          void this.refreshAutocompleteBias();
+          invalidateCoordsIfStale();
+        }),
+      );
     }
     this.locationTextSub = new Subscription();
     subs.forEach((s) => this.locationTextSub?.add(s));
-  }
-
-  private setupLocationGeoResolve(): void {
-    this.locationResolveSub?.unsubscribe();
-    const locationControl = this.incidentForm.get('location');
-    const municipalityControl = this.incidentForm.get('municipalityId');
-    const subs: Subscription[] = [];
-
-    if (locationControl) {
-      subs.push(
-        locationControl.valueChanges.pipe(debounceTime(800)).subscribe(() => {
-          void this.resolveLocationFromForm();
-        }),
-      );
-    }
-    if (municipalityControl) {
-      subs.push(
-        municipalityControl.valueChanges.pipe(debounceTime(400)).subscribe(() => {
-          void this.resolveLocationFromForm();
-        }),
-      );
-    }
-
-    this.locationResolveSub = new Subscription();
-    subs.forEach((s) => this.locationResolveSub?.add(s));
   }
 
   private applyPersonLookupResult(person: Person | null): void {
@@ -3552,12 +3970,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.destroyMap();
       setTimeout(() => {
         const incident = this.activeIncident();
-        const lat = this.incidentForm.get('lat')?.value ?? incident?.lat;
-        const lng = this.incidentForm.get('lng')?.value ?? incident?.lng;
-        this.initMap(
-          lat == null ? undefined : Number(lat),
-          lng == null ? undefined : Number(lng),
-        ).catch(() => void 0);
+        const parsed =
+          parseIncidentCoords(
+            this.incidentForm.get('lat')?.value,
+            this.incidentForm.get('lng')?.value,
+          ) ??
+          this.trustedIncidentCoords ??
+          parseIncidentCoords(incident?.lat, incident?.lng);
+        this.initMap(parsed?.lat, parsed?.lng).catch(() => void 0);
       }, 0);
     }
     this.cdr.markForCheck();
@@ -3728,19 +4148,106 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.commentsHistory.set([...chronological].reverse());
   }
 
+  private beginIncidentHydrate(): void {
+    this.hydratingIncidentForm = true;
+    this.locationFieldsEditedByUser = false;
+    if (this.hydrateLookupTimer) clearTimeout(this.hydrateLookupTimer);
+    this.hydrateLookupTimer = setTimeout(() => {
+      this.hydratingIncidentForm = false;
+      this.hydrateLookupTimer = null;
+      this.restoreHydratedIncidentFields();
+    }, 1800);
+  }
+
+  private rememberTrustedIncidentCoords(
+    lat: unknown,
+    lng: unknown,
+    location?: unknown,
+  ): void {
+    this.trustedIncidentCoords = parseIncidentCoords(lat, lng);
+    this.trustedLocationText = String(location ?? '').trim().toLowerCase();
+  }
+
+  private applyTrustedIncidentCoords(lat: number, lng: number): void {
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue(
+        { lat: roundCoord(lat), lng: roundCoord(lng) },
+        { emitEvent: false },
+      );
+    });
+    this.markLocationCoordsSynced();
+    void this.syncMapToCoords(lat, lng);
+  }
+
+  private restoreHydratedIncidentFields(): void {
+    if (!this.locationFieldsEditedByUser) {
+      const trusted = this.trustedIncidentCoords;
+      if (trusted) this.applyTrustedIncidentCoords(trusted.lat, trusted.lng);
+    }
+    this.applyServerExpedienteUrls(this.trustedExpedientePeople, false);
+    this.cdr.detectChanges();
+  }
+
+  private refreshIncidentFromServer(incidentId: string): void {
+    this.incidentService.fetchIncident(incidentId).subscribe({
+      next: (fresh) => {
+        if (this.activeTabId() !== incidentId) return;
+        this.incidentService.incidents.update((list) =>
+          list.map((i) => (i.id === fresh.id ? { ...i, ...fresh } : i)),
+        );
+        this.openIncidentTabs.update((tabs) =>
+          tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),
+        );
+        this.populateFormWithState(fresh);
+        this.restoreHydratedIncidentFields();
+        setTimeout(() => {
+          if (this.activeTabId() !== incidentId) return;
+          this.restoreHydratedIncidentFields();
+        }, 700);
+      },
+    });
+  }
+
+  private populateInvolvedPeople(people: InvolvedPerson[]): void {
+    this.involvedPeople.clear();
+    for (const p of people) {
+      this.involvedPeople.push(this.buildPersonGroup(p));
+    }
+    this.personLastLookupKey.clear();
+    this.involvedPeople.controls.forEach((ctrl, index) => {
+      const group = ctrl as FormGroup;
+      const digits = String(group.get('documentId')?.value ?? '').replace(/\D/g, '');
+      const phone = this.normalizePhone(String(group.get('contact')?.value ?? ''));
+      if (digits.length >= 5) this.personLastLookupKey.set(index, `doc:${digits}`);
+      else if (phone.length >= 7) this.personLastLookupKey.set(index, `phone:${phone}`);
+    });
+  }
+
+  private applyServerExpedienteUrls(people: InvolvedPerson[], overwriteEmptyOnly = false): void {
+    people.forEach((person, index) => {
+      const group = this.involvedPeople.at(index);
+      if (!(group instanceof FormGroup)) return;
+      const url = String(person.comentarios || person.details || '').trim();
+      if (!url) return;
+      const ctrl = group.get('comentarios');
+      if (!ctrl) return;
+      const current = String(ctrl.value ?? '').trim();
+      if (overwriteEmptyOnly && current) return;
+      if (current === url) return;
+      ctrl.setValue(url, { emitEvent: false });
+    });
+  }
+
   private clearAgregarComentario(): void {
     this.incidentForm.patchValue({ agregarComentario: '' }, { emitEvent: false });
   }
 
-  private mergeCommentHistory(storedComments: string, draft: string | null | undefined): string {
-    const text = String(draft ?? '').trim();
-    if (!text) return storedComments ?? '';
-    return appendIncidentNote(storedComments, this.noteAuthor(), text);
-  }
-
   registerIncident() {
+    if (this.incidentSaveInFlight) return;
+    this.incidentSaveInFlight = true;
     void this.prepareIncidentCoordsForSave().then((coordsOk) => {
       if (!coordsOk) {
+        this.incidentSaveInFlight = false;
         this.abortLeaveAfterSave();
         this.cdr.markForCheck();
         return;
@@ -3748,13 +4255,22 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
       const newIncident = this.buildNewIncidentFromForm();
       if (!newIncident) {
+        this.incidentSaveInFlight = false;
         this.abortLeaveAfterSave();
         return;
       }
 
       this.incidentService.createIncident(newIncident).subscribe({
-        next: (saved) => this.finalizeNewIncident(saved),
+        next: (saved) => {
+          this.incidentSaveInFlight = false;
+          this.incidentService.fetchIncident(saved.id).subscribe({
+            next: (fresh) =>
+              this.finalizeNewIncident({ ...saved, ...fresh, details: '' }),
+            error: () => this.finalizeNewIncident({ ...saved, details: '' }),
+          });
+        },
         error: (err) => {
+          this.incidentSaveInFlight = false;
           this.abortLeaveAfterSave();
           this.incidentService.handleCreateError(err);
           this.cdr.markForCheck();
@@ -3806,9 +4322,18 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildNewIncidentFromForm(): Incident | null {
-    this.pruneEmptyInvolvedEntries();
-
     if (!this.validateBeforeSave({ requireSolicitante: true })) {
+      return null;
+    }
+
+    this.pruneEmptyInvolvedEntries();
+    if (this.involvedPeopleForSave().length === 0) {
+      this.involvedPeople.markAllAsTouched();
+      this.notificationService.addNotification(
+        'No se puede guardar',
+        'Complete al menos un solicitante (primer nombre, primer apellido y rol). Lugares y vehículos son opcionales.',
+      );
+      this.cdr.markForCheck();
       return null;
     }
 
@@ -3843,8 +4368,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       location: formValue.location ?? '',
       departmentId: formValue.departmentId ?? null,
       municipalityId: formValue.municipalityId ?? null,
-      lat: formValue.lat ?? 0,
-      lng: formValue.lng ?? 0,
+      lat: parseIncidentCoords(formValue.lat, formValue.lng)?.lat ?? 0,
+      lng: parseIncidentCoords(formValue.lat, formValue.lng)?.lng ?? 0,
       details: '',
       comments,
       type: selectedType?.name ?? formValue.event_id ?? '',
@@ -3888,10 +4413,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.applyActiveTab(saved.id);
+    this.newIncidentFormState.set(null);
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
     this.setupStatusDropdownForEdit(agency, saved.status);
-    this.populateFormWithState(saved, { trustCoords: true });
+    this.populateFormWithState(saved);
+    this.clearAgregarComentario();
     this.refreshWorkflowGestion(saved.id);
+    this.configService.getAuditLogs().catch(() => void 0);
     this.medidasPendingChanges.set(false);
     this.medidasEngaged = false;
     this.scheduleFormSyncAfterStable(saved.id);
@@ -4076,6 +4604,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private doCommitIncidentUpdate() {
+    if (this.incidentSaveInFlight) return;
     if (!this.hasPendingIncidentChanges()) {
       this.abortUpdateWithoutChanges();
       return;
@@ -4085,7 +4614,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const incidentId = this.activeIncident()!.id;
     const base = this.activeIncident()!;
     const draftComment = String(updatedData.agregarComentario ?? '').trim();
-    const mergedComments = this.mergeCommentHistory(base.comments ?? '', draftComment);
+    // Solo el borrador nuevo: el backend inserta una fila. Enviar el historial
+    // completo provocaba duplicados (formatos distintos FE/BD).
 
     const selectedType = this.incidentTypes().find((t) => t.name === updatedData.event_id);
     const formPriority = this.resolveFormPriority(updatedData);
@@ -4100,12 +4630,12 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       origin: updatedData.origin ?? '',
       phone: updatedData.phone ?? '',
       location: updatedData.location ?? '',
-      lat: updatedData.lat ?? 0,
-      lng: updatedData.lng ?? 0,
+      lat: parseIncidentCoords(updatedData.lat, updatedData.lng)?.lat ?? 0,
+      lng: parseIncidentCoords(updatedData.lat, updatedData.lng)?.lng ?? 0,
       ani: updatedData.phone ?? base.ani ?? 'N/A',
       locationPhoneNumber: this.resolveLocationPhoneForSave(updatedData.locationPhoneNumber),
       details: '',
-      comments: mergedComments,
+      comments: draftComment,
       type: selectedType?.name ?? updatedData.event_id ?? '',
       priority: formPriority,
       involvedPeople: this.involvedPeopleForSave(),
@@ -4114,11 +4644,15 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       ),
       involvedVehicles: this.involvedVehiclesForSave(),
     };
-    this.incidentService.updateIncident(finalData, (saved) => {
+    this.incidentSaveInFlight = true;
+    this.incidentService.updateIncident(
+      finalData,
+      (saved) => {
+      this.incidentSaveInFlight = false;
       const agency = this.authService.currentUser()?.agency ?? 'CSJ';
       this.openIncidentTabs.update((tabs) => tabs.map((t) => (t.id === incidentId ? saved : t)));
       this.setupStatusDropdownForEdit(agency, saved.status);
-      this.populateFormWithState(saved, { trustCoords: true });
+      this.populateFormWithState(saved);
       const savedLat = Number(saved.lat);
       const savedLng = Number(saved.lng);
       if (hasValidIncidentCoords(savedLat, savedLng)) {
@@ -4144,12 +4678,17 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.applyDetailTab('medidas');
       }
       this.notificationService.addNotification(notice.title, notice.message, incidentId);
-      this.loadCommentsHistory(mergedComments);
       this.clearAgregarComentario();
       this.markFormSyncedWithServer(incidentId);
       this.completePendingLeaveAfterSave();
       this.cdr.markForCheck();
-    });
+    },
+      () => {
+        this.incidentSaveInFlight = false;
+        this.abortLeaveAfterSave();
+        this.cdr.markForCheck();
+      },
+    );
   }
 
   private resetFormForNewIncident() {
@@ -4185,37 +4724,59 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.placeMunicipalities.set(new Map());
     this.placeMunicipalitiesLoaded.set(new Map());
     this.detachPlaceDepartmentWatchers();
-    this.incidentForm.enable();
+    this.incidentForm.enable({ emitEvent: false });
+    this.incidentForm.get('locationPhoneNumber')?.disable({ emitEvent: false });
     this.syncLastValidStatus();
     this.locationCoordSync.clearSync();
+    this.trustedIncidentCoords = null;
+    this.trustedLocationText = '';
+    this.trustedExpedientePeople = [];
+    this.locationFieldsEditedByUser = false;
+    this.locationAreaPinnedByUser = false;
+    void this.refreshAutocompleteBias();
   }
 
-  private populateFormWithState(
-    state: Partial<Incident>,
-    options?: { trustCoords?: boolean },
-  ) {
+  private populateFormWithState(state: Partial<Incident>) {
+    this.beginIncidentHydrate();
     this.bumpFormSyncEpoch();
+    this.locationAreaPinnedByUser =
+      state.departmentId != null || state.municipalityId != null;
     this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.skipStatusNav = true;
-    this.incidentForm.reset(undefined, { emitEvent: false });
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.reset(undefined, { emitEvent: false });
+    });
     const {
       comments,
       details,
       involvedPeople,
       involvedPlaces: placesState,
       involvedVehicles: vehiclesState,
+      lat: stateLat,
+      lng: stateLng,
       ...rest
     } = state;
-    this.incidentForm.patchValue(
-      {
-        ...rest,
-        status: this.statusNameForForm(String(rest.status || '')),
-        agregarComentario: '',
-      },
-      { emitEvent: false },
+    const parsedCoords = parseIncidentCoords(stateLat, stateLng);
+    this.rememberTrustedIncidentCoords(
+      parsedCoords?.lat,
+      parsedCoords?.lng,
+      state.location,
     );
+    this.trustedExpedientePeople = involvedPeople ?? [];
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue(
+        {
+          ...rest,
+          lat: parsedCoords?.lat ?? null,
+          lng: parsedCoords?.lng ?? null,
+          status: this.statusNameForForm(String(rest.status || '')),
+          agregarComentario: '',
+        },
+        { emitEvent: false },
+      );
+    });
     this.syncLastValidStatus();
-    this.loadCommentsHistory(comments, details);
+    this.loadCommentsHistory(comments, String(comments || '').trim() ? '' : details);
     if (state.type) {
       this.incidentForm.get('event_id')?.setValue(state.type, { emitEvent: false });
     }
@@ -4244,9 +4805,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       syncIfActiveTab();
     }
     this.involvedPeople.clear();
-    for (const p of involvedPeople ?? []) {
-      this.involvedPeople.push(this.buildPersonGroup(p));
-    }
+    this.populateInvolvedPeople(involvedPeople ?? []);
     this.involvedPlaces.clear();
     this.placeMunicipalities.set(new Map());
     this.detachPlaceDepartmentWatchers();
@@ -4269,13 +4828,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         }),
       ),
     );
-    this.incidentForm.enable();
+    this.incidentForm.enable({ emitEvent: false });
+    this.incidentForm.get('locationPhoneNumber')?.disable({ emitEvent: false });
     this.skipStatusNav = false;
-    if (options?.trustCoords && hasValidIncidentCoords(state.lat, state.lng)) {
-      this.markLocationCoordsSynced();
-    } else {
-      this.locationCoordSync.clearSync();
-    }
+    this.locationFieldsEditedByUser = false;
+    if (parsedCoords) this.markLocationCoordsSynced();
+    else this.locationCoordSync.clearSync();
+    this.restoreHydratedIncidentFields();
     if (state.id && this.activeTabId() === state.id) {
       this.scheduleFormSyncAfterStable(state.id);
     }
@@ -4401,6 +4960,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.ngOnDestroyListPageResize?.();
     this.ngOnDestroyListPageResize = null;
     if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
+    if (this.hydrateLookupTimer) clearTimeout(this.hydrateLookupTimer);
+    this.hydratingIncidentForm = false;
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();
     this.vehicleLastLookupPlate.clear();
@@ -4414,7 +4975,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.formDirtySub?.unsubscribe();
     this.incidentDeptSub?.unsubscribe();
     this.locationTextSub?.unsubscribe();
-    this.locationResolveSub?.unsubscribe();
     this.detachPlaceDepartmentWatchers();
   }
 }

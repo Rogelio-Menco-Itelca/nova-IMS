@@ -216,3 +216,14 @@ body,
 .ims-dashboard-panel__title .material-icons {
   color: inherit;
 }
+
+.pac-container {
+  z-index: 10000;
+  pointer-events: auto;
+}
+
+.pac-item,
+.pac-item span {
+  pointer-events: auto;
+  cursor: pointer;
+}

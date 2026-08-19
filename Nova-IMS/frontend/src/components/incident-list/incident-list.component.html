@@ -410,10 +410,15 @@
                     <div class="relative">
                       <input
                         id="location"
+                        name="ims-incident-location"
                         type="text"
                         formControlName="location"
+                        autocomplete="off"
+                        autocapitalize="off"
+                        autocorrect="off"
+                        spellcheck="false"
                         placeholder="Calle, Carrera, Barrio..."
-                        (keydown.enter)="$event.preventDefault(); geocodeManualLocation()"
+                        (keydown.enter)="onLocationEnter($event)"
                         class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
                         required
                       />
@@ -438,6 +443,10 @@
                         />
                       </svg>
                     </div>
+                    <p class="mt-1.5 text-[11px] text-gray-500 leading-snug">
+                      Sin ciudad elegida, la búsqueda se limita a Bogotá. Elija departamento/ciudad
+                      para otra ciudad, o marque el punto en el mapa. Enter para ubicar.
+                    </p>
                   </div>
 
                   <div class="grid grid-cols-2 gap-4">
@@ -449,8 +458,9 @@
                       >
                       <input
                         id="lat"
-                        type="number"
-                        step="any"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
                         formControlName="lat"
                         class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                         required
@@ -464,8 +474,9 @@
                       >
                       <input
                         id="lng"
-                        type="number"
-                        step="any"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
                         formControlName="lng"
                         class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                         required
@@ -647,9 +658,17 @@
                               <div class="activity-timeline-content">
                                 <div class="activity-timeline-meta">
                                   <div class="activity-timeline-actor">
-                                    <span class="activity-timeline-avatar">{{
-                                      timelineUserInitials(entry.author || 'Operador')
-                                    }}</span>
+                                    @if (timelineAuthorPhoto(entry.author || 'Operador'); as photo) {
+                                      <img
+                                        [src]="photo"
+                                        alt=""
+                                        class="activity-timeline-avatar activity-timeline-avatar--photo"
+                                      />
+                                    } @else {
+                                      <span class="activity-timeline-avatar">{{
+                                        timelineUserInitials(entry.author || 'Operador')
+                                      }}</span>
+                                    }
                                     <span class="activity-timeline-summary"
                                       >{{ historyAuthorName(entry.author || 'Operador') }}
                                       comentó</span
@@ -718,7 +737,7 @@
                     Si la cédula o teléfono está registrado, los datos aparecerán automáticamente.
                   </p>
                 }
-                @for (personGroup of involvedPeople.controls; track $index) {
+                @for (personGroup of involvedPeople.controls; track trackPersonRow($index, personGroup)) {
                   <div
                     [formGroupName]="$index"
                     class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn"
@@ -742,6 +761,7 @@
                           [id]="'person-' + $index + '-primerNombre'"
                           formControlName="primerNombre"
                           type="text"
+                          autocomplete="off"
                           placeholder="Ej.: Ana"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
@@ -770,6 +790,7 @@
                           [id]="'person-' + $index + '-primerApellido'"
                           formControlName="primerApellido"
                           type="text"
+                          autocomplete="off"
                           placeholder="Ej.: Rodríguez"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
@@ -910,8 +931,9 @@
                           [id]="'person-' + $index + '-comentarios'"
                           formControlName="comentarios"
                           rows="2"
+                          autocomplete="off"
                           placeholder="Ruta de SharePoint del expediente"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"
+                          class="incident-field w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"
                         ></textarea>
                       </div>
                     </div>
@@ -1375,9 +1397,17 @@
                             <div class="activity-timeline-content">
                               <div class="activity-timeline-meta">
                                 <div class="activity-timeline-actor">
-                                  <span class="activity-timeline-avatar">{{
-                                    timelineUserInitials(log.user)
-                                  }}</span>
+                                  @if (timelineAuthorPhoto(log.user); as photo) {
+                                    <img
+                                      [src]="photo"
+                                      alt=""
+                                      class="activity-timeline-avatar activity-timeline-avatar--photo"
+                                    />
+                                  } @else {
+                                    <span class="activity-timeline-avatar">{{
+                                      timelineUserInitials(log.user)
+                                    }}</span>
+                                  }
                                   <span class="activity-timeline-summary">{{
                                     auditTimelineSummary(log)
                                   }}</span>

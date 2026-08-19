@@ -12,7 +12,12 @@ const {
 const { resolveUserContext } = require('./users');
 const { requireUserAgency } = require('./agencyContext');
 const { resolveDocumentTypeCode } = require('./documentTypes');
-const { insertPersonComment } = require('./people');
+const {
+  insertPersonComment,
+  personCommentHistoryExpr,
+  ensureCatalogPerson,
+  ensurePersonSharePointStorage,
+} = require('./people');
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident, syncLinkedLocationCoords } = require('./location');
 const { isFinalState, requiresMedidas, isForwardStatusTransition, isTransitionAllowed, requiresComment } = require('./transitions');
@@ -79,8 +84,8 @@ const INCIDENT_BASE_SELECT = `
   i.id_municipio AS municipality_id,
   d.nombre_departamento AS departmentName,
   m.nombre_municipio AS municipalityName,
-  i.Latitud AS lat,
-  i.Longitud AS lng,
+  (i.Latitud + 0e0) AS lat,
+  (i.Longitud + 0e0) AS lng,
   i.Comentario_estado AS details,
   i.IDAgencias AS agency_code,
   i.FechaHora AS created_at,
@@ -127,11 +132,58 @@ function formatCommentTimestamp(value) {
 
 function plainCommentText(raw) {
   let text = String(raw ?? '').trim();
-  while (/^\[[^\]]+\]\s*(\n|$)/.test(text)) {
-    text = text.replace(/^\[[^\]]+\]\s*\n?/, '').trim();
+  // [fecha] o [fecha] Autor al inicio de bloque
+  while (/^\[[^\]]+\](?:\s+[^\n\[]+)?\s*(\n|$)/.test(text)) {
+    text = text.replace(/^\[[^\]]+\](?:\s+[^\n\[]+)?\s*\n?/, '').trim();
   }
   text = text.replace(/^---\s*\n?/, '').trim();
   return text;
+}
+
+function normalizeCommentKey(text) {
+  return plainCommentText(text)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function splitCommentBlocks(raw) {
+  return String(raw ?? '')
+    .split(/\r?\n---\r?\n/)
+    .map((block) => plainCommentText(block))
+    .filter(Boolean);
+}
+
+function lastSerializedCommentPlain(serialized) {
+  const blocks = splitCommentBlocks(serialized);
+  return blocks.at(-1) || '';
+}
+
+/** Solo el texto nuevo a insertar (evita reinsertar todo el historial). */
+function extractNewCommentPlain(incoming, previousSerialized) {
+  const incomingText = String(incoming ?? '').trim();
+  const prev = String(previousSerialized ?? '').trim();
+  if (!incomingText) return '';
+  if (incomingText === prev) return '';
+
+  let extracted = '';
+  if (prev && incomingText.startsWith(prev)) {
+    extracted = plainCommentText(incomingText.slice(prev.length).replace(/^\r?\n?---\r?\n?/, ''));
+  } else if (!incomingText.includes('\n---\n') && !/^\[[^\]]+\]/.test(incomingText)) {
+    extracted = plainCommentText(incomingText);
+  } else if (prev && incomingText.includes(prev)) {
+    extracted = plainCommentText(incomingText.replace(prev, '').replace(/^\r?\n?---\r?\n?/, ''));
+  } else {
+    const blocks = splitCommentBlocks(incomingText);
+    extracted = blocks.length > 1 ? blocks[blocks.length - 1] : plainCommentText(incomingText);
+  }
+
+  if (!extracted) return '';
+  const prevLast = lastSerializedCommentPlain(prev);
+  if (prevLast && normalizeCommentKey(prevLast) === normalizeCommentKey(extracted)) {
+    return '';
+  }
+  return extracted;
 }
 
 function pushToGroupedMap(map, key, item) {
@@ -143,28 +195,37 @@ function pushToGroupedMap(map, key, item) {
 
 async function loadComments(internalId) {
   const [rows] = await pool.query(
-    `SELECT Comentario, FechaHora FROM comentarios_incidentes
-     WHERE ID_Incidente = ?
-     ORDER BY FechaHora ASC, ID_Comentario ASC`,
+    `SELECT ci.Comentario, ci.FechaHora
+     FROM comentarios_incidentes ci
+     INNER JOIN incidentes i ON i.ID_incidente = ci.ID_Incidente
+     WHERE ci.ID_Incidente = ?
+       AND ci.FechaHora >= i.FechaHora
+     ORDER BY ci.FechaHora ASC, ci.ID_Comentario ASC`,
     [internalId],
   );
   if (!rows.length) return '';
-  return rows
-    .map((r) => {
-      const plain = plainCommentText(r.Comentario);
-      if (!plain) return '';
+  const seen = new Set();
+  const blocks = [];
+  for (const r of rows) {
+    for (const plain of splitCommentBlocks(r.Comentario)) {
+      const key = normalizeCommentKey(plain);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
       const ts = formatCommentTimestamp(r.FechaHora);
-      return ts ? `[${ts}]\n${plain}` : plain;
-    })
-    .filter(Boolean)
-    .join('\n---\n');
+      blocks.push(ts ? `[${ts}]\n${plain}` : plain);
+    }
+  }
+  return blocks.join('\n---\n');
 }
 
 async function loadLatestComment(internalId) {
   const [rows] = await pool.query(
-    `SELECT Comentario, FechaHora FROM comentarios_incidentes
-     WHERE ID_Incidente = ?
-     ORDER BY FechaHora DESC, ID_Comentario DESC
+    `SELECT ci.Comentario, ci.FechaHora
+     FROM comentarios_incidentes ci
+     INNER JOIN incidentes i ON i.ID_incidente = ci.ID_Incidente
+     WHERE ci.ID_Incidente = ?
+       AND ci.FechaHora >= i.FechaHora
+     ORDER BY ci.FechaHora DESC, ci.ID_Comentario DESC
      LIMIT 1`,
     [internalId],
   );
@@ -193,6 +254,14 @@ function mapIncidentRow(r, extras = {}) {
     received_at: extras.received_at ?? null,
     location_phone: extras.location_phone ?? null,
   };
+}
+
+function coordsForPersist(body) {
+  const lat = Number(body?.lat);
+  const lng = Number(body?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return null;
+  return { lat, lng };
 }
 
 async function resolveCatalogIds(
@@ -305,6 +374,7 @@ async function latestLocationForIncident(internalId, visibleId, reader = pool) {
 async function loadInvolvedPeople(internalIds, reader = pool) {
   if (!internalIds.length) return {};
   const ph = internalIds.map(() => '?').join(',');
+  const commentsExpr = await personCommentHistoryExpr('details');
   const [rows] = await reader.query(
     `SELECT p.ID_incidente AS internal_id,
             CONCAT('PER-', p.ID_persona) AS id,
@@ -324,12 +394,8 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
             td.Descripcion AS documentTypeName,
             p.ID_genero AS gender_id,
             g.Descripcion_genero AS gender,
-            COALESCE(
-              (SELECT cp.Comentarios FROM comentariospersonas cp
-               WHERE cp.ID_persona = p.ID_persona
-               ORDER BY cp.FechaHora DESC LIMIT 1),
-              p.Comentarios
-            ) AS details
+            p.Comentarios AS persona_comentarios,
+            ${commentsExpr}
      FROM personas p
      LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
      LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
@@ -358,8 +424,8 @@ async function loadInvolvedPeople(internalIds, reader = pool) {
       documentTypeName: r.documentTypeName,
       gender: r.gender,
       genderId: r.gender_id,
-      comentarios: r.details,
-      details: r.details,
+      comentarios: r.details || r.persona_comentarios || '',
+      details: r.details || r.persona_comentarios || '',
     });
   }
   return map;
@@ -468,9 +534,41 @@ async function loadInvolvedPlaces(internalIds, reader = pool) {
   return map;
 }
 
+async function purgeStaleIncidentComments(internalIds = [], executor = pool) {
+  if (!internalIds.length) {
+    await executor.query(
+      `DELETE ci FROM comentarios_incidentes ci
+       INNER JOIN incidentes i ON i.ID_incidente = ci.ID_Incidente
+       WHERE ci.FechaHora < i.FechaHora`,
+    );
+    await executor.query(
+      `DELETE ai FROM auditoria_incidente ai
+       INNER JOIN incidentes i ON i.ID_incidente = ai.incidentes_id
+       WHERE ai.fecha < i.FechaHora`,
+    );
+    return;
+  }
+  const ph = internalIds.map(() => '?').join(',');
+  await executor.query(
+    `DELETE ci FROM comentarios_incidentes ci
+     INNER JOIN incidentes i ON i.ID_incidente = ci.ID_Incidente
+     WHERE ci.ID_Incidente IN (${ph})
+       AND ci.FechaHora < i.FechaHora`,
+    internalIds,
+  );
+  await executor.query(
+    `DELETE ai FROM auditoria_incidente ai
+     INNER JOIN incidentes i ON i.ID_incidente = ai.incidentes_id
+     WHERE ai.incidentes_id IN (${ph})
+       AND ai.fecha < i.FechaHora`,
+    internalIds,
+  );
+}
+
 async function hydrateIncidents(rows, reader = pool) {
   if (!rows.length) return [];
   const internalIds = rows.map((r) => r.internal_id);
+  await purgeStaleIncidentComments(internalIds, reader);
   const [peopleMap, vehMap, placesMap] = await Promise.all([
     loadInvolvedPeople(internalIds, reader),
     loadInvolvedVehicles(internalIds, reader),
@@ -527,11 +625,24 @@ async function getIncident(visibleId, agencyCode = null) {
 }
 
 async function insertComment(conn, internalId, text, userCtx) {
-  if (!String(text || '').trim()) return;
+  const plain = plainCommentText(text);
+  if (!plain) return;
+  const [latestRows] = await conn.query(
+    `SELECT Comentario, FechaHora FROM comentarios_incidentes
+     WHERE ID_Incidente = ?
+     ORDER BY FechaHora DESC, ID_Comentario DESC
+     LIMIT 1`,
+    [internalId],
+  );
+  const latest = latestRows[0];
+  if (latest && normalizeCommentKey(latest.Comentario) === normalizeCommentKey(plain)) {
+    const ageMs = Date.now() - new Date(latest.FechaHora).getTime();
+    if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 15_000) return;
+  }
   await conn.query(
     `INSERT INTO comentarios_incidentes (ID_Incidente, Comentario, ID_Usuario, ID_Agencia)
      VALUES (?,?,?,?)`,
-    [internalId, text, userCtx.userId, userCtx.agencyCode],
+    [internalId, plain, userCtx.userId, userCtx.agencyCode],
   );
 }
 
@@ -691,11 +802,14 @@ async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCod
   const rolP = await resolvePersonRoleId(conn, person, agencyCode);
   const cargoId = await resolveJudgeCargoId(conn, person, rolP, agencyCode);
   const comentarios = person.comentarios ?? person.details ?? null;
+  const sharePointUrl = String(comentarios || '').trim() || null;
   const genderId = person.genderId ?? person.gender_id ?? null;
   const tipoDocumento = await resolveDocumentTypeCode(
     person.documentType || person.tipo_documento,
     conn,
   );
+
+  await ensurePersonSharePointStorage();
 
   const [personResult] = await conn.query(
     `INSERT INTO personas
@@ -713,7 +827,7 @@ async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCod
       person.contact || person.phone || null,
       tipoDocumento,
       person.documentId || null,
-      null,
+      sharePointUrl ? sharePointUrl.substring(0, 500) : null,
       internalId,
       agencyCode,
       userCtx.userId,
@@ -731,6 +845,24 @@ async function insertInvolvedPerson(conn, internalId, person, userCtx, agencyCod
       agencyCode,
     );
   }
+
+  await ensureCatalogPerson(
+    conn,
+    {
+      primerNombre,
+      segundoNombre,
+      primerApellido,
+      segundoApellido,
+      roleId: rolP,
+      cargoId,
+      contacto: person.contact || person.phone || null,
+      tipoDocumento,
+      numeroDocumento: person.documentId || null,
+      userId: userCtx.userId,
+      genderId,
+    },
+    agencyCode,
+  );
 }
 
 function vehicleHasCatalogData(vehicle) {
@@ -805,6 +937,29 @@ async function replaceInvolved(conn, internalId, people, vehicles, places, userC
   }
 }
 
+async function tryDelete(conn, sql, params) {
+  try {
+    await conn.query(sql, params);
+  } catch (err) {
+    if (err?.code !== 'ER_NO_SUCH_TABLE') throw err;
+  }
+}
+
+async function clearRecycledIncidentResidue(conn, internalId) {
+  await conn.query(`DELETE FROM comentarios_incidentes WHERE ID_Incidente = ?`, [internalId]);
+  await conn.query(`DELETE FROM auditoria_incidente WHERE incidentes_id = ?`, [internalId]);
+  await tryDelete(conn, `DELETE FROM comunicacion WHERE ID_incidente = ?`, [internalId]);
+  await tryDelete(conn, `DELETE FROM notificaciones_usuarios WHERE incidente_id = ?`, [internalId]);
+  await tryDelete(
+    conn,
+    `DELETE im FROM incidente_medidas im
+     INNER JOIN gestion_medidas gm ON gm.ID_gestion = im.ID_gestion
+     WHERE gm.ID_incidente = ?`,
+    [internalId],
+  );
+  await tryDelete(conn, `DELETE FROM gestion_medidas WHERE ID_incidente = ?`, [internalId]);
+}
+
 async function createIncident(body, user) {
   const agencyCode = requireUserAgency(user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
@@ -813,6 +968,7 @@ async function createIncident(body, user) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    const coords = coordsForPersist(body);
     const [result] = await conn.query(
       `INSERT INTO incidentes
         (FechaHora, ID_evento, ID_Origen, ANI, Direccion, Latitud, Longitud,
@@ -823,8 +979,8 @@ async function createIncident(body, user) {
         cats.origenId,
         body.phone || body.ani || null,
         body.location || 'Sin dirección',
-        body.lat ?? 0,
-        body.lng ?? 0,
+        coords?.lat ?? 0,
+        coords?.lng ?? 0,
         cats.agency,
         null,
         body.departmentId ?? body.department_id ?? null,
@@ -839,8 +995,9 @@ async function createIncident(body, user) {
       visibleId,
       internalId,
     ]);
+    await clearRecycledIncidentResidue(conn, internalId);
     if (body.comments) {
-      const plain = plainCommentText(body.comments);
+      const plain = extractNewCommentPlain(body.comments, '');
       if (plain) await insertComment(conn, internalId, plain, userCtx);
     }
     await replaceInvolved(
@@ -861,7 +1018,7 @@ async function createIncident(body, user) {
       },
       conn,
     );
-    await syncLinkedLocationCoords(internalId, body.lat, body.lng, conn);
+    await syncLinkedLocationCoords(internalId, coords?.lat, coords?.lng, conn);
     await conn.commit();
     return visibleId;
   } catch (e) {
@@ -992,11 +1149,7 @@ async function assertCommentIfRequired(currentStatus, newStatus, internalId, bod
     return;
   }
 
-  if (!incoming.trim() || incoming === prev) {
-    throw missingCommentError;
-  }
-  const added = incoming.replace(prev, '').trim();
-  if (!plainCommentText(added)) {
+  if (!extractNewCommentPlain(incoming, prev)) {
     throw missingCommentError;
   }
 }
@@ -1027,10 +1180,13 @@ async function assertMedidasIfRequired(newStatus, visibleId, agencyCode) {
 }
 
 async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
+  const coords = coordsForPersist(body);
   await conn.query(
     `UPDATE incidentes SET
        ID_evento = ?, ID_Origen = ?, ANI = ?, Direccion = ?,
-       Latitud = ?, Longitud = ?, id_departamento = ?, id_municipio = ?,
+       Latitud = CASE WHEN ? IS NULL THEN Latitud ELSE ? END,
+       Longitud = CASE WHEN ? IS NULL THEN Longitud ELSE ? END,
+       id_departamento = ?, id_municipio = ?,
        ID_estado = ?, ID_prioridad = ?
      WHERE ID_incidente = ?`,
     [
@@ -1038,8 +1194,10 @@ async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
       cats.origenId,
       body.phone ?? body.ani ?? null,
       body.location ?? 'Sin dirección',
-      body.lat ?? 0,
-      body.lng ?? 0,
+      coords?.lat ?? null,
+      coords?.lat ?? null,
+      coords?.lng ?? null,
+      coords?.lng ?? null,
       body.departmentId ?? body.department_id ?? null,
       body.municipalityId ?? body.municipality_id ?? null,
       cats.estadoId,
@@ -1049,11 +1207,8 @@ async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
   );
   if (body.comments) {
     const prev = await loadComments(internalId);
-    if (body.comments !== prev) {
-      const added = body.comments.replace(prev, '').trim();
-      const plain = plainCommentText(added);
-      if (plain) await insertComment(conn, internalId, plain, userCtx);
-    }
+    const plain = extractNewCommentPlain(body.comments, prev);
+    if (plain) await insertComment(conn, internalId, plain, userCtx);
   }
   await replaceInvolved(
     conn,
@@ -1064,7 +1219,7 @@ async function persistIncidentUpdate(conn, internalId, body, userCtx, cats) {
     userCtx,
     cats.agency,
   );
-  await syncLinkedLocationCoords(internalId, body.lat, body.lng, conn);
+  await syncLinkedLocationCoords(internalId, coords?.lat, coords?.lng, conn);
 }
 
 async function updateIncident(visibleId, body, user) {
@@ -1182,12 +1337,14 @@ async function loadAuditLogs(visibleId) {
   const internalId = await getInternalId(visibleId);
   if (!internalId) return [];
   const [rows] = await pool.query(
-    `SELECT id_transaccion_incidentes AS id, accion AS action,
-            Numero_de_Cambios AS changes, detalles AS details_json, fecha AS timestamp,
-            usuarios_id AS user_id
-     FROM auditoria_incidente
-     WHERE incidentes_id = ?
-     ORDER BY fecha ASC, id_transaccion_incidentes ASC`,
+    `SELECT a.id_transaccion_incidentes AS id, a.accion AS action,
+            a.Numero_de_Cambios AS changes, a.detalles AS details_json, a.fecha AS timestamp,
+            a.usuarios_id AS user_id
+     FROM auditoria_incidente a
+     INNER JOIN incidentes i ON i.ID_incidente = a.incidentes_id
+     WHERE a.incidentes_id = ?
+       AND a.fecha >= i.FechaHora
+     ORDER BY a.fecha ASC, a.id_transaccion_incidentes ASC`,
     [internalId],
   );
   return rows;

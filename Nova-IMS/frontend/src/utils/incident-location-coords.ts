@@ -37,6 +37,14 @@ export function hasValidIncidentCoords(lat: unknown, lng: unknown): boolean {
   );
 }
 
+export function parseIncidentCoords(
+  lat: unknown,
+  lng: unknown,
+): { lat: number; lng: number } | null {
+  if (!hasValidIncidentCoords(lat, lng)) return null;
+  return { lat: Number(lat), lng: Number(lng) };
+}
+
 export function buildGeocodeQuery(
   snapshot: IncidentLocationSnapshot,
   resolveDeptName?: (id: number) => string | undefined,
@@ -68,13 +76,18 @@ export function buildGeocodeQuery(
 export function geocodeAddressQuery(
   geocoder: google.maps.Geocoder,
   query: string,
+  requestExtras?: Omit<google.maps.GeocoderRequest, 'address'>,
 ): Promise<GeocodedLocation | null> {
   const trimmed = String(query ?? '').trim();
   if (!trimmed) return Promise.resolve(null);
 
   return new Promise((resolve) => {
     geocoder.geocode(
-      { address: trimmed, region: IMS_GEO.countryCode },
+      {
+        address: trimmed,
+        region: IMS_GEO.countryCode,
+        ...requestExtras,
+      },
       (results, status) => {
         if (status !== 'OK' || !results?.[0]?.geometry?.location) {
           resolve(null);
@@ -89,6 +102,18 @@ export function geocodeAddressQuery(
       },
     );
   });
+}
+
+/** Evita CALI → CALIMA: solo coincide como palabra completa. */
+export function geoCatalogNamesLooselyEqual(itemName: string, candidate: string): boolean {
+  const item = String(itemName ?? '').trim();
+  const cand = String(candidate ?? '').trim();
+  if (!item || !cand) return false;
+  if (item === cand) return true;
+  if (cand.includes(item) && item.length >= 4) return true;
+  if (cand.length < 4) return false;
+  const escaped = cand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(item);
 }
 
 export class IncidentLocationCoordSync {
