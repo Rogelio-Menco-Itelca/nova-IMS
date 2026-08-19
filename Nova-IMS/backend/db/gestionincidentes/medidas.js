@@ -27,18 +27,50 @@ function pickInt(bodyVal, prevVal) {
   return null;
 }
 
+function composeServidorCargoLabel(roleName, judgeCargo) {
+  const rol = String(roleName || '').trim();
+  const cargo = String(judgeCargo || '').trim();
+  if (rol && cargo && rol.toLowerCase() !== cargo.toLowerCase()) {
+    return `${rol} — ${cargo}`;
+  }
+  return cargo || rol || null;
+}
+
+function mergeServidorIntoGestion(gestion, solicitud) {
+  if (!gestion || !solicitud) return gestion;
+  return {
+    ...gestion,
+    servidor_judicial: solicitud.servidor_judicial || gestion.servidor_judicial,
+    cedula: solicitud.cedula ?? gestion.cedula,
+    cargo: solicitud.cargo || gestion.cargo,
+  };
+}
+
 async function resolveServidorJudicial(incidenteId) {
   const [rows] = await pool.query(
     `SELECT p.Primer_Nombre, p.Segundo_Nombre, p.Primer_Apellido, p.Segundo_Apellido,
-            p.Numero_documento AS cedula, rp.Nombre AS cargo
+            p.Numero_documento AS cedula,
+            rp.Nombre AS rol,
+            COALESCE(cj.Cargo, cj_cat.Cargo) AS cargo_juez
      FROM personas p
      LEFT JOIN rolpersonas rp ON rp.ID_RolP = p.ID_RolP
+     LEFT JOIN cargos_juez cj ON cj.ID_Cargo = p.ID_Cargo
+     LEFT JOIN personas cat
+       ON cat.ID_incidente IS NULL
+      AND cat.ID_Cargo IS NOT NULL
+      AND p.Numero_documento IS NOT NULL
+      AND REPLACE(REPLACE(REPLACE(IFNULL(p.Numero_documento, ''), '.', ''), '-', ''), ' ', '') <> ''
+      AND REPLACE(REPLACE(REPLACE(IFNULL(p.Numero_documento, ''), '.', ''), '-', ''), ' ', '')
+          = REPLACE(REPLACE(REPLACE(IFNULL(cat.Numero_documento, ''), '.', ''), '-', ''), ' ', '')
+      AND UPPER(IFNULL(cat.ID_Agencia, '')) = UPPER(IFNULL(p.ID_Agencia, ''))
+     LEFT JOIN cargos_juez cj_cat ON cj_cat.ID_Cargo = cat.ID_Cargo
      WHERE p.ID_incidente = ?
      ORDER BY
        CASE
-         WHEN UPPER(rp.Nombre) LIKE '%EXTRAORDINARIO%' THEN 0
-         WHEN UPPER(rp.Nombre) LIKE '%VICTIMA%' OR UPPER(rp.Nombre) LIKE '%VÍCTIMA%' THEN 1
-         ELSE 2
+         WHEN UPPER(rp.Nombre) LIKE '%JUEZ%' THEN 0
+         WHEN UPPER(rp.Nombre) LIKE '%EXTRAORDINARIO%' THEN 1
+         WHEN UPPER(rp.Nombre) LIKE '%VICTIMA%' OR UPPER(rp.Nombre) LIKE '%VÍCTIMA%' THEN 2
+         ELSE 3
        END,
        p.ID_persona
      LIMIT 1`,
@@ -55,7 +87,8 @@ async function resolveServidorJudicial(incidenteId) {
   return {
     servidor_judicial,
     cedula: p.cedula ?? null,
-    cargo: p.cargo ?? null,
+    rol: p.rol ?? null,
+    cargo: composeServidorCargoLabel(p.rol, p.cargo_juez),
   };
 }
 
@@ -109,7 +142,10 @@ async function getGestionByIncidente(visibleId) {
      WHERE i.ID_visible = ?`,
     [visibleId],
   );
-  return rows[0] || null;
+  const gestion = rows[0] || null;
+  if (!gestion) return null;
+  const solicitud = await resolveServidorJudicial(gestion.ID_incidente);
+  return mergeServidorIntoGestion(gestion, solicitud);
 }
 
 async function getSolicitudFromPersonas(visibleId) {
@@ -175,9 +211,9 @@ async function upsertGestion(visibleId, body, user) {
   }
 
   const servidorJudicial =
-    body.servidor_judicial ?? prev?.servidor_judicial ?? solicitud?.servidor_judicial ?? null;
-  const cedula = body.cedula ?? prev?.cedula ?? solicitud?.cedula ?? null;
-  const cargo = body.cargo ?? prev?.cargo ?? solicitud?.cargo ?? null;
+    solicitud?.servidor_judicial ?? body.servidor_judicial ?? prev?.servidor_judicial ?? null;
+  const cedula = solicitud?.cedula ?? body.cedula ?? prev?.cedula ?? null;
+  const cargo = solicitud?.cargo ?? body.cargo ?? prev?.cargo ?? null;
   const tramiteDestino = osegBloqueada
     ? prev.tramite_destino
     : pickText(body.tramite_destino, prev?.tramite_destino);

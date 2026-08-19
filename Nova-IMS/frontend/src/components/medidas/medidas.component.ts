@@ -38,6 +38,8 @@ import {
 import {
   catalogStatusToUiStatus,
   CSJ_STATUS_WORKFLOW_RANK,
+  joinPersonName,
+  type InvolvedPerson,
 } from '../../models/incident.model';
 
 interface TipoMedida {
@@ -75,6 +77,40 @@ interface Solicitud {
   servidor_judicial: string;
   cedula: string;
   cargo: string;
+  rol?: string;
+}
+
+function composeServidorCargoLabel(
+  roleName?: string | null,
+  judgeCargo?: string | null,
+): string {
+  const rol = String(roleName || '').trim();
+  const cargo = String(judgeCargo || '').trim();
+  if (rol && cargo && rol.toLowerCase() !== cargo.toLowerCase()) {
+    return `${rol} — ${cargo}`;
+  }
+  return cargo || rol;
+}
+
+function servidorRank(person: InvolvedPerson): number {
+  const rol = String(person.role || '').toUpperCase();
+  if (rol.includes('JUEZ')) return 0;
+  if (rol.includes('EXTRAORDINARIO')) return 1;
+  if (rol.includes('VICTIMA') || rol.includes('VÍCTIMA')) return 2;
+  return 3;
+}
+
+function pickServidorFromSolicitantes(people: InvolvedPerson[] | null | undefined): Solicitud | null {
+  if (!people?.length) return null;
+  const person = [...people].sort((a, b) => servidorRank(a) - servidorRank(b))[0];
+  const name = String(person.name || joinPersonName(person) || '').replace(/\s+/g, ' ').trim();
+  if (!name) return null;
+  return {
+    servidor_judicial: name,
+    cedula: String(person.documentId || '').replace(/\D/g, ''),
+    rol: String(person.role || '').trim() || undefined,
+    cargo: composeServidorCargoLabel(person.role, person.cargo),
+  };
 }
 
 type ModuloMedidas = 'oseg' | 'cerrem' | 'medidas';
@@ -592,6 +628,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   @Input() incidentId!: string;
   @Input() workflowStatus = 'Nuevo';
   @Input() agency = 'CSJ';
+  @Input() solicitantes: InvolvedPerson[] = [];
   private readonly workflowStatusSig = signal('Nuevo');
   private readonly agencySig = signal('CSJ');
   @Output() goToDetalle = new EventEmitter<void>();
@@ -950,10 +987,11 @@ export class MedidasComponent implements OnInit, OnChanges {
   }
 
   displayServidor(): string {
-    const s = this.solicitud();
-    const name = String(this.form.servidor_judicial || s?.servidor_judicial || '').trim();
-    const cedula = String(this.form.cedula || s?.cedula || '').trim();
-    const cargo = String(this.form.cargo || s?.cargo || '').trim();
+    const live = pickServidorFromSolicitantes(this.solicitantes);
+    const s = live || this.solicitud();
+    const name = String(s?.servidor_judicial || this.form.servidor_judicial || '').trim();
+    const cedula = String(s?.cedula || this.form.cedula || '').trim();
+    const cargo = String(s?.cargo || this.form.cargo || '').trim();
     const parts = [name];
     if (cedula) parts.push(`CC ${cedula}`);
     if (cargo) parts.push(`(${cargo})`);
@@ -1028,8 +1066,13 @@ export class MedidasComponent implements OnInit, OnChanges {
     } else {
       this.resetEmptyGestionForm();
     }
-    if (!gestion && solicitud) {
+    if (solicitud) {
       this.applySolicitudToForm(solicitud);
+    }
+    const live = pickServidorFromSolicitantes(this.solicitantes);
+    if (live) {
+      this.applySolicitudToForm(live);
+      this.solicitud.set(live);
     }
 
     const lista = medidas

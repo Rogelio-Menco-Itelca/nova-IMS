@@ -971,13 +971,13 @@
                 </button>
               </div>
               <div formArrayName="involvedPlaces" class="space-y-4">
-                @if (involvedPlaces.length === 0) {
+                @if (involvedListsEpoch() >= 0 && involvedPlaces.length === 0) {
                   <p class="text-sm text-gray-500 italic">
                     Registre sitios relacionados con el incidente (vivienda, sede, vía pública,
                     etc.).
                   </p>
                 }
-                @for (placeGroup of involvedPlaces.controls; track $index) {
+                @for (placeGroup of involvedPlaces.controls; track involvedListsEpoch() + ':p:' + $index) {
                   <div
                     [formGroupName]="$index"
                     class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn"
@@ -1152,7 +1152,12 @@
                 </button>
               </div>
               <div formArrayName="involvedVehicles" class="space-y-4">
-                @for (vehicleGroup of involvedVehicles.controls; track $index) {
+                @if (involvedListsEpoch() >= 0 && involvedVehicles.length === 0) {
+                  <p class="text-sm text-gray-500 italic">
+                    Registre vehículos relacionados con el incidente (placa, marca, color, etc.).
+                  </p>
+                }
+                @for (vehicleGroup of involvedVehicles.controls; track involvedListsEpoch() + ':v:' + $index) {
                   <div
                     [formGroupName]="$index"
                     class="bg-gray-700/50 p-4 rounded-lg border border-gray-600/50 relative animate-fadeIn"
@@ -1484,6 +1489,7 @@
                   [incidentId]="incident.id"
                   [workflowStatus]="workflowStatusForMedidas()"
                   [agency]="currentAgency()"
+                  [solicitantes]="solicitantesForMedidas()"
                   (goToDetalle)="setDetailTab('detalle')"
                   (gestionUpdated)="refreshWorkflowGestion(incident.id)"
                   (medidasSaved)="onMedidasAsignadasGuardadas(incident.id, $event)"

@@ -57,8 +57,25 @@ function mapIncidentRow(r) {
       const expediente = String(p.comentarios || p.details || '').trim();
       return { ...p, comentarios: expediente, details: expediente };
     }),
-    involvedPlaces: r.involvedPlaces || [],
-    involvedVehicles: r.involvedVehicles || [],
+    involvedPlaces: (r.involvedPlaces || []).map((p) => ({
+      ...p,
+      name: String(p.name || '').trim(),
+      address: String(p.address || '').trim(),
+      departmentId: Number(p.departmentId ?? p.department_id) || null,
+      municipalityId: Number(p.municipalityId ?? p.municipality_id) || null,
+      contact: String(p.contact || '').trim(),
+      roleId: Number(p.roleId ?? p.role_id) || null,
+      comments: String(p.comments || p.comentario || '').trim(),
+    })),
+    involvedVehicles: (r.involvedVehicles || []).map((v) => ({
+      ...v,
+      plate: String(v.plate || '').trim(),
+      role: String(v.role || '').trim(),
+      make: String(v.make || '').trim(),
+      model: String(v.model || '').trim(),
+      color: String(v.color || '').trim(),
+      details: String(v.details || '').trim(),
+    })),
   };
 }
 

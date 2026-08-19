@@ -215,9 +215,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private incidentSaveInFlight = false;
   private hydratingIncidentForm = false;
   private hydrateLookupTimer: ReturnType<typeof setTimeout> | null = null;
+  private involvedPaintTimer: ReturnType<typeof setTimeout> | null = null;
   private trustedIncidentCoords: { lat: number; lng: number } | null = null;
   private trustedLocationText = '';
   private trustedExpedientePeople: InvolvedPerson[] = [];
+  private trustedInvolvedPlaces: InvolvedPlace[] = [];
+  private trustedInvolvedVehicles: InvolvedVehicle[] = [];
+  private trustedRelatedIncidentId: string | null = null;
   private locationFieldsEditedByUser = false;
 
   openIncidentTabs = signal<Incident[]>([]);
@@ -312,6 +316,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   incidentMunicipalities = signal<ColombiaMunicipality[]>([]);
   incidentMunicipalitiesLoaded = signal(false);
   placeMunicipalitiesLoaded = signal<Map<number, boolean>>(new Map());
+  involvedListsEpoch = signal(0);
   vehicleRoles = signal<CatalogOption[]>([]);
   readonly personService = inject(PersonService);
 
@@ -532,11 +537,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       municipalityId: this.normalizeOptionalId(form.municipalityId),
       locationPhone: this.normalizeLocationPhoneCompare(form.locationPhoneNumber),
       people: this.involvedPeopleSnapshot(this.involvedPeopleForSave()),
-      places: this.involvedPlacesSnapshot(
-        ((form.involvedPlaces ?? []) as InvolvedPlace[]).filter(
-          (p) => String(p.name || '').trim() && String(p.address || '').trim(),
-        ),
-      ),
+      places: this.involvedPlacesSnapshot(this.involvedPlacesForSave()),
       vehicles: this.involvedVehiclesSnapshot(this.involvedVehiclesForSave()),
     });
   }
@@ -2270,6 +2271,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return rows;
   }
 
+  solicitantesForMedidas(): InvolvedPerson[] {
+    return this.involvedPeopleForSave();
+  }
+
   private vehicleGroupToInvolvedVehicle(group: FormGroup): InvolvedVehicle | null {
     if (!this.isVehicleRowFilled(group)) return null;
     const v = group.getRawValue();
@@ -2292,6 +2297,39 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const g of this.involvedVehicles.controls) {
       const vehicle = this.vehicleGroupToInvolvedVehicle(g as FormGroup);
       if (vehicle) rows.push(vehicle);
+    }
+    return rows;
+  }
+
+  private placeGroupToInvolvedPlace(group: FormGroup): InvolvedPlace | null {
+    const v = group.getRawValue();
+    const name = String(v.name || '').trim();
+    const address = String(v.address || '').trim();
+    const contact = String(v.contact || '').trim();
+    const comments = String(v.comments || '').trim();
+    const departmentId = this.normalizePositiveId(v.departmentId);
+    const municipalityId = this.normalizePositiveId(v.municipalityId);
+    const roleId = this.normalizePositiveId(v.roleId);
+    if (!name && !address && !contact && !comments && departmentId == null && roleId == null) {
+      return null;
+    }
+    if (!name && !address) return null;
+    return {
+      name,
+      address,
+      departmentId,
+      municipalityId,
+      contact,
+      roleId: roleId ?? undefined,
+      comments,
+    };
+  }
+
+  private involvedPlacesForSave(): InvolvedPlace[] {
+    const rows: InvolvedPlace[] = [];
+    for (const g of this.involvedPlaces.controls) {
+      const place = this.placeGroupToInvolvedPlace(g as FormGroup);
+      if (place) rows.push(place);
     }
     return rows;
   }
@@ -2559,10 +2597,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.fb.group({
       name: [p?.name ?? '', Validators.required],
       address: [p?.address ?? '', Validators.required],
-      departmentId: [p?.departmentId ?? null],
-      municipalityId: [p?.municipalityId ?? null],
+      departmentId: [this.normalizePositiveId(p?.departmentId)],
+      municipalityId: [this.normalizePositiveId(p?.municipalityId)],
       contact: [p?.contact ?? ''],
-      roleId: [p?.roleId ?? null, Validators.required],
+      roleId: [this.normalizePositiveId(p?.roleId), Validators.required],
       comments: [p?.comments ?? ''],
     });
   }
@@ -2627,6 +2665,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const control = group.get('departmentId');
     if (!control) return;
     const sub = control.valueChanges.subscribe((val) => {
+      if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
       this.refreshPlaceMunicipalities(index, Number(val)).catch(() => void 0);
     });
     this.placeDeptSubs.push(sub);
@@ -2635,7 +2674,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private async refreshPlaceMunicipalities(index: number, deptId: number): Promise<void> {
     const group = this.involvedPlaces.at(index);
     if (!(group instanceof FormGroup)) return;
-    group.patchValue({ municipalityId: null }, { emitEvent: false });
+    if (!this.hydratingIncidentForm) {
+      group.patchValue({ municipalityId: null }, { emitEvent: false });
+    }
     if (!deptId) {
       this.setPlaceMunicipalities(index, []);
       this.setPlaceMunicipalitiesLoaded(index, false);
@@ -2732,6 +2773,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onVehiclePlateInput(index: number): void {
+    if (this.hydratingIncidentForm) return;
     const group = this.involvedVehicles.at(index);
     if (!(group instanceof FormGroup)) return;
     const currentPlate = String(group.get('plate')?.value || '')
@@ -2766,6 +2808,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   normalizeAndLookupVehicle(index: number): void {
+    if (this.hydratingIncidentForm) return;
     this.normalizeVehiclePlate(index);
     const group = this.involvedVehicles.at(index);
     if (!(group instanceof FormGroup)) return;
@@ -2787,7 +2830,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           make: vehicle.make || '',
           model: vehicle.model || '',
           color: vehicle.color || '',
-          details: '',
         };
         group.patchValue(patch, { emitEvent: false });
         this.vehicleLastLookupPlate.set(index, normalizedPlate);
@@ -2818,7 +2860,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private clearVehicleCatalogFields(index: number): void {
     const group = this.involvedVehicles.at(index);
     if (!(group instanceof FormGroup)) return;
-    group.patchValue({ make: '', model: '', color: '', details: '' }, { emitEvent: false });
+    group.patchValue({ make: '', model: '', color: '' }, { emitEvent: false });
     this.cdr.markForCheck();
   }
 
@@ -3547,11 +3589,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (
       !this.jsonStableEqual(
-        this.involvedPlacesSnapshot(
-          ((form.involvedPlaces ?? []) as InvolvedPlace[]).filter(
-            (p) => String(p.name || '').trim() && String(p.address || '').trim(),
-          ),
-        ),
+        this.involvedPlacesSnapshot(this.involvedPlacesForSave()),
         this.involvedPlacesSnapshot(incident.involvedPlaces ?? []),
       )
     ) {
@@ -4185,6 +4223,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       if (trusted) this.applyTrustedIncidentCoords(trusted.lat, trusted.lng);
     }
     this.applyServerExpedienteUrls(this.trustedExpedientePeople, false);
+    this.applyTrustedInvolvedPlaces();
+    this.applyTrustedInvolvedVehicles();
     this.cdr.detectChanges();
   }
 
@@ -4193,12 +4233,46 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       next: (fresh) => {
         if (this.activeTabId() !== incidentId) return;
         this.incidentService.incidents.update((list) =>
-          list.map((i) => (i.id === fresh.id ? { ...i, ...fresh } : i)),
+          list.map((i) =>
+            i.id === fresh.id
+              ? {
+                  ...i,
+                  ...fresh,
+                  involvedPlaces: fresh.involvedPlaces?.length
+                    ? fresh.involvedPlaces
+                    : i.involvedPlaces,
+                  involvedVehicles: fresh.involvedVehicles?.length
+                    ? fresh.involvedVehicles
+                    : i.involvedVehicles,
+                }
+              : i,
+          ),
         );
         this.openIncidentTabs.update((tabs) =>
-          tabs.map((t) => (t.id === fresh.id ? { ...t, ...fresh } : t)),
+          tabs.map((t) =>
+            t.id === fresh.id
+              ? {
+                  ...t,
+                  ...fresh,
+                  involvedPlaces: fresh.involvedPlaces?.length
+                    ? fresh.involvedPlaces
+                    : t.involvedPlaces,
+                  involvedVehicles: fresh.involvedVehicles?.length
+                    ? fresh.involvedVehicles
+                    : t.involvedVehicles,
+                }
+              : t,
+          ),
         );
-        this.populateFormWithState(fresh);
+        this.populateFormWithState({
+          ...fresh,
+          involvedPlaces: fresh.involvedPlaces?.length
+            ? fresh.involvedPlaces
+            : this.trustedInvolvedPlaces,
+          involvedVehicles: fresh.involvedVehicles?.length
+            ? fresh.involvedVehicles
+            : this.trustedInvolvedVehicles,
+        });
         this.restoreHydratedIncidentFields();
         setTimeout(() => {
           if (this.activeTabId() !== incidentId) return;
@@ -4220,6 +4294,127 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       const phone = this.normalizePhone(String(group.get('contact')?.value ?? ''));
       if (digits.length >= 5) this.personLastLookupKey.set(index, `doc:${digits}`);
       else if (phone.length >= 7) this.personLastLookupKey.set(index, `phone:${phone}`);
+    });
+  }
+
+  private normalizeInvolvedPlaces(places: InvolvedPlace[] | undefined | null): InvolvedPlace[] {
+    return (places ?? [])
+      .map((p) => ({
+        id: p.id,
+        name: String(p.name ?? '').trim(),
+        address: String(p.address ?? '').trim(),
+        departmentId: this.normalizePositiveId(p.departmentId),
+        municipalityId: this.normalizePositiveId(p.municipalityId),
+        contact: String(p.contact ?? '').trim(),
+        roleId: this.normalizePositiveId(p.roleId) ?? undefined,
+        comments: String(p.comments ?? '').trim(),
+      }))
+      .filter((p) => p.name || p.address || p.contact || p.comments || p.roleId != null);
+  }
+
+  private normalizeInvolvedVehicles(
+    vehicles: InvolvedVehicle[] | undefined | null,
+  ): InvolvedVehicle[] {
+    return (vehicles ?? [])
+      .map((v) => ({
+        plate: String(v.plate ?? '')
+          .trim()
+          .toUpperCase(),
+        role: String(v.role ?? '').trim() as VehicleRole,
+        make: String(v.make ?? '').trim(),
+        model: String(v.model ?? '').trim(),
+        color: String(v.color ?? '').trim(),
+        details: String(v.details ?? '').trim(),
+      }))
+      .filter((v) => v.plate || v.role || v.make || v.model || v.color || v.details);
+  }
+
+  private populateInvolvedPlaces(places: InvolvedPlace[]): void {
+    this.involvedPlaces.clear();
+    this.placeMunicipalities.set(new Map());
+    this.placeMunicipalitiesLoaded.set(new Map());
+    this.detachPlaceDepartmentWatchers();
+    places.forEach((pl, index) => {
+      const group = this.buildPlaceGroup(pl);
+      this.involvedPlaces.push(group);
+      this.writePlaceGroupValues(group, pl);
+      this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId).catch(
+        () => void 0,
+      );
+    });
+    this.reattachPlaceDepartmentWatchers();
+    this.involvedListsEpoch.update((n) => n + 1);
+    this.cdr.markForCheck();
+  }
+
+  private populateInvolvedVehicles(vehicles: InvolvedVehicle[]): void {
+    this.involvedVehicles.clear();
+    this.vehicleLastLookupPlate.clear();
+    vehicles.forEach((v, index) => {
+      this.involvedVehicles.push(
+        this.fb.group({
+          plate: [v.plate ?? '', this.validateOptionalPlate],
+          role: [(v.role || '') as VehicleRole | ''],
+          make: [v.make ?? ''],
+          model: [v.model ?? ''],
+          color: [v.color ?? ''],
+          details: [v.details ?? ''],
+        }),
+      );
+      const plate = String(v.plate || '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+      if (plate.length >= 5) this.vehicleLastLookupPlate.set(index, plate);
+    });
+    this.involvedListsEpoch.update((n) => n + 1);
+    this.cdr.markForCheck();
+  }
+
+  private applyTrustedInvolvedPlaces(): void {
+    const trusted = this.trustedInvolvedPlaces;
+    if (!trusted.length) return;
+    if (this.involvedPlaces.length !== trusted.length) {
+      this.populateInvolvedPlaces(trusted);
+      return;
+    }
+    trusted.forEach((place, index) => {
+      const group = this.involvedPlaces.at(index);
+      if (!(group instanceof FormGroup)) return;
+      this.writePlaceGroupValues(group, place);
+      this.loadPlaceMunicipalitiesForRow(index, place.departmentId, place.municipalityId).catch(
+        () => void 0,
+      );
+    });
+    this.involvedListsEpoch.update((n) => n + 1);
+    this.cdr.markForCheck();
+  }
+
+  private applyTrustedInvolvedVehicles(): void {
+    const trusted = this.trustedInvolvedVehicles;
+    if (!trusted.length) return;
+    if (this.involvedVehicles.length === 0) {
+      this.populateInvolvedVehicles(trusted);
+      return;
+    }
+    trusted.forEach((vehicle, index) => {
+      const group = this.involvedVehicles.at(index);
+      if (!(group instanceof FormGroup)) return;
+      const patch: Partial<InvolvedVehicle> = {};
+      if (!String(group.get('plate')?.value ?? '').trim() && vehicle.plate) {
+        patch.plate = vehicle.plate;
+      }
+      if (!String(group.get('role')?.value ?? '').trim() && vehicle.role) patch.role = vehicle.role;
+      if (!String(group.get('make')?.value ?? '').trim() && vehicle.make) patch.make = vehicle.make;
+      if (!String(group.get('model')?.value ?? '').trim() && vehicle.model) {
+        patch.model = vehicle.model;
+      }
+      if (!String(group.get('color')?.value ?? '').trim() && vehicle.color) {
+        patch.color = vehicle.color;
+      }
+      if (!String(group.get('details')?.value ?? '').trim() && vehicle.details) {
+        patch.details = vehicle.details;
+      }
+      if (Object.keys(patch).length) group.patchValue(patch, { emitEvent: false });
     });
   }
 
@@ -4380,9 +4575,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       locationRequestId: this.locationService.getLastLocationRequestId() ?? undefined,
       locationSolicitudId: this.locationService.getLastLocationSolicitudId() ?? undefined,
       involvedPeople: this.involvedPeopleForSave(),
-      involvedPlaces: ((formValue.involvedPlaces ?? []) as InvolvedPlace[]).filter(
-        (p) => String(p.name || '').trim() && String(p.address || '').trim(),
-      ),
+      involvedPlaces: this.involvedPlacesForSave(),
       involvedVehicles: this.involvedVehiclesForSave(),
     };
   }
@@ -4639,9 +4832,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       type: selectedType?.name ?? updatedData.event_id ?? '',
       priority: formPriority,
       involvedPeople: this.involvedPeopleForSave(),
-      involvedPlaces: ((updatedData.involvedPlaces ?? []) as InvolvedPlace[]).filter(
-        (p) => String(p.name || '').trim() && String(p.address || '').trim(),
-      ),
+      involvedPlaces: this.involvedPlacesForSave(),
       involvedVehicles: this.involvedVehiclesForSave(),
     };
     this.incidentSaveInFlight = true;
@@ -4721,6 +4912,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.involvedPeople.push(this.createPersonGroup());
     this.involvedPlaces.clear();
     this.involvedVehicles.clear();
+    this.involvedListsEpoch.update((n) => n + 1);
     this.placeMunicipalities.set(new Map());
     this.placeMunicipalitiesLoaded.set(new Map());
     this.detachPlaceDepartmentWatchers();
@@ -4731,6 +4923,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.trustedIncidentCoords = null;
     this.trustedLocationText = '';
     this.trustedExpedientePeople = [];
+    this.trustedInvolvedPlaces = [];
+    this.trustedInvolvedVehicles = [];
+    this.trustedRelatedIncidentId = null;
     this.locationFieldsEditedByUser = false;
     this.locationAreaPinnedByUser = false;
     void this.refreshAutocompleteBias();
@@ -4744,7 +4939,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedIncidentTypeName.set(state.type || state.event_id || null);
     this.skipStatusNav = true;
     this.locationCoordSync.runPatch(() => {
-      this.incidentForm.reset(undefined, { emitEvent: false });
+      this.resetIncidentScalarControls();
     });
     const {
       comments,
@@ -4756,6 +4951,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       lng: stateLng,
       ...rest
     } = state;
+    const scalarPatch = { ...rest } as Record<string, unknown>;
+    delete scalarPatch['involvedPlaces'];
+    delete scalarPatch['involvedVehicles'];
+    delete scalarPatch['involvedPeople'];
+    delete scalarPatch['involved_places'];
+    delete scalarPatch['involved_vehicles'];
+    delete scalarPatch['involved_people'];
     const parsedCoords = parseIncidentCoords(stateLat, stateLng);
     this.rememberTrustedIncidentCoords(
       parsedCoords?.lat,
@@ -4763,10 +4965,26 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       state.location,
     );
     this.trustedExpedientePeople = involvedPeople ?? [];
+    const incidentKey = String(state.id || '');
+    if (incidentKey !== this.trustedRelatedIncidentId) {
+      this.trustedInvolvedPlaces = [];
+      this.trustedInvolvedVehicles = [];
+      this.trustedRelatedIncidentId = incidentKey || null;
+    }
+    const nextPlaces = this.normalizeInvolvedPlaces(
+      (placesState?.length ? placesState : null) ??
+        ((state as { involved_places?: InvolvedPlace[] }).involved_places ?? []),
+    );
+    const nextVehicles = this.normalizeInvolvedVehicles(
+      (vehiclesState?.length ? vehiclesState : null) ??
+        ((state as { involved_vehicles?: InvolvedVehicle[] }).involved_vehicles ?? []),
+    );
+    if (nextPlaces.length) this.trustedInvolvedPlaces = nextPlaces;
+    if (nextVehicles.length) this.trustedInvolvedVehicles = nextVehicles;
     this.locationCoordSync.runPatch(() => {
       this.incidentForm.patchValue(
         {
-          ...rest,
+          ...scalarPatch,
           lat: parsedCoords?.lat ?? null,
           lng: parsedCoords?.lng ?? null,
           status: this.statusNameForForm(String(rest.status || '')),
@@ -4806,28 +5024,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.involvedPeople.clear();
     this.populateInvolvedPeople(involvedPeople ?? []);
-    this.involvedPlaces.clear();
-    this.placeMunicipalities.set(new Map());
-    this.detachPlaceDepartmentWatchers();
-    const places = placesState ?? [];
-    places.forEach((pl, index) => {
-      this.involvedPlaces.push(this.buildPlaceGroup(pl));
-      this.loadPlaceMunicipalitiesForRow(index, pl.departmentId, pl.municipalityId).catch(() => void 0);
-    });
-    this.reattachPlaceDepartmentWatchers();
-    this.involvedVehicles.clear();
-    vehiclesState?.forEach((v) =>
-      this.involvedVehicles.push(
-        this.fb.group({
-          plate: [v.plate ?? '', this.validateOptionalPlate],
-          role: [(v.role || '') as VehicleRole | ''],
-          make: [v.make],
-          model: [v.model],
-          color: [v.color],
-          details: [v.details],
-        }),
-      ),
-    );
+    this.populateInvolvedPlaces(this.trustedInvolvedPlaces);
+    this.populateInvolvedVehicles(this.trustedInvolvedVehicles);
     this.incidentForm.enable({ emitEvent: false });
     this.incidentForm.get('locationPhoneNumber')?.disable({ emitEvent: false });
     this.skipStatusNav = false;
@@ -4835,9 +5033,47 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     if (parsedCoords) this.markLocationCoordsSynced();
     else this.locationCoordSync.clearSync();
     this.restoreHydratedIncidentFields();
+    this.scheduleInvolvedCollectionsPaint(state.id);
     if (state.id && this.activeTabId() === state.id) {
       this.scheduleFormSyncAfterStable(state.id);
     }
+  }
+
+  private scheduleInvolvedCollectionsPaint(incidentId?: string): void {
+    if (this.involvedPaintTimer) clearTimeout(this.involvedPaintTimer);
+    this.involvedPaintTimer = setTimeout(() => {
+      this.involvedPaintTimer = null;
+      this.ngZone.run(() => {
+        if (incidentId && this.activeTabId() !== incidentId) return;
+        this.applyTrustedInvolvedPlaces();
+        this.applyTrustedInvolvedVehicles();
+        this.involvedListsEpoch.update((n) => n + 1);
+        this.cdr.detectChanges();
+      });
+    }, 0);
+  }
+
+  private resetIncidentScalarControls(): void {
+    const skip = new Set(['involvedPeople', 'involvedPlaces', 'involvedVehicles']);
+    for (const key of Object.keys(this.incidentForm.controls)) {
+      if (skip.has(key)) continue;
+      this.incidentForm.get(key)?.reset(undefined, { emitEvent: false });
+    }
+  }
+
+  private writePlaceGroupValues(group: FormGroup, place: InvolvedPlace): void {
+    group.setValue(
+      {
+        name: String(place.name ?? '').trim(),
+        address: String(place.address ?? '').trim(),
+        departmentId: this.normalizePositiveId(place.departmentId),
+        municipalityId: this.normalizePositiveId(place.municipalityId),
+        contact: String(place.contact ?? '').trim(),
+        roleId: this.normalizePositiveId(place.roleId),
+        comments: String(place.comments ?? '').trim(),
+      },
+      { emitEvent: false },
+    );
   }
 
   openIncidentEmailModal(incident: Incident): void {
@@ -4961,6 +5197,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.ngOnDestroyListPageResize = null;
     if (this.formSyncStableTimer) clearTimeout(this.formSyncStableTimer);
     if (this.hydrateLookupTimer) clearTimeout(this.hydrateLookupTimer);
+    if (this.involvedPaintTimer) clearTimeout(this.involvedPaintTimer);
     this.hydratingIncidentForm = false;
     this.vehicleLookupTimers.forEach((t) => clearTimeout(t));
     this.vehicleLookupTimers.clear();

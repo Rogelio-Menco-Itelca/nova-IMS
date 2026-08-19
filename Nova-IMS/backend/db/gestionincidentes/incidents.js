@@ -193,6 +193,22 @@ function pushToGroupedMap(map, key, item) {
   map[key].push(item);
 }
 
+function toPositiveId(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function groupedItems(map, key) {
+  if (!map) return [];
+  if (Array.isArray(map[key]) && map[key].length) return map[key];
+  const n = Number(key);
+  if (Number.isFinite(n) && Array.isArray(map[n]) && map[n].length) return map[n];
+  const asString = String(key);
+  if (Array.isArray(map[asString]) && map[asString].length) return map[asString];
+  return map[key] || [];
+}
+
 async function loadComments(internalId) {
   const [rows] = await pool.query(
     `SELECT ci.Comentario, ci.FechaHora
@@ -450,12 +466,12 @@ async function loadInvolvedVehicles(internalIds, reader = pool) {
   const map = {};
   for (const r of rows) {
     pushToGroupedMap(map, r.internal_id, {
-      plate: r.plate,
-      role: r.role || 'Vehículo Involucrado',
-      make: r.make,
-      model: r.model,
-      color: r.color,
-      details: r.details,
+      plate: r.plate || '',
+      role: r.role || '',
+      make: r.make || '',
+      model: r.model || '',
+      color: r.color || '',
+      details: r.details || '',
       incidentDate: r.incidentDate,
     });
   }
@@ -518,14 +534,14 @@ async function loadInvolvedPlaces(internalIds, reader = pool) {
       .join('\n');
     pushToGroupedMap(map, r.internal_id, {
       id: r.id,
-      name: r.name,
-      address: r.address,
-      departmentId: r.department_id,
-      municipalityId: r.municipality_id,
+      name: r.name || '',
+      address: r.address || '',
+      departmentId: toPositiveId(r.department_id),
+      municipalityId: toPositiveId(r.municipality_id),
       departmentName: r.department_name || '',
       municipalityName: r.municipality_name || '',
       contact: r.contact || '',
-      roleId: r.role_id,
+      roleId: toPositiveId(r.role_id),
       roleName: r.role_name || '',
       comments,
       commentsHistory: history,
@@ -584,9 +600,9 @@ async function hydrateIncidents(rows, reader = pool) {
       ...loc,
       operator_name: r.operator_name || '',
     });
-    incident.involvedPeople = peopleMap[r.internal_id] || [];
-    incident.involvedPlaces = placesMap[r.internal_id] || [];
-    incident.involvedVehicles = vehMap[r.internal_id] || [];
+    incident.involvedPeople = groupedItems(peopleMap, r.internal_id);
+    incident.involvedPlaces = groupedItems(placesMap, r.internal_id);
+    incident.involvedVehicles = groupedItems(vehMap, r.internal_id);
     out.push(incident);
   }
   return out;
@@ -658,9 +674,11 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
   for (const place of places || []) {
     const name = String(place.name || place.nombre || '').trim();
     const address = String(place.address || place.direccion || place.direccion_lugar || '').trim();
-    if (!name || !address) continue;
+    if (!name && !address) continue;
+    const safeName = (name || address).substring(0, 100);
+    const safeAddress = (address || name).substring(0, 100);
 
-    let roleId = place.roleId ?? place.role_id ?? null;
+    let roleId = toPositiveId(place.roleId ?? place.role_id);
     if (!roleId && place.roleName) {
       const [roles] = await conn.query(
         `SELECT ID_Rol_Lugar FROM roles_lugar
@@ -680,20 +698,26 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
       roleId = fb[0]?.ID_Rol_Lugar || 1;
     }
 
-    const [result] = await conn.query(
-      `INSERT INTO lugares
-        (Nombre_lugar, Direccion_lugar, ID_departamento, ID_municipio, Contacto, ID_Rol_lugar, ID_incidente)
-       VALUES (?,?,?,?,?,?,?)`,
-      [
-        name.substring(0, 100),
-        address.substring(0, 100),
-        place.departmentId ?? place.department_id ?? null,
-        place.municipalityId ?? place.municipality_id ?? null,
-        place.contact || place.contacto || null,
-        roleId,
-        internalId,
-      ],
-    );
+    const deptId = toPositiveId(place.departmentId ?? place.department_id);
+    const muniId = toPositiveId(place.municipalityId ?? place.municipality_id);
+    const contact =
+      String(place.contact || place.contacto || '').trim().substring(0, 100) || null;
+
+    const insertLugar = (departmentId, municipalityId) =>
+      conn.query(
+        `INSERT INTO lugares
+          (Nombre_lugar, Direccion_lugar, ID_departamento, ID_municipio, Contacto, ID_Rol_lugar, ID_incidente)
+         VALUES (?,?,?,?,?,?,?)`,
+        [safeName, safeAddress, departmentId, municipalityId, contact, roleId, internalId],
+      );
+
+    let result;
+    try {
+      [result] = await insertLugar(deptId, muniId);
+    } catch (err) {
+      if (err?.code !== 'ER_NO_REFERENCED_ROW_2' && err?.code !== 'ER_NO_REFERENCED_ROW') throw err;
+      [result] = await insertLugar(null, null);
+    }
 
     const commentText = String(place.comments || place.comentario || '').trim();
     if (commentText && userCtx.userId) {
