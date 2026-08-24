@@ -54,17 +54,39 @@ function mapPermissionRowToApi(p) {
   };
 }
 
+let rolesListCache = { at: 0, grouped: null };
+const ROLES_LIST_CACHE_MS = 60_000;
+
+function invalidateRolesListCache() {
+  rolesListCache = { at: 0, grouped: null };
+}
+
+async function listRolesGroupedByAgency(force = false) {
+  const now = Date.now();
+  if (!force && rolesListCache.grouped && now - rolesListCache.at < ROLES_LIST_CACHE_MS) {
+    return rolesListCache.grouped;
+  }
+  const [rows] = await pool.query(
+    `SELECT ID_Rol AS id, Rol AS name, ID_Agencia AS agency
+     FROM roles
+     ORDER BY Rol`,
+  );
+  const grouped = {};
+  for (const r of rows) {
+    const code = normalizeAgencyCode(r.agency);
+    if (!code) continue;
+    if (!grouped[code]) grouped[code] = [];
+    grouped[code].push({ id: r.id, name: r.name });
+  }
+  rolesListCache = { at: now, grouped };
+  return grouped;
+}
+
 async function listRolesSimple(agencyCode) {
   const agency = normalizeAgencyCode(agencyCode);
   if (!agency) return [];
-  const [rows] = await pool.query(
-    `SELECT ID_Rol AS id, Rol AS name
-     FROM roles
-     WHERE UPPER(ID_Agencia) = ?
-     ORDER BY Rol`,
-    [agency],
-  );
-  return rows;
+  const grouped = await listRolesGroupedByAgency();
+  return grouped[agency] || [];
 }
 
 async function buildRolePermissions(agencyCode) {
@@ -135,6 +157,7 @@ async function createRole(id, name, agencyCode) {
       );
     }
     await conn.commit();
+    invalidateRolesListCache();
   } catch (e) {
     await conn.rollback();
     throw e;
@@ -275,6 +298,8 @@ async function checkRolePermission(roleId, agencyCode, moduleName, action = 'vie
 
 module.exports = {
   listRolesSimple,
+  listRolesGroupedByAgency,
+  invalidateRolesListCache,
   buildRolePermissions,
   createRole,
   updateRolePermissions,

@@ -9,6 +9,21 @@ exports.agencies = asyncHandler(async (req, res) => {
   res.json(await giAgencies.listAgencies());
 });
 
+exports.loginOptions = asyncHandler(async (req, res) => {
+  const [agencies, grouped] = await Promise.all([
+    giAgencies.listAgencies(),
+    giRoles.listRolesGroupedByAgency(),
+  ]);
+  const rolesByAgency = {};
+  for (const agency of agencies) {
+    const key = String(agency.code || '')
+      .trim()
+      .toUpperCase();
+    if (key) rolesByAgency[key] = grouped[key] || [];
+  }
+  res.json({ agencies, rolesByAgency });
+});
+
 exports.rolesSimple = asyncHandler(async (req, res) => {
   const agency = requireAgencyCode(req, 'Query agency es requerido (código IDAgencias)');
   res.json(await giRoles.listRolesSimple(agency));

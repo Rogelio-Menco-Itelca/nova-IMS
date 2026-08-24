@@ -57,6 +57,8 @@ export class LoginComponent implements OnInit, OnDestroy {
   rolesLoading = signal(false);
   agencies = signal<Agency[]>([]);
   roles = signal<RoleOption[]>([]);
+  private rolesByAgency = signal<Record<string, RoleOption[]>>({});
+  private catalogReady = signal(false);
   errorMsg = signal<string | null>(null);
   successMsg = signal<string | null>(null);
   otpTarget = signal<string>('');
@@ -123,9 +125,11 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
     }
 
-    this.authService.getAgencies().subscribe({
-      next: (list) => {
-        this.agencies.set(list);
+    this.authService.getLoginOptions().subscribe({
+      next: ({ agencies, rolesByAgency }) => {
+        this.agencies.set(agencies || []);
+        this.rolesByAgency.set(rolesByAgency || {});
+        this.catalogReady.set(Object.keys(rolesByAgency || {}).length > 0);
         this.agenciesLoading.set(false);
         this.loginForm.patchValue({ agencia: '' });
       },
@@ -148,6 +152,21 @@ export class LoginComponent implements OnInit, OnDestroy {
     if (this.resendTimer) clearInterval(this.resendTimer);
   }
 
+  private agencyKey(code: string): string {
+    return String(code || '').trim().toUpperCase();
+  }
+
+  private applyRoles(list: RoleOption[]): void {
+    this.roles.set(list);
+    this.rolesLoading.set(false);
+    if (list.length) {
+      this.loginForm.controls.rol.enable({ emitEvent: false });
+    } else {
+      this.loginForm.controls.rol.disable({ emitEvent: false });
+    }
+    this.resetRolSelection();
+  }
+
   private loadRolesForAgency(agencyCode: string): void {
     this.rolesSub?.unsubscribe();
     this.resetRolSelection();
@@ -159,15 +178,18 @@ export class LoginComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.loginForm.controls.rol.enable({ emitEvent: false });
+    const key = this.agencyKey(agencyCode);
+    if (this.catalogReady()) {
+      this.applyRoles(this.rolesByAgency()[key] || []);
+      return;
+    }
+
+    this.loginForm.controls.rol.disable({ emitEvent: false });
+    this.roles.set([]);
     this.rolesLoading.set(true);
 
-    this.rolesSub = this.authService.getRoles(agencyCode).subscribe({
-      next: (list) => {
-        this.roles.set(list);
-        this.rolesLoading.set(false);
-        queueMicrotask(() => this.resetRolSelection());
-      },
+    this.rolesSub = this.authService.getRoles(key).subscribe({
+      next: (list) => this.applyRoles(list || []),
       error: () => {
         this.rolesLoading.set(false);
         this.roles.set([]);

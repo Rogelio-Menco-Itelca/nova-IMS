@@ -4,6 +4,11 @@ import { Observable, tap, catchError, throwError, map } from 'rxjs';
 import { AuthSource, User, Agency, RoleOption } from '../models/user.model';
 import { PermissionService } from './permission.service';
 
+interface LoginOptions {
+  agencies: Agency[];
+  rolesByAgency: Record<string, RoleOption[]>;
+}
+
 interface LoginPayload {
   agencia: string;
   usuario: string;
@@ -229,6 +234,14 @@ export class AuthService {
 
   getAgencies(): Observable<Agency[]> {
     return this.http.get<Agency[]>('/api/agencies');
+  }
+
+  getLoginOptions(): Observable<LoginOptions> {
+    return this.http.get<LoginOptions>('/api/login/options').pipe(
+      catchError(() =>
+        this.getAgencies().pipe(map((agencies) => ({ agencies, rolesByAgency: {} }))),
+      ),
+    );
   }
 
   getRoles(agencyCode: string): Observable<RoleOption[]> {

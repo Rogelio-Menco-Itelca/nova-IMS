@@ -104,6 +104,16 @@
       animation: pulse 2s infinite;
     }
 
+    .pulse-green {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 0 rgba(52, 211, 153, 0.4);
+      animation: pulse-green 2s infinite;
+    }
+
     @keyframes pulse {
       0% {
         box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
@@ -115,6 +125,20 @@
 
       100% {
         box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+      }
+    }
+
+    @keyframes pulse-green {
+      0% {
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+      }
+
+      70% {
+        box-shadow: 0 0 0 10px rgba(52, 211, 153, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
       }
     }
 

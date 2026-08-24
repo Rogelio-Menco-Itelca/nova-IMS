@@ -45,6 +45,7 @@ router.post('/auth/login', authCtrl.login);
 router.post('/auth/verify-otp', authCtrl.verifyOtp);
 router.get('/auth/ldap-health', authCtrl.ldapHealth);
 router.get('/agencies', catCtrl.agencies);
+router.get('/login/options', catCtrl.loginOptions);
 router.get('/roles/list', catCtrl.rolesSimple);
 router.get('/departments', catCtrl.departments);
 router.get('/municipalities', catCtrl.municipalities);
