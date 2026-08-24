@@ -8,6 +8,7 @@ const giUsers = require('../db/gestionincidentes/users');
 const giAgencies = require('../db/gestionincidentes/agencies');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
 const { recordAudit } = require('../utils/auditTrail');
+const { shouldAttemptDirectoryAuth } = require('../utils/authUserType');
 
 const INVALID_MSG = 'Credenciales incorrectas. Por favor, intente de nuevo.';
 
@@ -245,18 +246,20 @@ async function login(credentials, options = {}) {
     await assertSelectedRoleForUser(rol, dbUser, agencia, rememberUser);
   }
 
-  const directoryResult = await ldapService.tryAuthenticate(usuario, password);
+  if (shouldAttemptDirectoryAuth(ldapConfig.enabled, dbUser)) {
+    const directoryResult = await ldapService.tryAuthenticate(usuario, password);
 
-  if (directoryResult.ok) {
-    if (dbUser) {
-      return completeDirectoryDbLogin(dbUser, agencia, rememberUser, logSuccess);
+    if (directoryResult.ok) {
+      if (dbUser) {
+        return completeDirectoryDbLogin(dbUser, agencia, rememberUser, logSuccess);
+      }
+      const session = await buildDirectorySession(usuario, agencia, directoryResult.profile);
+      return buildTokenResponse(session);
     }
-    const session = await buildDirectorySession(usuario, agencia, directoryResult.profile);
-    return buildTokenResponse(session);
-  }
 
-  if (directoryResult.error) {
-    throw new HttpError(503, directoryResult.error);
+    if (directoryResult.error) {
+      throw new HttpError(503, directoryResult.error);
+    }
   }
 
   if (!dbUser) {

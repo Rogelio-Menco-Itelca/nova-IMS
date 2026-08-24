@@ -10,6 +10,7 @@ const HttpError = require('../utils/HttpError');
 const giUsers = require('../db/gestionincidentes/users');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
 const { recordAudit } = require('../utils/auditTrail');
+const { shouldAttemptDirectoryAuth } = require('../utils/authUserType');
 
 function maskEmail(email) {
   if (!email) return '****';
@@ -99,7 +100,10 @@ exports.login = asyncHandler(async (req, res) => {
   const { agencia, usuario, password, rememberMe } = req.body || {};
   const rememberUser = !!rememberMe;
 
-  if (ldapConfig.enabled) {
+  const existingUser = await giUsers.findUserByLogin(usuario, agencia);
+  const tryDirectory = shouldAttemptDirectoryAuth(ldapConfig.enabled, existingUser);
+
+  if (tryDirectory) {
     const directoryResult = await ldapService.tryAuthenticate(usuario, password);
 
     if (directoryResult.error) {

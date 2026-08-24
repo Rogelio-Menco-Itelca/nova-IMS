@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
 const ldapConfig = require('../../config/ldap');
+const { LDAP_ONLY_TOKEN } = require('../../utils/authUserType');
 const { fullUserName, normalizeAgencyCode } = require('./maps');
 const { loadAgencyMap, resolveAgency } = require('./agencies');
 
@@ -29,7 +30,8 @@ const USER_SELECT = `
   u.Telefono AS telefono,
   u.Contraseña AS password_hash,
   u.estado AS status,
-  'local' AS auth_source,
+  u.Token_Contraseña AS password_token,
+  CASE WHEN u.Token_Contraseña = '${LDAP_ONLY_TOKEN}' THEN 'ldap' ELSE 'local' END AS auth_source,
   CASE WHEN u.Token_Contraseña = '${MUST_CHANGE_TOKEN}' THEN 1 ELSE 0 END AS must_change_password,
   u.ID_Rol AS role_id,
   r.Rol AS role_name,
@@ -307,7 +309,6 @@ async function resolveUserContext(userId, agencyCode) {
   };
 }
 
-const LDAP_ONLY_TOKEN = 'LDAP_ONLY';
 const LDAP_ONLY_PASSWORD = bcrypt.hashSync('LDAP_DIRECTORY_ONLY', 8);
 
 function splitDisplayName(displayName, fallbackUsername) {
