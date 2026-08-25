@@ -294,7 +294,7 @@
               Por prioridad
             </h3>
             <div class="space-y-3">
-              @for (item of data()!.byPriority; track item.label) {
+              @for (item of priorityBreakdown(); track item.label) {
                 <div>
                   <div class="flex justify-between text-xs mb-1">
                     <span [class]="priorityColor(item.label) + ' font-medium'">{{
@@ -305,7 +305,7 @@
                   <div class="w-full bg-gray-700 rounded-full h-2">
                     <div
                       [class]="priorityBar(item.label) + ' h-2 rounded-full'"
-                      [style.width.%]="barWidth(item.value, maxOf(data()!.byPriority))"
+                      [style.width.%]="barWidth(item.value, maxOf(priorityBreakdown()))"
                     ></div>
                   </div>
                 </div>

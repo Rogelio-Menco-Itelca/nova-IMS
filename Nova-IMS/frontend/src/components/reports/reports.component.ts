@@ -49,6 +49,13 @@ export class ReportsComponent implements OnInit {
     operator: [''],
   });
 
+  readonly priorityBreakdown = computed(() => {
+    const order = ['Crítica', 'Alta', 'Media', 'Baja'] as const;
+    const rows = this.data()?.byPriority ?? [];
+    const counts = new Map(rows.map((row) => [row.label, Number(row.value) || 0]));
+    return order.map((label) => ({ label, value: counts.get(label) ?? 0 }));
+  });
+
   filteredHistory = computed(() => {
     const d = this.data();
     if (!d) return [];
