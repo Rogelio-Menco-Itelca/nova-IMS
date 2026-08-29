@@ -8,7 +8,7 @@ const giUsers = require('../db/gestionincidentes/users');
 const giAgencies = require('../db/gestionincidentes/agencies');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
 const { recordAudit } = require('../utils/auditTrail');
-const { shouldAttemptDirectoryAuth } = require('../utils/authUserType');
+const { shouldAttemptDirectoryAuth, isLocalPasswordUser } = require('../utils/authUserType');
 
 const INVALID_MSG = 'Credenciales incorrectas. Por favor, intente de nuevo.';
 
@@ -338,7 +338,10 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
   }
 
   const { validatePassword } = require('../utils/passwordPolicy');
-  const check = validatePassword(newPassword);
+  const check = validatePassword(newPassword, {
+    currentPassword,
+    username: user.username || user.id,
+  });
   if (!check.ok) {
     throw new HttpError(400, check.errors.join(' '));
   }
@@ -362,10 +365,36 @@ async function changePassword(jwtUser, currentPassword, newPassword) {
   };
 }
 
+async function changePasswordWithCredentials({ agencia, usuario, currentPassword, newPassword }) {
+  if (!agencia || !usuario || !currentPassword || !newPassword) {
+    throw new HttpError(400, 'Agencia, usuario, contraseña actual y nueva son requeridos');
+  }
+
+  const user = await findDbUser(usuario, agencia);
+  const active = user && String(user.status || '').toLowerCase() === 'activo';
+  if (!user || !active) {
+    throw new HttpError(401, 'No se pudo actualizar la contraseña. Verifique los datos.');
+  }
+
+  if (normalizeAuthSource(user.auth_source) === 'ldap' || !isLocalPasswordUser(user)) {
+    throw new HttpError(
+      400,
+      'Los usuarios del directorio corporativo gestionan su contraseña fuera de esta aplicación.',
+    );
+  }
+
+  return changePassword(
+    { sub: user.id, agency_code: user.agency_code, auth_source: user.auth_source },
+    currentPassword,
+    newPassword,
+  );
+}
+
 module.exports = {
   login,
   getProfile,
   changePassword,
+  changePasswordWithCredentials,
   recordFailedLogin,
   recordSuccessfulLogin,
   assertSelectedRoleForUser,

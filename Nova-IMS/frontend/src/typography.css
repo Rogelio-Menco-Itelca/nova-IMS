@@ -171,6 +171,13 @@ body,
   font-size: var(--ims-fs-caption);
 }
 
+@media (max-width: 639px) {
+  .ims-auth input,
+  .ims-auth select {
+    font-size: 16px;
+  }
+}
+
 @media (max-width: 767px) {
   :root {
     --ims-fs-caption: 0.6875rem;

@@ -4,13 +4,14 @@ const authService = require('../services/auth.service');
 const ldapConfig = require('../config/ldap');
 const ldapService = require('../services/ldap.service');
 const otpService = require('../services/otp.service');
-const { sendOtpEmail } = require('../services/email.service');
+const { dispatchOtpEmail } = require('../services/email.service');
 const jwt = require('jsonwebtoken');
 const HttpError = require('../utils/HttpError');
 const giUsers = require('../db/gestionincidentes/users');
 const loginLogs = require('../db/gestionincidentes/loginLogs');
 const { recordAudit } = require('../utils/auditTrail');
-const { shouldAttemptDirectoryAuth } = require('../utils/authUserType');
+const { shouldAttemptDirectoryAuth, isLocalPasswordUser } = require('../utils/authUserType');
+const { validatePassword } = require('../utils/passwordPolicy');
 
 function maskEmail(email) {
   if (!email) return '****';
@@ -56,14 +57,7 @@ async function startOtpFlow(user, rememberUser, resend = false) {
   }
 
   const code = otpService.generate(user.id, { loginRegistroId: registroId });
-  try {
-    await sendOtpEmail({ to: user.email, name: user.name, code });
-  } catch (err) {
-    logger.error('[2FA] Error enviando OTP:', err.message);
-    if (process.env.NODE_ENV !== 'production') {
-      logger.warn(`[2FA] OTP de desarrollo para ${user.email}: ${code}`);
-    }
-  }
+  dispatchOtpEmail({ to: user.email, name: user.name, code });
 
   await loginLogs.safeLog(() =>
     loginLogs.insert2faRecord({
@@ -297,6 +291,103 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
   });
 });
 
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const { agencia, usuario } = req.body || {};
+  if (!agencia || !usuario) {
+    throw new HttpError(400, 'Agencia y usuario o correo son requeridos');
+  }
+
+  const user = await giUsers.findUserByLogin(usuario, agencia);
+  if (!user) {
+    throw new HttpError(404, 'No encontramos una cuenta con ese usuario o correo en la agencia.');
+  }
+
+  if (String(user.status || '').toLowerCase() !== 'activo') {
+    throw new HttpError(403, 'La cuenta no está activa. Contacte a su administrador.');
+  }
+
+  if (!isLocalPasswordUser(user) || String(user.auth_source || '').toLowerCase() === 'ldap') {
+    throw new HttpError(
+      400,
+      'Los usuarios del directorio corporativo restablecen la contraseña con su área de TI.',
+    );
+  }
+
+  if (!user.email) {
+    throw new HttpError(400, 'La cuenta no tiene correo registrado. Contacte a su administrador.');
+  }
+
+  const code = otpService.generate(user.id, { purpose: 'reset' });
+  dispatchOtpEmail({ to: user.email, name: user.name, code, purpose: 'reset' });
+
+  await recordAudit({
+    req,
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'seguridad',
+    modulo: 'Autenticación',
+    tablaAfectada: 'usuarios',
+    accion: 'Solicitud de restablecimiento de contraseña',
+    resultado: 'pendiente',
+    detalle: `Código enviado a ${maskEmail(user.email)}`,
+  });
+
+  res.json({
+    requiresOtp: true,
+    userId: user.id,
+    otpTarget: maskEmail(user.email),
+    message: 'Enviamos un código al correo registrado de la cuenta.',
+  });
+});
+
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const { userId, agencia, code, newPassword } = req.body || {};
+  if (!userId || !agencia || !code || !newPassword) {
+    throw new HttpError(400, 'userId, agencia, code y newPassword son requeridos');
+  }
+
+  const user =
+    (await giUsers.findUserById(userId, agencia)) || (await giUsers.findUserByLogin(userId, agencia));
+  if (!user || !isLocalPasswordUser(user)) {
+    throw new HttpError(401, 'Código incorrecto o expirado. Inicie el restablecimiento de nuevo.');
+  }
+
+  const result = otpService.verify(user.id, code, 'reset');
+  if (!result.ok) {
+    throw new HttpError(
+      401,
+      result.reason === 'expired'
+        ? 'El código ha expirado. Solicite uno nuevo.'
+        : result.reason === 'too_many_attempts'
+          ? 'Demasiados intentos. Solicite un código nuevo.'
+          : 'Código incorrecto o expirado. Inicie el restablecimiento de nuevo.',
+    );
+  }
+
+  const check = validatePassword(newPassword, { username: user.username || user.id });
+  if (!check.ok) {
+    throw new HttpError(400, check.errors.join(' '));
+  }
+
+  await giUsers.updatePasswordHash(user.id, user.agency_code, newPassword);
+
+  await recordAudit({
+    req,
+    actorId: user.id,
+    actorName: user.name,
+    agencyCode: user.agency_code,
+    categoria: 'seguridad',
+    modulo: 'Autenticación',
+    tablaAfectada: 'usuarios',
+    accion: 'Restablecimiento de contraseña',
+    resultado: 'exitoso',
+    detalle: 'El usuario definió una nueva contraseña con código de correo',
+  });
+
+  res.json({ message: 'Contraseña actualizada. Inicie sesión con su nueva contraseña.' });
+});
+
 exports.me = asyncHandler(async (req, res) => {
   res.json(await authService.getProfile(req.user));
 });
@@ -305,6 +396,17 @@ exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   req.skipAutoAudit = true;
   const result = await authService.changePassword(req.user, currentPassword, newPassword);
+  res.json(result);
+});
+
+exports.changePasswordWithCredentials = asyncHandler(async (req, res) => {
+  const { agencia, usuario, currentPassword, newPassword } = req.body || {};
+  const result = await authService.changePasswordWithCredentials({
+    agencia,
+    usuario,
+    currentPassword,
+    newPassword,
+  });
   res.json(result);
 });
 

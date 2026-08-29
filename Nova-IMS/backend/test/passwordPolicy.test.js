@@ -66,4 +66,32 @@ describe('validatePassword', () => {
     assert.ok(result.errors.includes('Debe incluir un número.'));
     assert.ok(result.errors.includes('Debe incluir un carácter especial.'));
   });
+
+  it('rechaza la misma contraseña actual', () => {
+    const result = validatePassword('Segura1!', { currentPassword: 'Segura1!' });
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.includes('La nueva contraseña no puede ser igual a la actual.'));
+  });
+
+  it('rechaza si incluye el usuario', () => {
+    const result = validatePassword('Rogelio1!', { username: 'rogelio' });
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.includes('No puede incluir el nombre de usuario.'));
+  });
+
+  it('rechaza contraseñas comunes', () => {
+    const result = validatePassword('Password1!');
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((e) => e.includes('demasiado común')));
+  });
+
+  it('rechaza repeticiones y secuencias fáciles', () => {
+    const repeated = validatePassword('Segura111!');
+    assert.equal(repeated.ok, false);
+    assert.ok(repeated.errors.some((e) => e.includes('3 veces')));
+
+    const sequence = validatePassword('Segura1234!');
+    assert.equal(sequence.ok, false);
+    assert.ok(sequence.errors.some((e) => e.includes('secuencias')));
+  });
 });

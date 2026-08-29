@@ -88,7 +88,7 @@ exports.create = asyncHandler(async (req, res) => {
     throw new HttpError(400, 'La contraseña es requerida');
   }
 
-  const check = validatePassword(b.password);
+  const check = validatePassword(b.password, { username: loginId });
   if (!check.ok) {
     throw new HttpError(400, check.errors.join(' '));
   }

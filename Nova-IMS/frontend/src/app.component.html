@@ -1,6 +1,6 @@
 <!-- This root div now controls the theme for the entire application -->
 <div [class]="isDarkTheme() ? '' : 'theme-light'">
-  @if (isAuthenticated() && mustChangePassword()) {
+  @if (isAuthenticated() && (mustChangePassword() || activeView() === 'change-password')) {
     <app-change-password />
   } @else if (isAuthenticated()) {
     <div class="ims-layout flex h-screen min-h-0 font-sans bg-bg-app text-text-base">
@@ -220,16 +220,35 @@
                 Estado del Sistema
               </p>
               <div
-                class="ims-live-sync-card flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-950/50 px-2.5 py-2"
+                class="ims-live-sync-card flex items-center gap-2 rounded-md border px-2.5 py-2"
+                [class.ims-live-sync-card--on]="isLiveSync()"
+                [class.ims-live-sync-card--off]="!isLiveSync()"
+                [class.border-emerald-500/40]="isLiveSync()"
+                [class.bg-emerald-950/50]="isLiveSync()"
+                [class.border-amber-500/40]="!isLiveSync()"
+                [class.bg-amber-950/50]="!isLiveSync()"
               >
-                <span class="material-icons shrink-0 text-[18px] leading-none text-emerald-400" aria-hidden="true">sync</span>
+                <span
+                  class="material-icons shrink-0 text-[18px] leading-none"
+                  [class.text-emerald-400]="isLiveSync()"
+                  [class.text-amber-400]="!isLiveSync()"
+                  aria-hidden="true"
+                >sync</span>
                 <div class="min-w-0">
                   <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                     Sincronización
                   </p>
-                  <p class="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-                    <span class="pulse-green shrink-0"></span>
-                    En vivo
+                  <p
+                    class="flex items-center gap-1.5 text-xs font-medium"
+                    [class.text-emerald-300]="isLiveSync()"
+                    [class.text-amber-200]="!isLiveSync()"
+                  >
+                    <span
+                      class="shrink-0"
+                      [class.pulse-green]="isLiveSync()"
+                      [class.pulse-red]="!isLiveSync()"
+                    ></span>
+                    {{ isLiveSync() ? 'En vivo' : 'Sin conexión' }}
                   </p>
                 </div>
               </div>
@@ -290,6 +309,16 @@
                       <span class="material-icons mr-3 shrink-0 text-[20px] leading-none" aria-hidden="true">person</span>
                       <span>Mi Perfil</span>
                     </button>
+                    @if (!authService.isDirectorySession()) {
+                      <button
+                        type="button"
+                        (click)="openChangePassword()"
+                        class="flex w-full items-center text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 rounded-md"
+                      >
+                        <span class="material-icons mr-3 shrink-0 text-[20px] leading-none" aria-hidden="true">lock</span>
+                        <span>Cambiar contraseña</span>
+                      </button>
+                    }
                     <button
                       (click)="toggleTheme()"
                       class="w-full flex items-center text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-600 rounded-md"

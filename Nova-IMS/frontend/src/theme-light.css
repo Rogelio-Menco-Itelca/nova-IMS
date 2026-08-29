@@ -118,10 +118,16 @@ html.theme-light aside.ims-sidebar .text-emerald-400,
   color: #059669 !important;
 }
 
-html.theme-light aside.ims-sidebar .ims-live-sync-card,
-.theme-light aside.ims-sidebar .ims-live-sync-card {
+html.theme-light aside.ims-sidebar .ims-live-sync-card.ims-live-sync-card--on,
+.theme-light aside.ims-sidebar .ims-live-sync-card.ims-live-sync-card--on {
   background-color: #ecfdf5 !important;
   border-color: #a7f3d0 !important;
+}
+
+html.theme-light aside.ims-sidebar .ims-live-sync-card.ims-live-sync-card--off,
+.theme-light aside.ims-sidebar .ims-live-sync-card.ims-live-sync-card--off {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
 }
 
 html.theme-light aside.ims-sidebar .ims-session-card.ims-session-card--local,

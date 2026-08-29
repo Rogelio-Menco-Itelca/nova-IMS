@@ -43,6 +43,9 @@ async function writeIncidentAudit(incidentId, user, { action, changes, details }
 router.get('/config/public', configCtrl.publicConfig);
 router.post('/auth/login', authCtrl.login);
 router.post('/auth/verify-otp', authCtrl.verifyOtp);
+router.post('/auth/forgot-password', authCtrl.forgotPassword);
+router.post('/auth/reset-password', authCtrl.resetPassword);
+router.post('/auth/change-password-credentials', authCtrl.changePasswordWithCredentials);
 router.get('/auth/ldap-health', authCtrl.ldapHealth);
 router.get('/agencies', catCtrl.agencies);
 router.get('/login/options', catCtrl.loginOptions);

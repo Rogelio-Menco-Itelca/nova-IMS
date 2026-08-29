@@ -4,10 +4,16 @@ const MAX_ATTEMPTS = 5;
 
 const store = new Map();
 
+function keyFor(userId, purpose = 'login') {
+  return `${purpose}:${String(userId || '')}`;
+}
+
 function generate(userId, options = {}) {
+  const purpose = options.purpose || 'login';
+  const key = keyFor(userId, purpose);
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  const prev = store.get(userId);
-  store.set(userId, {
+  const prev = store.get(key);
+  store.set(key, {
     code,
     expiresAt: Date.now() + OTP_EXPIRY_MS,
     attempts: 0,
@@ -17,23 +23,24 @@ function generate(userId, options = {}) {
 }
 
 function getLoginRegistroId(userId) {
-  return store.get(userId)?.loginRegistroId ?? null;
+  return store.get(keyFor(userId, 'login'))?.loginRegistroId ?? null;
 }
 
-function verify(userId, inputCode) {
-  const entry = store.get(userId);
+function verify(userId, inputCode, purpose = 'login') {
+  const key = keyFor(userId, purpose);
+  const entry = store.get(key);
 
   if (!entry) {
     return { ok: false, reason: 'no_code' };
   }
 
   if (Date.now() > entry.expiresAt) {
-    store.delete(userId);
+    store.delete(key);
     return { ok: false, reason: 'expired' };
   }
 
   if (entry.attempts >= MAX_ATTEMPTS) {
-    store.delete(userId);
+    store.delete(key);
     return { ok: false, reason: 'too_many_attempts' };
   }
 
@@ -42,7 +49,7 @@ function verify(userId, inputCode) {
     return { ok: false, reason: 'invalid_code' };
   }
 
-  store.delete(userId);
+  store.delete(key);
   return { ok: true };
 }
 

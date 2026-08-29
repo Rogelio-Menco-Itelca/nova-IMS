@@ -19,8 +19,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(apiReq).pipe(
     catchError((err: HttpErrorResponse) => {
-      const isChangePassword = apiReq.url.includes('/auth/change-password');
-      if (err.status === 401 && !isChangePassword) {
+      const isAuthChallenge = [
+        '/auth/change-password',
+        '/auth/change-password-credentials',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+        '/auth/login',
+        '/auth/verify-otp',
+      ].some((path) => apiReq.url.includes(path));
+      if (err.status === 401 && !isAuthChallenge) {
         auth.logout('sesion_expirada');
       }
       return throwError(() => err);

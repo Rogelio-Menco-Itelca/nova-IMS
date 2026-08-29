@@ -30,6 +30,7 @@ import { IncidentLeaveGuardService } from './services/incident-leave-guard.servi
 import { IncidentService } from './services/incident.service';
 import { ConfigurationService } from './services/configuration.service';
 import { PersonService } from './services/person.service';
+import { SocketService } from './services/socket.service';
 import { isCsjMedidasWorkflow } from './utils/medidas-permissions';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
@@ -63,6 +64,8 @@ export class AppComponent implements OnInit {
   private readonly incidentService = inject(IncidentService);
   private readonly configurationService = inject(ConfigurationService);
   private readonly personService = inject(PersonService);
+  private readonly socketService = inject(SocketService);
+  readonly isLiveSync = this.socketService.isConnected;
 
   private readonly elementRef = inject(ElementRef);
 
@@ -277,6 +280,11 @@ export class AppComponent implements OnInit {
   openProfileModal(): void {
     this.isProfileOpen.set(false);
     this.isProfileModalOpen.set(true);
+  }
+
+  openChangePassword(): void {
+    this.isProfileOpen.set(false);
+    this.authService.currentView.set('change-password');
   }
 
   closeProfileModal(): void {

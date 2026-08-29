@@ -21,8 +21,9 @@ import { IncidentService } from '../../services/incident.service';
 import { ConfigurationService } from '../../services/configuration.service';
 import { PersonService } from '../../services/person.service';
 import { Agency, RoleOption } from '../../models/user.model';
+import { passwordHints, validateNewPassword } from '../../utils/password-policy';
 
-type Step = 'credentials' | 'otp';
+type Step = 'credentials' | 'otp' | 'forgot' | 'reset' | 'change';
 
 interface OtpForm {
   d0: FormControl<string>;
@@ -104,6 +105,32 @@ export class LoginComponent implements OnInit, OnDestroy {
       validators: [Validators.required, Validators.pattern(/^\d$/)],
     }),
   }) as FormGroup<OtpForm>;
+
+  resetForm = this.fb.group({
+    newPassword: ['', Validators.required],
+    confirmPassword: ['', Validators.required],
+  });
+
+  changeForm = this.fb.group({
+    currentPassword: ['', Validators.required],
+    newPassword: ['', Validators.required],
+    confirmPassword: ['', Validators.required],
+  });
+
+  stepSubtitle(): string {
+    switch (this.step()) {
+      case 'forgot':
+        return 'Olvidó su contraseña';
+      case 'reset':
+        return 'Código y nueva contraseña';
+      case 'change':
+        return 'Cambiar contraseña';
+      case 'otp':
+        return 'Verificación en dos pasos';
+      default:
+        return 'Bienvenido de nuevo';
+    }
+  }
 
   ngOnInit(): void {
     const notice = sessionStorage.getItem(LOGIN_NOTICE_KEY);
@@ -213,6 +240,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.successMsg.set(null);
 
     const { agencia, rol, usuario, password, rememberMe } = this.loginForm.getRawValue();
+    const usuarioTrim = String(usuario || '').trim();
 
     if (!agencia) {
       this.isLoading.set(false);
@@ -226,8 +254,20 @@ export class LoginComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (!usuarioTrim || /\s/.test(usuarioTrim)) {
+      this.isLoading.set(false);
+      this.errorMsg.set('Ingrese un usuario válido, sin espacios.');
+      return;
+    }
+
+    if (!password) {
+      this.isLoading.set(false);
+      this.errorMsg.set('Ingrese su contraseña.');
+      return;
+    }
+
     if (rememberMe) {
-      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ usuario }));
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ usuario: usuarioTrim }));
     } else {
       localStorage.removeItem(REMEMBER_KEY);
     }
@@ -235,7 +275,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.authService
       .login({
         agencia,
-        usuario: usuario!,
+        usuario: usuarioTrim,
         password: password!,
         rol,
         rememberMe: !!rememberMe,
@@ -340,7 +380,10 @@ export class LoginComponent implements OnInit, OnDestroy {
   backToCredentials(): void {
     this.step.set('credentials');
     this.errorMsg.set(null);
+    this.successMsg.set(null);
     this.otpForm.reset();
+    this.resetForm.reset();
+    this.changeForm.reset();
     if (this.resendTimer) clearInterval(this.resendTimer);
   }
 
@@ -353,7 +396,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       const next = document.getElementById(`otp-${current + 1}`);
       (next as HTMLInputElement)?.focus();
     }
-    if (this.otpForm.valid) this.submitOtp();
+    if (this.otpForm.valid && this.step() === 'otp') this.submitOtp();
   }
 
   onOtpKeydown(event: KeyboardEvent, current: number): void {
@@ -374,7 +417,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     digits.split('').forEach((d, i) => {
       if (i < keys.length) this.otpForm.controls[keys[i]].setValue(d);
     });
-    if (digits.length === 6) this.submitOtp();
+    if (digits.length === 6 && this.step() === 'otp') this.submitOtp();
   }
 
   private startResendCountdown(seconds = 60): void {
@@ -385,6 +428,188 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.resendCountdown.set(v);
       if (v <= 0 && this.resendTimer) clearInterval(this.resendTimer);
     }, 1000);
+  }
+
+  startForgot(): void {
+    this.errorMsg.set(null);
+    this.successMsg.set(null);
+    this.step.set('forgot');
+  }
+
+  startChange(): void {
+    this.errorMsg.set(null);
+    this.successMsg.set(null);
+    this.changeForm.reset();
+    this.step.set('change');
+  }
+
+  changePasswordHints() {
+    return passwordHints(String(this.changeForm.value.newPassword || ''), {
+      currentPassword: String(this.changeForm.value.currentPassword || ''),
+      username: String(this.loginForm.controls.usuario.value || ''),
+    });
+  }
+
+  resetPasswordHints() {
+    return passwordHints(String(this.resetForm.value.newPassword || ''), {
+      username: String(this.loginForm.controls.usuario.value || this.pendingUser() || ''),
+    });
+  }
+
+  confirmMatches(form: 'change' | 'reset'): boolean {
+    const source = form === 'change' ? this.changeForm.value : this.resetForm.value;
+    const next = String(source.newPassword || '');
+    const confirm = String(source.confirmPassword || '');
+    return !!next && !!confirm && next === confirm;
+  }
+
+  onPasswordFieldsInput(form: 'change' | 'reset'): void {
+    const source = form === 'change' ? this.changeForm.value : this.resetForm.value;
+    const next = String(source.newPassword || '');
+    const confirm = String(source.confirmPassword || '');
+    if (confirm && next !== confirm) {
+      this.errorMsg.set('Las contraseñas no coinciden.');
+      return;
+    }
+    this.errorMsg.set(null);
+  }
+
+  blockConfirmPaste(event: Event): void {
+    event.preventDefault();
+    this.errorMsg.set('Escriba de nuevo la contraseña. No se permite pegar en confirmar.');
+  }
+
+  submitChange(): void {
+    if (this.isLoading()) return;
+    const agencia = String(this.loginForm.controls.agencia.value || '').trim();
+    const usuario = String(this.loginForm.controls.usuario.value || '').trim();
+    const currentPassword = String(this.changeForm.value.currentPassword || '');
+    const newPassword = String(this.changeForm.value.newPassword || '');
+    const confirmPassword = String(this.changeForm.value.confirmPassword || '');
+
+    if (!agencia || !usuario) {
+      this.errorMsg.set('Seleccione la agencia e ingrese el usuario.');
+      return;
+    }
+    if (!currentPassword) {
+      this.errorMsg.set('Ingrese la contraseña actual.');
+      return;
+    }
+    const passwordError = validateNewPassword(newPassword, { currentPassword, username: usuario });
+    if (passwordError) {
+      this.errorMsg.set(passwordError);
+      return;
+    }
+    if (!confirmPassword) {
+      this.errorMsg.set('Confirme la nueva contraseña escribiéndola de nuevo.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      this.errorMsg.set('Las contraseñas no coinciden.');
+      return;
+    }
+
+    this.isLoading.set(true);
+    this.errorMsg.set(null);
+    this.authService
+      .changePasswordWithCredentials({ agencia, usuario, currentPassword, newPassword })
+      .subscribe({
+        next: (res) => {
+          this.isLoading.set(false);
+          this.successMsg.set(res.message);
+          this.loginForm.patchValue({ password: '' });
+          this.changeForm.reset();
+          this.step.set('credentials');
+        },
+        error: (err) => {
+          this.isLoading.set(false);
+          this.errorMsg.set(err?.message || 'No se pudo cambiar la contraseña.');
+        },
+      });
+  }
+
+  submitForgot(): void {
+    const agencia = String(this.loginForm.controls.agencia.value || '').trim();
+    const usuario = String(this.loginForm.controls.usuario.value || '').trim();
+    if (!agencia || !usuario) {
+      this.errorMsg.set('Seleccione la agencia e ingrese el usuario.');
+      return;
+    }
+    this.isLoading.set(true);
+    this.errorMsg.set(null);
+    this.authService.forgotPassword({ agencia, usuario }).subscribe({
+      next: (res) => {
+        this.isLoading.set(false);
+        this.pendingUser.set(res.userId);
+        this.pendingAgency.set(agencia);
+        this.otpTarget.set(res.otpTarget);
+        this.successMsg.set(res.message);
+        this.otpForm.reset();
+        this.resetForm.reset();
+        this.step.set('reset');
+        this.startResendCountdown();
+      },
+      error: (err) => {
+        this.isLoading.set(false);
+        this.errorMsg.set(err?.message || 'No se pudo iniciar el restablecimiento.');
+      },
+    });
+  }
+
+  resendForgotCode(): void {
+    if (this.resendCountdown() > 0) return;
+    this.submitForgot();
+  }
+
+  submitReset(): void {
+    if (this.isLoading()) return;
+    if (this.otpForm.invalid) {
+      this.errorMsg.set('Ingrese los 6 dígitos del código.');
+      return;
+    }
+    const newPassword = String(this.resetForm.value.newPassword || '');
+    const confirmPassword = String(this.resetForm.value.confirmPassword || '');
+    const passwordError = validateNewPassword(newPassword, {
+      username: String(this.loginForm.controls.usuario.value || this.pendingUser() || ''),
+    });
+    if (passwordError) {
+      this.errorMsg.set(passwordError);
+      return;
+    }
+    if (!confirmPassword) {
+      this.errorMsg.set('Confirme la nueva contraseña escribiéndola de nuevo.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      this.errorMsg.set('Las contraseñas no coinciden.');
+      return;
+    }
+
+    const v = this.otpForm.getRawValue();
+    const code = [v.d0, v.d1, v.d2, v.d3, v.d4, v.d5].join('');
+    this.isLoading.set(true);
+    this.errorMsg.set(null);
+    this.authService
+      .resetPassword({
+        userId: this.pendingUser(),
+        agencia: this.pendingAgency(),
+        code,
+        newPassword,
+      })
+      .subscribe({
+        next: (res) => {
+          this.isLoading.set(false);
+          this.successMsg.set(res.message);
+          this.loginForm.patchValue({ password: '' });
+          this.otpForm.reset();
+          this.resetForm.reset();
+          this.step.set('credentials');
+        },
+        error: (err) => {
+          this.isLoading.set(false);
+          this.errorMsg.set(err?.message || 'No se pudo restablecer la contraseña.');
+        },
+      });
   }
 
   /** Evita reutilizar en memoria datos de otra agencia al iniciar sesión. */

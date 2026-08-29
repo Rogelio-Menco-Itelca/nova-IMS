@@ -202,6 +202,45 @@ export class AuthService {
     return this.http.post<{ message: string }>(`${this.apiUrl}/change-password`, data);
   }
 
+  changePasswordWithCredentials(data: {
+    agencia: string;
+    usuario: string;
+    currentPassword: string;
+    newPassword: string;
+  }) {
+    return this.http
+      .post<{ message: string }>(`${this.apiUrl}/change-password-credentials`, data)
+      .pipe(
+        catchError((err) => {
+          const msg = err?.error?.error?.message || 'No se pudo cambiar la contraseña.';
+          return throwError(() => new Error(msg));
+        }),
+      );
+  }
+
+  forgotPassword(data: { agencia: string; usuario: string }) {
+    return this.http
+      .post<{ requiresOtp: true; userId: string; otpTarget: string; message: string }>(
+        `${this.apiUrl}/forgot-password`,
+        data,
+      )
+      .pipe(
+        catchError((err) => {
+          const msg = err?.error?.error?.message || 'No se pudo iniciar el restablecimiento.';
+          return throwError(() => new Error(msg));
+        }),
+      );
+  }
+
+  resetPassword(data: { userId: string; agencia: string; code: string; newPassword: string }) {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/reset-password`, data).pipe(
+      catchError((err) => {
+        const msg = err?.error?.error?.message || 'No se pudo restablecer la contraseña.';
+        return throwError(() => new Error(msg));
+      }),
+    );
+  }
+
   clearMustChangePassword(): void {
     this.mustChangePassword.set(false);
     sessionStorage.removeItem(MUST_CHANGE_KEY);

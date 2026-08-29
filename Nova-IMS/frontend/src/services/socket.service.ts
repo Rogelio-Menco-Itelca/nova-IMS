@@ -29,6 +29,7 @@ export class SocketService {
     });
 
     this.socket.on('connect_error', (err) => {
+      this.isConnected.set(false);
       console.error('Socket connection error:', err);
     });
   }

@@ -65,6 +65,7 @@ async function sendMailViaResend({ from, to, subject, text, html }) {
       text,
       html,
     }),
+    signal: AbortSignal.timeout(12000),
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -94,6 +95,9 @@ function getTransporter() {
         pass: process.env.SMTP_PASS,
       },
       requireTLS: true,
+      connectionTimeout: 10000,
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
       tls: {
         minVersion: 'TLSv1.2',
       },
@@ -709,7 +713,16 @@ async function sendIncidentNotification({ to, incident }) {
   return { mode: getMailProvider(), recipients };
 }
 
-async function sendOtpEmail({ to, name, code }) {
+async function sendOtpEmail({ to, name, code, purpose = 'login' }) {
+  const isReset = purpose === 'reset';
+  const title = isReset ? 'Restablecer contraseña' : 'Verificación en dos pasos';
+  const intro = isReset
+    ? 'use el siguiente código para definir una nueva contraseña'
+    : 'ingrese el siguiente código';
+  const subject = isReset
+    ? '[IMS NOVA] Código para restablecer contraseña'
+    : '[IMS NOVA] Código de verificación';
+
   if (!isMailConfigured()) {
     logger.info(`📧 OTP (modo consola, provider=${getMailProvider()}) código=${code}`);
     return;
@@ -720,8 +733,8 @@ async function sendOtpEmail({ to, name, code }) {
   const html = `
 <div style="background:#f9fafb;padding:32px;font-family:Segoe UI,Arial,sans-serif;color:#111827;">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
-    <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;">Verificación en dos pasos</h2>
-    <p style="margin:0 0 24px;color:#6b7280;">Hola <strong>${escapeHtml(name)}</strong>, ingrese el siguiente código:</p>
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;">${title}</h2>
+    <p style="margin:0 0 24px;color:#6b7280;">Hola <strong>${escapeHtml(name)}</strong>, ${intro}:</p>
     <div style="text-align:center;margin:0 0 24px;">
       <span style="display:inline-block;letter-spacing:10px;font-size:36px;font-weight:700;color:#4f46e5;background:#eef2ff;padding:16px 28px;border-radius:8px;font-family:monospace;">${escapeHtml(code)}</span>
     </div>
@@ -733,15 +746,22 @@ async function sendOtpEmail({ to, name, code }) {
   await sendMail({
     from: getMailFrom(),
     to,
-    subject: '[IMS NOVA] Código de verificación',
+    subject,
     text,
     html,
+  });
+}
+
+function dispatchOtpEmail(payload) {
+  sendOtpEmail(payload).catch((err) => {
+    logger.error('[OTP] Error enviando correo:', err.message);
   });
 }
 
 module.exports = {
   sendWelcomeEmail,
   sendOtpEmail,
+  dispatchOtpEmail,
   sendIncidentNotification,
   formatIncidentBodyText,
   formatIncidentBodyHtml,

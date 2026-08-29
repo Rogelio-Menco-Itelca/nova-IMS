@@ -1,40 +1,47 @@
-<div class="ims-auth flex items-center justify-center min-h-screen bg-slate-900 font-sans text-gray-300">
-  <div class="w-full max-w-sm p-8 space-y-8 bg-slate-800 rounded-2xl shadow-2xl">
+<div
+  class="ims-auth flex min-h-dvh items-start justify-center overflow-y-auto bg-slate-900 px-3 py-4 font-sans text-gray-300 sm:items-center sm:px-4 sm:py-8"
+>
+  <div
+    class="my-auto w-full min-w-0 max-w-sm space-y-4 rounded-2xl bg-slate-800 p-4 shadow-2xl sm:space-y-5 sm:p-6"
+  >
     <!-- Header -->
-    <div class="text-center space-y-4">
+    <div class="space-y-2 text-center">
       <div class="flex items-center justify-center">
-        <svg
-          class="h-12 w-12 text-indigo-400"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          />
-        </svg>
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/20 sm:h-12 sm:w-12">
+          <svg
+            class="h-6 w-6 text-indigo-400 sm:h-7 sm:w-7"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+            />
+          </svg>
+        </div>
       </div>
-      <h1 class="text-3xl font-bold text-white">Incident Management NOVA</h1>
-
-      @if (step() === 'credentials') {
-        <p class="text-gray-400">Bienvenido</p>
-      } @else {
-        <p class="text-gray-400">Verificación en dos pasos</p>
-      }
+      <div>
+        <h1 class="text-xl font-bold leading-tight text-white sm:text-2xl">
+          Incident Management Software
+        </h1>
+        <p class="text-xl font-bold text-indigo-400 sm:text-2xl">NOVA</p>
+      </div>
+      <p class="text-sm text-gray-400">{{ stepSubtitle() }}</p>
     </div>
 
     <!-- ===== PASO 1: Credenciales ===== -->
     @if (step() === 'credentials') {
-      <form [formGroup]="loginForm" (ngSubmit)="submitCredentials()" class="space-y-6">
-        <div class="relative">
+      <form [formGroup]="loginForm" (ngSubmit)="submitCredentials()" class="space-y-3.5">
+        <div>
+          <label for="agencia" class="mb-1.5 block text-sm text-gray-400">Agencia</label>
           <select
             formControlName="agencia"
             id="agencia"
-            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer"
+            class="block w-full appearance-none rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="" disabled hidden>
               @if (agenciesLoading()) {
@@ -49,19 +56,14 @@
               <option [value]="agency.code">{{ agency.code }}</option>
             }
           </select>
-          <label
-            for="agencia"
-            class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
-          >
-            Agencia
-          </label>
         </div>
 
-        <div class="relative">
+        <div>
+          <label for="rol" class="mb-1.5 block text-sm text-gray-400">Rol</label>
           <select
             formControlName="rol"
             id="rol"
-            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer"
+            class="block w-full appearance-none rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="" disabled hidden>
               @if (!loginForm.controls.agencia.value) {
@@ -78,44 +80,32 @@
               <option [value]="role.name">{{ role.name }}</option>
             }
           </select>
-          <label
-            for="rol"
-            class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
-          >
-            Rol
-          </label>
         </div>
 
-        <div class="relative">
+        <div>
+          <label for="usuario" class="mb-1.5 block text-sm text-gray-400">Usuario</label>
           <input
             formControlName="usuario"
             type="text"
             id="usuario"
-            placeholder=" "
-            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer"
+            maxlength="80"
+            autocomplete="username"
+            placeholder="Ingrese su usuario"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <label
-            for="usuario"
-            class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
-          >
-            Usuario
-          </label>
         </div>
 
-        <div class="relative">
+        <div>
+          <label for="password" class="mb-1.5 block text-sm text-gray-400">Contraseña</label>
           <input
             formControlName="password"
             type="password"
             id="password"
-            placeholder=" "
-            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 peer"
+            maxlength="128"
+            autocomplete="current-password"
+            placeholder="Ingrese su contraseña"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <label
-            for="password"
-            class="absolute text-gray-400 duration-300 transform -translate-y-4 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
-          >
-            Contraseña
-          </label>
         </div>
 
         <div class="flex items-center text-sm">
@@ -123,16 +113,12 @@
             formControlName="rememberMe"
             id="remember-me"
             type="checkbox"
-            class="h-4 w-4 rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+            class="h-4 w-4 cursor-pointer rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-indigo-500"
           />
-          <label for="remember-me" class="ml-2 text-gray-400 cursor-pointer select-none">
+          <label for="remember-me" class="ml-2 cursor-pointer select-none text-gray-400">
             Recordar usuario
           </label>
         </div>
-
-        <p class="text-center text-xs text-gray-500">
-          Ingrese con sus credenciales de operador asignadas.
-        </p>
 
         @if (successMsg()) {
           <div
@@ -180,6 +166,27 @@
             <span>Continuar</span>
           }
         </button>
+
+        <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-sm">
+          <button
+            type="button"
+            (click)="startForgot()"
+            class="text-indigo-400 hover:text-indigo-300"
+          >
+            ¿Olvidó su contraseña?
+          </button>
+          <button
+            type="button"
+            (click)="startChange()"
+            class="text-indigo-400 hover:text-indigo-300"
+          >
+            Cambiar contraseña
+          </button>
+        </div>
+
+        <p class="text-center text-xs text-gray-500">
+          Ingrese sus credenciales asignadas.
+        </p>
       </form>
     }
 
@@ -213,7 +220,7 @@
 
         <!-- Campos OTP -->
         <form [formGroup]="otpForm" (ngSubmit)="submitOtp()">
-          <div class="flex justify-center gap-3 mb-6" (paste)="onOtpPaste($event)">
+          <div class="mb-6 flex justify-center gap-1.5 sm:gap-3" (paste)="onOtpPaste($event)">
             @for (idx of [0, 1, 2, 3, 4, 5]; track idx) {
               <label [attr.for]="'otp-' + idx" class="sr-only"
                 >Dígito {{ idx + 1 }} del código</label
@@ -227,7 +234,7 @@
                 [attr.aria-label]="'Dígito ' + (idx + 1) + ' del código'"
                 (input)="onOtpInput($event, idx)"
                 (keydown)="onOtpKeydown($event, idx)"
-                class="w-11 h-14 text-center text-xl font-bold text-white bg-slate-700 border-2 border-slate-600 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors caret-transparent"
+                class="h-11 w-9 shrink-0 text-center text-lg font-bold text-white bg-slate-700 border-2 border-slate-600 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors caret-transparent sm:h-14 sm:w-11 sm:text-xl"
               />
             }
           </div>
@@ -311,6 +318,265 @@
           </button>
         </div>
       </div>
+    }
+
+    @if (step() === 'forgot') {
+      <form [formGroup]="loginForm" (ngSubmit)="submitForgot()" class="space-y-4 sm:space-y-6">
+        <p class="text-center text-xs text-gray-400 sm:text-sm">
+          Use esta opción si no recuerda la contraseña. Debe existir una cuenta local activa con
+          ese usuario o correo. El código se envía al correo registrado. Si sí la recuerda, vuelva
+          y use Cambiar contraseña.
+        </p>
+        <div>
+          <label for="forgot-agencia" class="mb-1.5 block text-sm text-gray-400">Agencia</label>
+          <select
+            formControlName="agencia"
+            id="forgot-agencia"
+            class="block w-full appearance-none rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="" disabled hidden>Seleccione agencia...</option>
+            @for (agency of agencies(); track agency.code) {
+              <option [value]="agency.code">{{ agency.code }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label for="forgot-usuario" class="mb-1.5 block text-sm text-gray-400">Usuario o correo</label>
+          <input
+            formControlName="usuario"
+            type="text"
+            id="forgot-usuario"
+            placeholder="Usuario o correo registrado"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        @if (errorMsg()) {
+          <div
+            class="bg-red-900/50 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm text-center"
+          >
+            {{ errorMsg() }}
+          </div>
+        }
+        <button
+          type="submit"
+          [disabled]="isLoading() || !loginForm.controls.agencia.value || !loginForm.controls.usuario.value"
+          class="w-full py-3 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500"
+        >
+          {{ isLoading() ? 'Enviando...' : 'Enviar código' }}
+        </button>
+        <button
+          type="button"
+          (click)="backToCredentials()"
+          class="w-full text-sm text-gray-500 hover:text-gray-300"
+        >
+          Volver al inicio de sesión
+        </button>
+      </form>
+    }
+
+    @if (step() === 'reset') {
+      <div class="space-y-5">
+        <p class="text-sm text-gray-400 text-center leading-relaxed">
+          Enviamos un código a<br />
+          <span class="text-white font-medium font-mono">{{ otpTarget() }}</span>
+        </p>
+        <p class="text-xs text-gray-500 text-center">
+          Si no llega el correo, revise spam o vuelva e intente Cambiar contraseña si recuerda la
+          actual.
+        </p>
+        <div [formGroup]="otpForm" class="flex justify-center gap-1.5 sm:gap-3" (paste)="onOtpPaste($event)">
+          @for (idx of [0, 1, 2, 3, 4, 5]; track idx) {
+            <input
+              [id]="'otp-' + idx"
+              [formControlName]="'d' + idx"
+              type="text"
+              inputmode="numeric"
+              maxlength="1"
+              (input)="onOtpInput($event, idx)"
+              (keydown)="onOtpKeydown($event, idx)"
+              class="h-11 w-9 shrink-0 text-center text-lg font-bold text-white bg-slate-700 border-2 border-slate-600 rounded-lg focus:outline-none focus:border-indigo-500 sm:h-14 sm:w-11 sm:text-xl"
+            />
+          }
+        </div>
+        <form [formGroup]="resetForm" (ngSubmit)="submitReset()" class="space-y-4 sm:space-y-5">
+          <input
+            formControlName="newPassword"
+            type="password"
+            maxlength="128"
+            autocomplete="new-password"
+            placeholder="Nueva contraseña"
+            (input)="onPasswordFieldsInput('reset')"
+            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <ul class="space-y-0.5 text-xs">
+            @for (hint of resetPasswordHints(); track hint.id) {
+              <li [class]="hint.ok ? 'text-green-400' : 'text-gray-500'">{{ hint.label }}</li>
+            }
+          </ul>
+          <input
+            formControlName="confirmPassword"
+            type="password"
+            maxlength="128"
+            autocomplete="off"
+            placeholder="Confirmar contraseña"
+            (input)="onPasswordFieldsInput('reset')"
+            (paste)="blockConfirmPaste($event)"
+            (drop)="blockConfirmPaste($event)"
+            class="block w-full px-4 py-3 text-white bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          @if (resetForm.value.confirmPassword) {
+            <p [class]="confirmMatches('reset') ? 'text-xs text-green-400' : 'text-xs text-red-400'">
+              {{ confirmMatches('reset') ? 'Las contraseñas coinciden.' : 'Las contraseñas no coinciden.' }}
+            </p>
+          }
+          @if (errorMsg()) {
+            <div
+              class="bg-red-900/50 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm text-center"
+            >
+              {{ errorMsg() }}
+            </div>
+          }
+          <button
+            type="submit"
+            [disabled]="isLoading() || otpForm.invalid || resetForm.invalid"
+            class="w-full py-3 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500"
+          >
+            {{ isLoading() ? 'Guardando...' : 'Guardar nueva contraseña' }}
+          </button>
+        </form>
+        <div class="flex flex-col items-center gap-2 text-sm">
+          @if (resendCountdown() > 0) {
+            <span class="text-gray-500">Reenviar código en {{ resendCountdown() }}s</span>
+          } @else {
+            <button type="button" (click)="resendForgotCode()" class="text-indigo-400">
+              Reenviar código
+            </button>
+          }
+          <button type="button" (click)="backToCredentials()" class="text-gray-500">
+            Volver al inicio de sesión
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (step() === 'change') {
+      <form
+        [formGroup]="changeForm"
+        (submit)="$event.preventDefault()"
+        class="space-y-4 sm:space-y-5"
+        autocomplete="off"
+      >
+        <p class="text-center text-xs text-gray-400 sm:text-sm">
+          Use esta opción si recuerda la contraseña actual. Los usuarios de directorio la cambian
+          con su área de TI.
+        </p>
+        <div>
+          <label for="change-agencia" class="mb-1.5 block text-sm text-gray-400">Agencia</label>
+          <select
+            [formControl]="loginForm.controls.agencia"
+            id="change-agencia"
+            class="block w-full appearance-none rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="" disabled hidden>Seleccione agencia...</option>
+            @for (agency of agencies(); track agency.code) {
+              <option [value]="agency.code">{{ agency.code }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label for="change-usuario" class="mb-1.5 block text-sm text-gray-400">Usuario</label>
+          <input
+            [formControl]="loginForm.controls.usuario"
+            type="text"
+            id="change-usuario"
+            placeholder="Ingrese su usuario"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label for="change-current" class="mb-1.5 block text-sm text-gray-400"
+            >Contraseña actual</label
+          >
+          <input
+            id="change-current"
+            formControlName="currentPassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Ingrese su contraseña actual"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label for="change-new" class="mb-1.5 block text-sm text-gray-400">Nueva contraseña</label>
+          <input
+            id="change-new"
+            formControlName="newPassword"
+            type="password"
+            maxlength="128"
+            autocomplete="new-password"
+            placeholder="Ingrese la nueva contraseña"
+            (input)="onPasswordFieldsInput('change')"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <ul class="mt-2 space-y-0.5 text-xs">
+            @for (hint of changePasswordHints(); track hint.id) {
+              <li [class]="hint.ok ? 'text-green-400' : 'text-gray-500'">{{ hint.label }}</li>
+            }
+          </ul>
+        </div>
+        <div>
+          <label for="change-confirm" class="mb-1.5 block text-sm text-gray-400"
+            >Confirmar nueva contraseña</label
+          >
+          <input
+            id="change-confirm"
+            formControlName="confirmPassword"
+            type="password"
+            maxlength="128"
+            autocomplete="off"
+            placeholder="Repita la nueva contraseña"
+            (input)="onPasswordFieldsInput('change')"
+            (paste)="blockConfirmPaste($event)"
+            (drop)="blockConfirmPaste($event)"
+            class="block w-full rounded-lg border border-slate-600 bg-slate-900/60 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          @if (changeForm.value.confirmPassword) {
+            <p
+              class="mt-1 text-xs"
+              [class]="confirmMatches('change') ? 'text-green-400' : 'text-red-400'"
+            >
+              {{ confirmMatches('change') ? 'Las contraseñas coinciden.' : 'Las contraseñas no coinciden.' }}
+            </p>
+          }
+        </div>
+        @if (errorMsg()) {
+          <div
+            class="bg-red-900/50 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm text-center"
+          >
+            {{ errorMsg() }}
+          </div>
+        }
+        <button
+          type="button"
+          (click)="submitChange()"
+          [disabled]="
+            isLoading() ||
+            changeForm.invalid ||
+            !loginForm.controls.agencia.value ||
+            !loginForm.controls.usuario.value
+          "
+          class="w-full py-3 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500"
+        >
+          {{ isLoading() ? 'Guardando...' : 'Guardar nueva contraseña' }}
+        </button>
+        <button
+          type="button"
+          (click)="backToCredentials()"
+          class="w-full text-sm text-gray-500 hover:text-gray-300"
+        >
+          Volver al inicio de sesión
+        </button>
+      </form>
     }
   </div>
 </div>
