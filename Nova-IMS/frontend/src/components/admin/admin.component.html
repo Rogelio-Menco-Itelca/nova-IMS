@@ -1,12 +1,12 @@
-<div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-gray-800 p-6 shadow-lg">
-  <h2 class="mb-6 flex shrink-0 items-center gap-2 text-2xl font-bold text-white">
+<div class="ims-admin-panel flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-gray-800 p-3 shadow-lg sm:p-6">
+  <h2 class="ims-admin-title mb-3 flex shrink-0 items-center gap-2 text-2xl font-bold text-white sm:mb-6">
     <span class="material-icons ims-title-icon text-[28px] leading-none" aria-hidden="true">admin_panel_settings</span>
     Panel de Administración
   </h2>
 
   <!-- Tabs -->
-  <div class="mb-6 shrink-0 border-b border-gray-700">
-    <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+  <div class="ims-admin-tabs mb-3 shrink-0 border-b border-gray-700 sm:mb-6">
+    <nav class="ims-admin-tabs-nav -mb-px flex gap-3 overflow-x-auto sm:gap-6" aria-label="Tabs">
       <button
         (click)="setTab('users')"
         [class]="
@@ -14,7 +14,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">group</span>
         Usuarios
@@ -26,7 +26,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">event</span>
         Configurar Eventos
@@ -38,7 +38,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">forum</span>
         Configurar Respuestas
@@ -50,7 +50,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">mail</span>
         Correos Autorizados
@@ -62,7 +62,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">history</span>
         Historial de Incidentes
@@ -74,7 +74,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">lock</span>
         Permisos
@@ -86,7 +86,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">badge</span>
         Personas
@@ -98,7 +98,7 @@
             ? 'border-indigo-500 text-indigo-400'
             : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
         "
-        class="inline-flex items-center gap-1.5 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        class="inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm sm:py-4"
       >
         <span class="material-icons text-[18px] leading-none" aria-hidden="true">manage_search</span>
         Auditoría por Usuario
@@ -107,7 +107,7 @@
   </div>
 
   <!-- Tab Content -->
-  <div class="flex min-h-0 flex-1 flex-col">
+  <div class="ims-admin-body flex min-h-0 flex-1 flex-col">
     @switch (activeTab()) {
       @case ('users') {
         <div class="admin-list-panel flex min-h-0 flex-1 flex-col gap-4">

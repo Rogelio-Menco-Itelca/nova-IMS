@@ -808,8 +808,128 @@
   overflow: hidden;
 }
 
+.ims-admin-tabs-nav {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #6b7280 transparent;
+  padding-bottom: 0.2rem;
+}
+
+.ims-admin-tabs-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ims-admin-tabs-nav::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 999px;
+}
+
+.ims-admin-tabs-nav button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1023px) {
+  .ims-admin-tabs-nav button {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 1023px) {
+  .ims-admin-panel {
+    padding: 0.45rem 0.75rem;
+  }
+
+  .ims-admin-title {
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+  }
+
+  .ims-admin-tabs {
+    margin-bottom: 0.4rem;
+  }
+
+  .ims-admin-tabs-nav {
+    gap: 0.65rem;
+  }
+
+  .ims-admin-tabs-nav button {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+}
+
 .admin-list-table-wrap {
   min-height: 0;
+}
+
+/* Celular: el listado no se recorta; la página hace scroll y la tabla se desliza a los lados */
+@media (max-width: 1023px) {
+  :host {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .ims-admin-panel,
+  .ims-admin-body,
+  .admin-list-panel,
+  .perm-panel {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .admin-list-table-wrap {
+    flex: 1 1 0%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #6b7280 transparent;
+  }
+
+  .admin-list-table-wrap::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .admin-list-table-wrap::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 999px;
+  }
+
+  .admin-list-table-wrap table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .admin-list-table-wrap th,
+  .admin-list-table-wrap td {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .perm-table-wrap,
+  .audit-layout {
+    overflow: auto;
+    flex: none;
+    height: auto;
+    min-height: 0;
+  }
+
+  .audit-layout {
+    flex-direction: column;
+  }
+
+  .audit-user-panel {
+    max-width: none;
+    width: 100%;
+  }
 }
 
 .ih-description-panel {

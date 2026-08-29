@@ -42,6 +42,7 @@ body,
   line-height: var(--ims-lh-relaxed);
   font-feature-settings: 'kern' 1, 'liga' 1;
   overflow: hidden;
+  height: 100dvh;
 }
 
 .ims-main {
@@ -139,6 +140,36 @@ body,
   overflow-x: hidden;
 }
 
+.ims-sidebar-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Escritorio: menú arriba, ubicación/estado fijos abajo (como antes) */
+@media (min-width: 1024px) {
+  .ims-sidebar-scroll {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .ims-sidebar-scroll nav {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  .ims-sidebar-extras {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 1023px) {
+  .ims-sidebar-mobile {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 .ims-main nav[aria-label='Tabs'] button {
   font-weight: 500;
 }
@@ -207,12 +238,51 @@ body,
   }
 }
 
-/* Material Icons: siguen el color del texto padre (modo claro/oscuro) */
+/* Material Icons: el tamaño lo marca text-[Npx] / el contenedor, no el 24px de Google */
 .material-icons {
   color: inherit;
-  font-size: inherit;
   vertical-align: middle;
   user-select: none;
+  line-height: 1;
+}
+
+.ims-brand-logo {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 2.75rem;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.ims-sidebar .ims-brand-wordmark {
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+@media (min-width: 1024px) {
+  .ims-sidebar .ims-brand-wordmark {
+    font-size: var(--ims-fs-section);
+  }
+}
+
+@media (max-width: 1023px) {
+  .ims-brand-logo {
+    max-height: 2.25rem;
+    min-height: 0;
+  }
+
+  .ims-sidebar-brand {
+    padding-right: 2.5rem;
+  }
+
+  header.ims-header .material-icons {
+    font-size: 1.5rem !important;
+  }
+
+  .ims-title-icon.material-icons {
+    font-size: 1.375rem !important;
+  }
 }
 
 /* Acento de títulos de página (oscuro por defecto) */
@@ -222,6 +292,79 @@ body,
 
 .ims-dashboard-panel__title .material-icons {
   color: inherit;
+}
+
+/* Teléfono en horizontal: poco alto, hay que compactar cabecera y menú */
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 1023px) {
+  .ims-sidebar-mobile {
+    width: min(16rem, 46vw);
+  }
+
+  .ims-sidebar-brand {
+    padding-right: 2.25rem;
+  }
+
+  .ims-sidebar-brand > div:first-of-type {
+    padding-top: 0.5rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .ims-sidebar .ims-brand-mark {
+    height: 1.75rem;
+    width: 1.75rem;
+  }
+
+  .ims-sidebar .ims-brand-wordmark {
+    font-size: 1.25rem;
+  }
+
+  .ims-brand-agency {
+    padding-top: 0;
+    padding-bottom: 0.4rem;
+    gap: 0.35rem;
+  }
+
+  .ims-brand-logo {
+    max-height: 1.5rem;
+  }
+
+  .ims-sidebar nav button {
+    margin-top: 0.15rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+
+  header.ims-header {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    padding: 0.35rem 0.75rem;
+  }
+
+  header.ims-header h1 {
+    font-size: 0.95rem;
+  }
+
+  .ims-header-date {
+    display: none;
+  }
+
+  header.ims-header button.h-11 {
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+
+  .ims-notifications-panel {
+    max-height: min(14rem, 70dvh);
+  }
+
+  .ims-auth {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .ims-auth > div {
+    padding: 0.75rem 1rem;
+  }
 }
 
 .pac-container {

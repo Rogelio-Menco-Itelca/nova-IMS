@@ -121,7 +121,7 @@ interface IncidentHistoryMedidasPayload {
   templateUrl: './admin.component.html',
   styleUrls: ['./admin.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex min-h-0 flex-1 flex-col' },
+  host: { class: 'ims-admin-host flex min-h-0 flex-1 flex-col' },
 })
 export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -628,34 +628,15 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!tableWrap) return null;
 
     const thead = tableWrap.querySelector('thead') as HTMLElement | null;
-    const theadH = thead?.getBoundingClientRect().height || 40;
     const pagination = panel.querySelector('app-admin-pagination') as HTMLElement | null;
-    const paginationH = pagination?.getBoundingClientRect().height || 36;
+    const theadBox = thead?.getBoundingClientRect();
+    const pagBox = pagination?.getBoundingClientRect();
+    const wrapBox = tableWrap.getBoundingClientRect();
 
-    const panelStyle = getComputedStyle(panel);
-    const gap = Number.parseFloat(panelStyle.rowGap || panelStyle.gap || '0') || 0;
-    let chromeH = 0;
-    let chromeBlocks = 0;
-    for (const child of Array.from(panel.children)) {
-      if (child === tableWrap || child.contains(tableWrap)) {
-        if (child !== tableWrap) {
-          for (const nested of Array.from(child.children)) {
-            if (nested === tableWrap || nested.tagName === 'APP-ADMIN-PAGINATION') continue;
-            chromeH += (nested as HTMLElement).getBoundingClientRect().height;
-            chromeBlocks += 1;
-          }
-        }
-        continue;
-      }
-      if (child.tagName === 'APP-ADMIN-PAGINATION') continue;
-      chromeH += (child as HTMLElement).getBoundingClientRect().height;
-      chromeBlocks += 1;
-    }
-
-    const panelH = panel.clientHeight || panel.getBoundingClientRect().height;
-    const wrapH = tableWrap.clientHeight || tableWrap.getBoundingClientRect().height;
-    const availablePanel = panelH - chromeH - paginationH - gap * Math.max(chromeBlocks, 1);
-    const listArea = Math.max(wrapH > 0 ? wrapH - theadH : 0, availablePanel - theadH);
+    const top = theadBox && theadBox.height > 0 ? theadBox.bottom : wrapBox.top;
+    const bottom =
+      pagBox && pagBox.top > top + 8 ? pagBox.top : Math.max(wrapBox.bottom, panel.getBoundingClientRect().bottom);
+    const listArea = bottom - top;
     if (listArea < 36) return null;
 
     const rows = Array.from(tableWrap.querySelectorAll('tbody tr')).filter(

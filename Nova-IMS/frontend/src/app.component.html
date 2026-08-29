@@ -3,7 +3,7 @@
   @if (isAuthenticated() && (mustChangePassword() || activeView() === 'change-password')) {
     <app-change-password />
   } @else if (isAuthenticated()) {
-    <div class="ims-layout flex h-screen min-h-0 font-sans bg-bg-app text-text-base">
+    <div class="ims-layout relative flex h-dvh min-h-0 font-sans bg-bg-app text-text-base">
       @if (isSidebarOpen()) {
         <button
           type="button"
@@ -32,10 +32,10 @@
           </button>
 
           <!-- Logo IMS primero -->
-          <div class="flex min-w-0 flex-col gap-1 px-4 pb-3 pt-5">
-            <div class="flex min-w-0 items-center gap-3">
+          <div class="flex min-w-0 flex-col gap-1 px-4 pb-3 pt-4 lg:pt-5">
+            <div class="flex min-w-0 items-center gap-2.5 lg:gap-3">
               <svg
-                class="h-12 w-12 shrink-0"
+                class="ims-brand-mark h-9 w-9 shrink-0 lg:h-12 lg:w-12"
                 [class.text-indigo-600]="!isDarkTheme()"
                 [class.text-indigo-300]="isDarkTheme()"
                 xmlns="http://www.w3.org/2000/svg"
@@ -52,12 +52,12 @@
                 />
               </svg>
               <span
-                class="text-3xl font-extrabold tracking-wide"
+                class="ims-brand-wordmark text-2xl font-extrabold tracking-wide lg:text-3xl"
                 [ngClass]="isDarkTheme() ? '!text-white' : '!text-black'"
               >IMS</span>
             </div>
             <p
-              class="pl-0.5 text-xs font-semibold leading-snug"
+              class="hidden pl-0.5 text-xs font-semibold leading-snug lg:block"
               [ngClass]="isDarkTheme() ? '!text-gray-300' : '!text-black'"
             >
               Incident Management Software
@@ -65,9 +65,9 @@
           </div>
 
           @if (isCsjAgency()) {
-            <div class="flex w-full min-w-0 flex-col gap-2.5 px-4 pb-4 pt-1">
+            <div class="ims-brand-agency flex w-full min-w-0 flex-col gap-1.5 px-4 pb-3 pt-0.5 lg:gap-2.5 lg:pb-4 lg:pt-1">
               <img
-                class="block h-auto min-h-11 w-full max-w-full object-contain object-left"
+                class="ims-brand-logo block"
                 [ngClass]="
                   isDarkTheme()
                     ? 'contrast-[1.05] saturate-[1.08] drop-shadow-[0_0_0.35px_rgba(255,255,255,0.35)]'
@@ -87,7 +87,8 @@
           }
         </div>
 
-        <nav class="mt-4 min-h-0 flex-1 overflow-y-auto px-3">
+        <div class="ims-sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <nav class="px-3 pb-2 pt-2" aria-label="Módulos">
           @if (permissionService.canModuleAction('Dashboard', 'view')) {
           <button
             type="button"
@@ -151,7 +152,7 @@
         </nav>
 
         <!-- Quick Location Card -->
-        <div class="mt-4 shrink-0 border-t border-b border-gray-700 p-4">
+        <div class="ims-sidebar-extras border-t border-gray-700 p-3 lg:p-4">
           @if (permissionService.canModuleAction('Incidentes', 'view')) {
           <div class="mb-3 pb-3 border-b border-gray-700">
             <h4 class="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
@@ -162,7 +163,7 @@
               class="space-y-3"
               [class.opacity-60]="!permissionService.canModuleAction('Incidentes', 'create')"
             >
-              <p class="text-xs text-gray-400">
+              <p class="hidden text-xs text-gray-400 lg:block">
                 Envía un enlace a un número de teléfono para solicitar su ubicación.
               </p>
               <div>
@@ -287,6 +288,7 @@
             </div>
           </div>
         </div>
+        </div>
 
         @if (currentUser(); as user) {
           <div class="mt-auto flex-shrink-0">
@@ -384,7 +386,7 @@
             @if (activeViewLabel()) {
               <div class="leading-tight">
                 <h1 class="text-lg font-semibold text-white">{{ activeViewLabel() }}</h1>
-                <p class="text-xs capitalize text-gray-400">{{ todayLabel() }}</p>
+                <p class="ims-header-date text-xs capitalize text-gray-400">{{ todayLabel() }}</p>
               </div>
             }
           </div>

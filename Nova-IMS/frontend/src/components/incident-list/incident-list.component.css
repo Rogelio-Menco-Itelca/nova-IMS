@@ -15,6 +15,38 @@
   overflow-y: hidden;
 }
 
+@media (max-width: 1023px) {
+  :host {
+    height: auto;
+    overflow: visible;
+    flex: 1 0 auto;
+  }
+
+  .ims-incident-list-table-wrap {
+    flex: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .ims-incident-list-table-wrap table {
+    width: max-content;
+    min-width: 100%;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 1023px) {
+  .ims-page-toolbar {
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .ims-page-toolbar h2 {
+    font-size: 1rem;
+  }
+}
+
 .incident-form-map {
   contain: layout paint style;
   isolation: isolate;

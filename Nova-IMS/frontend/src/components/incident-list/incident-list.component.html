@@ -1,6 +1,6 @@
-<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+<div class="flex min-h-0 flex-1 flex-col overflow-hidden max-lg:h-auto max-lg:overflow-visible">
   <!-- Cabecera fija: no participa en el scroll interno -->
-  <div class="flex shrink-0 flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
+  <div class="ims-page-toolbar flex shrink-0 flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
     <h2 class="flex items-center gap-2 text-2xl font-bold text-white">
       <span class="material-icons ims-title-icon text-[28px] leading-none" aria-hidden="true">assignment</span>
       Gestión De Incidentes
@@ -1555,7 +1555,7 @@
   @if (!activeTabId()) {
   <div
     #incidentListPanel
-    class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden"
+    class="bg-gray-800 rounded-lg shadow-lg p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden max-lg:overflow-visible"
   >
     <div class="p-2 flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 shrink-0">
       <label for="incident-list-search" class="sr-only">Buscar incidentes</label>
