@@ -17,7 +17,7 @@ export const IMS_MAP_ZOOM = {
   dashboardSingleMarker: 13,
   dashboardFitMax: 15,
   countryMin: 5,
-  countryOverviewMax: 6,
+  countryOverviewMax: 5,
 } as const;
 
 export const IMS_COORD = {
@@ -30,6 +30,24 @@ export const IMS_COLOMBIA_BOUNDS = {
   south: -4.25,
   east: -66.84,
   west: -81.85,
+} as const;
+
+export const IMS_COLOMBIA_CENTER = {
+  lat: (IMS_COLOMBIA_BOUNDS.north + IMS_COLOMBIA_BOUNDS.south) / 2,
+  lng: (IMS_COLOMBIA_BOUNDS.east + IMS_COLOMBIA_BOUNDS.west) / 2,
+} as const;
+
+/** Encuadre continental (Guajira–Amazonas–Pacífico). San Andrés queda en el recuadro de restricción. */
+export const IMS_COLOMBIA_OVERVIEW_BOUNDS = {
+  north: 12.58,
+  south: -4.23,
+  east: -66.87,
+  west: -79.05,
+} as const;
+
+export const IMS_COLOMBIA_OVERVIEW_CENTER = {
+  lat: (IMS_COLOMBIA_OVERVIEW_BOUNDS.north + IMS_COLOMBIA_OVERVIEW_BOUNDS.south) / 2,
+  lng: (IMS_COLOMBIA_OVERVIEW_BOUNDS.east + IMS_COLOMBIA_OVERVIEW_BOUNDS.west) / 2,
 } as const;
 
 export function colombiaBoundsLiteral(): google.maps.LatLngBoundsLiteral {
@@ -92,13 +110,10 @@ export function colombiaMapViewportOptions(): Pick<
 
 export function fitMapToColombia(
   map: google.maps.Map,
-  padding: number | google.maps.Padding = 28,
+  _padding: number | google.maps.Padding = 16,
 ): void {
-  const bounds = new google.maps.LatLngBounds(
-    { lat: IMS_COLOMBIA_BOUNDS.south, lng: IMS_COLOMBIA_BOUNDS.west },
-    { lat: IMS_COLOMBIA_BOUNDS.north, lng: IMS_COLOMBIA_BOUNDS.east },
-  );
-  map.fitBounds(bounds, padding);
+  map.setCenter(IMS_COLOMBIA_OVERVIEW_CENTER);
+  map.setZoom(IMS_MAP_ZOOM.countryOverviewMax);
 }
 
 export function clampMapZoomAfterCountryFit(
@@ -106,8 +121,9 @@ export function clampMapZoomAfterCountryFit(
   maxZoom = IMS_MAP_ZOOM.countryOverviewMax,
 ): void {
   const z = map.getZoom();
-  if (z != null && z > maxZoom) {
-    map.setZoom(maxZoom);
+  if (z == null || z < IMS_MAP_ZOOM.countryMin || z > maxZoom) {
+    map.setCenter(IMS_COLOMBIA_OVERVIEW_CENTER);
+    map.setZoom(IMS_MAP_ZOOM.countryOverviewMax);
   }
 }
 

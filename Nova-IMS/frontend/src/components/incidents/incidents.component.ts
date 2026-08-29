@@ -40,7 +40,7 @@ import {
   clampMapZoomAfterCountryFit,
   colombiaMapViewportOptions,
   fitMapToColombia,
-  IMS_DEFAULT_MAP_CENTER,
+  IMS_COLOMBIA_OVERVIEW_CENTER,
   IMS_MAP_ZOOM,
   googleMapsCountryRestriction,
 } from '../../utils/ims-geo.constants';
@@ -194,7 +194,7 @@ export class IncidentsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.dashboardMap = new google.maps.Map(mapEl, {
-      center: IMS_DEFAULT_MAP_CENTER,
+      center: IMS_COLOMBIA_OVERVIEW_CENTER,
       zoom: IMS_MAP_ZOOM.countryMin,
       mapTypeControl: false,
       streetViewControl: false,

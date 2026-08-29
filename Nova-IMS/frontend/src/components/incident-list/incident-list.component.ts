@@ -113,14 +113,16 @@ import {
 import {
   clampLatLngToColombia,
   clampMapZoomAfterCountryFit,
+  colombiaBoundsLiteral,
   colombiaMapViewportOptions,
   fitMapToColombia,
   IMS_COORD,
-  IMS_DEFAULT_MAP_CENTER,
+  IMS_COLOMBIA_OVERVIEW_CENTER,
   IMS_GEO,
   IMS_MAP_ZOOM,
   appendCountryToGeocodeQuery,
   googleMapsCountryRestriction,
+  isLatLngWithinColombia,
   roundCoord,
   toLocalColombianPhone,
 } from '../../utils/ims-geo.constants';
@@ -809,8 +811,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       parseIncidentCoords(formLat, formLng) ??
       this.trustedIncidentCoords ??
       parseIncidentCoords(lat, lng);
-    const centerLat = parsed?.lat ?? IMS_DEFAULT_MAP_CENTER.lat;
-    const centerLng = parsed?.lng ?? IMS_DEFAULT_MAP_CENTER.lng;
+    const centerLat = parsed?.lat ?? IMS_COLOMBIA_OVERVIEW_CENTER.lat;
+    const centerLng = parsed?.lng ?? IMS_COLOMBIA_OVERVIEW_CENTER.lng;
     const hasCoords = !!parsed;
 
     this.map = new google.maps.Map(mapEl, {
@@ -826,6 +828,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!hasCoords) {
       fitMapToColombia(this.map);
       google.maps.event.addListenerOnce(this.map, 'idle', () => {
+        google.maps.event.trigger(this.map!, 'resize');
+        fitMapToColombia(this.map!);
         clampMapZoomAfterCountryFit(this.map!);
       });
     }
@@ -896,12 +900,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const locationInput = document.getElementById('location');
     if (!(locationInput instanceof HTMLInputElement)) return;
 
-    // Por defecto: solo sugerencias dentro del área de Bogotá (calles homónimas en otras ciudades).
     this.autocomplete = createPlaceAutocomplete(locationInput, {
       componentRestrictions: googleMapsCountryRestriction(),
       fields: ['geometry', 'formatted_address', 'address_components', 'name'],
       types: ['geocode'],
-      bounds: this.bogotaBiasBounds(),
+      bounds: this.countryBiasBounds(),
       strictBounds: false,
     });
 
@@ -928,16 +931,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           return;
         }
 
-        if (!hasArea && !this.isBogotaPlace(place, lat, lng)) {
-          if (typedText) {
-            this.locationCoordSync.runPatch(() => {
-              this.incidentForm.patchValue({ location: typedText }, { emitEvent: false });
-            });
-            void this.forwardGeocodeAddress(typedText);
-          }
-          return;
-        }
-
         if (typedText) {
           this.locationCoordSync.runPatch(() => {
             this.incidentForm.patchValue({ location: typedText }, { emitEvent: false });
@@ -946,41 +939,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.applyLocationFromGeocode(lat, lng, place).catch(() => void 0);
       });
     });
-  }
-
-  private bogotaBiasBounds(): google.maps.LatLngBoundsLiteral {
-    const { lat, lng } = IMS_DEFAULT_MAP_CENTER;
-    const delta = 0.32;
-    return {
-      north: lat + delta,
-      south: lat - delta,
-      east: lng + delta,
-      west: lng - delta,
-    };
-  }
-
-  private isWithinBogotaArea(lat: number, lng: number): boolean {
-    return lat >= 4.28 && lat <= 4.95 && lng >= -74.35 && lng <= -73.85;
-  }
-
-  private isBogotaPlace(
-    place: google.maps.places.PlaceResult,
-    lat?: number,
-    lng?: number,
-  ): boolean {
-    const la = lat ?? place.geometry?.location?.lat();
-    const ln = lng ?? place.geometry?.location?.lng();
-    if (la != null && ln != null && this.isWithinBogotaArea(la, ln)) return true;
-    const hay = this.normalizeGeoName(
-      [
-        place.formatted_address,
-        place.name,
-        ...(place.address_components ?? []).map((c) => c.long_name),
-      ]
-        .filter(Boolean)
-        .join(' '),
-    );
-    return hay.includes('BOGOTA');
   }
 
   private selectedAreaHint(): string {
@@ -994,11 +952,15 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     if (dept) {
       return `Esa sugerencia no está en ${dept}. Elija otra o marque el punto en el mapa.`;
     }
-    return 'No se pudo ubicar en Bogotá. Marque el punto en el mapa o seleccione departamento/ciudad.';
+    return 'No se encontró esa dirección en el área elegida. Marque el punto en el mapa o cambie departamento/municipio.';
+  }
+
+  private countryBiasBounds(): google.maps.LatLngBoundsLiteral {
+    return colombiaBoundsLiteral();
   }
 
   private buildAutocompleteBiasBounds(): google.maps.LatLngBoundsLiteral {
-    return this.bogotaBiasBounds();
+    return this.countryBiasBounds();
   }
 
   private bindAutocompleteAreaBias(): void {
@@ -1043,7 +1005,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       (results, status) => {
         if (status !== 'OK' || !results?.[0]?.geometry) {
           this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
-          this.autocomplete?.setStrictBounds(true);
+          this.autocomplete?.setStrictBounds(false);
           return;
         }
         const viewport = results[0].geometry.viewport;
@@ -1055,7 +1017,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         const loc = results[0].geometry.location;
         if (!loc) {
           this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
-          this.autocomplete?.setStrictBounds(true);
+          this.autocomplete?.setStrictBounds(false);
           return;
         }
         const lat = loc.lat();
@@ -1084,12 +1046,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         .join(' '),
     );
 
-    // Sin área fijada por el usuario: aceptar Bogotá por nombre o por coordenadas.
-    if (!this.hasPinnedLocationArea()) {
-      const la = place.geometry?.location?.lat();
-      const ln = place.geometry?.location?.lng();
-      return this.isBogotaPlace(place, la, ln);
-    }
+    if (!this.hasPinnedLocationArea()) return true;
 
     if (deptId != null) {
       const deptName = this.normalizeGeoName(
@@ -1190,29 +1147,18 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     if (!query) return;
 
-    // Sin área fijada: forzar Bogotá (calles homónimas en Cali, Medellín, etc.).
-    if (!pinned && !/bogot/i.test(query)) {
-      query = appendCountryToGeocodeQuery(`${address}, Bogotá`);
-    }
-
     const request: google.maps.GeocoderRequest = {
       address: query,
       region: IMS_GEO.countryCode,
       componentRestrictions: { country: IMS_GEO.countryCode.toUpperCase() },
-      bounds: new google.maps.LatLngBounds(
-        {
-          lat: IMS_DEFAULT_MAP_CENTER.lat - 0.35,
-          lng: IMS_DEFAULT_MAP_CENTER.lng - 0.35,
-        },
-        {
-          lat: IMS_DEFAULT_MAP_CENTER.lat + 0.35,
-          lng: IMS_DEFAULT_MAP_CENTER.lng + 0.35,
-        },
-      ),
     };
 
-    if (pinned) {
-      delete request.bounds;
+    if (!pinned) {
+      const country = colombiaBoundsLiteral();
+      request.bounds = new google.maps.LatLngBounds(
+        { lat: country.south, lng: country.west },
+        { lat: country.north, lng: country.east },
+      );
     }
 
     const { results, status } = await new Promise<{
@@ -1236,7 +1182,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
                 'Dirección no encontrada',
                 pinned
                   ? 'No se ubicó esa dirección en la ciudad seleccionada. Revise el texto o marque el punto en el mapa.'
-                  : 'No se ubicó en Bogotá. Seleccione departamento/ciudad o marque el punto en el mapa.',
+                  : 'No se encontró esa dirección en Colombia. Revise el texto o marque el punto en el mapa.',
               );
               this.cdr.markForCheck();
               return;
@@ -1289,13 +1235,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         : '';
 
     if (!deptName && !muniName) {
-      const byName = results.find((r) => /bogot/i.test(String(r.formatted_address ?? '')));
-      if (byName) return byName;
       return (
         results.find((r) => {
           const loc = r.geometry?.location;
-          return !!loc && this.isWithinBogotaArea(loc.lat(), loc.lng());
-        }) ?? null
+          return !!loc && isLatLngWithinColombia(loc.lat(), loc.lng());
+        }) ?? results[0]
       );
     }
 
