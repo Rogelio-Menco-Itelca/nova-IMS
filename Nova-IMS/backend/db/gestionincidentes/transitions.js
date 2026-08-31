@@ -45,8 +45,8 @@ const TRANSITIONS = {
 const WORKFLOW_RANK_CSJ = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'En gestión UNP': 2,
-  Reiteraciones: 3,
+  Reiteraciones: 2,
+  'En gestión UNP': 3,
   'En gestión Ponal': 4,
   Cerrado: 5,
   Cancelado: 5,

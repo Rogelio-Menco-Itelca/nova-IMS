@@ -59,8 +59,8 @@ export function catalogStatusToUiStatus(catalogName: string): string {
 export const CSJ_STATUS_WORKFLOW_RANK: Record<string, number> = {
   Nuevo: 0,
   'En gestión OSEG': 1,
-  'En gestión UNP': 2,
-  Reiteraciones: 3,
+  Reiteraciones: 2,
+  'En gestión UNP': 3,
   'En gestión Ponal': 4,
   Cerrado: 5,
   Cancelado: 5,
