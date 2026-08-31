@@ -674,9 +674,11 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
   for (const place of places || []) {
     const name = String(place.name || place.nombre || '').trim();
     const address = String(place.address || place.direccion || place.direccion_lugar || '').trim();
-    if (!name && !address) continue;
-    const safeName = (name || address).substring(0, 100);
-    const safeAddress = (address || name).substring(0, 100);
+    const roleHint = toPositiveId(place.roleId ?? place.role_id);
+    const deptHint = toPositiveId(place.departmentId ?? place.department_id);
+    if (!name && !address && !roleHint && !deptHint) continue;
+    const safeName = name.substring(0, 100);
+    const safeAddress = address.substring(0, 100);
 
     let roleId = toPositiveId(place.roleId ?? place.role_id);
     if (!roleId && place.roleName) {

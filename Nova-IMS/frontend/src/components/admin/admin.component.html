@@ -114,30 +114,22 @@
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div class="relative w-full sm:max-w-xs">
               <label for="users-search" class="sr-only">Buscar por nombre, email, ID</label>
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <span class="material-icons text-[18px] leading-none" aria-hidden="true">search</span>
+              </span>
               <input
                 id="users-search"
                 (input)="onSearch($event)"
                 type="text"
                 placeholder="Buscar por nombre, email, ID..."
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+                class="bg-gray-700 border border-gray-600 text-white rounded-md py-2 pl-10 pr-3 focus:ring-indigo-500 focus:border-indigo-500 w-full"
               />
             </div>
             <button
               (click)="openAddForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
+              <span class="material-icons text-[20px] leading-none" aria-hidden="true">person_add</span>
               Nuevo Usuario
             </button>
           </div>
@@ -285,18 +277,7 @@
               (click)="openAddIncidentTypeForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                />
-              </svg>
+              <span class="material-icons text-[20px] leading-none" aria-hidden="true">event</span>
               Nuevo Tipo de Incidente
             </button>
           </div>
@@ -365,30 +346,22 @@
           <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div class="relative w-full sm:max-w-xs">
               <label for="responses-search" class="sr-only">Buscar protocolo</label>
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <span class="material-icons text-[18px] leading-none" aria-hidden="true">search</span>
+              </span>
               <input
                 id="responses-search"
                 type="text"
                 (input)="onResponseProtocolSearch($event)"
                 placeholder="Buscar por nombre, tipo o paso..."
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full"
+                class="bg-gray-700 border border-gray-600 text-white rounded-md py-2 pl-10 pr-3 focus:ring-indigo-500 focus:border-indigo-500 w-full"
               />
             </div>
             <button
               (click)="openAddResponseProtocolForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                />
-              </svg>
+              <span class="material-icons text-[20px] leading-none" aria-hidden="true">forum</span>
               Nuevo Protocolo
             </button>
           </div>
@@ -521,14 +494,19 @@
                 >
                   Correo electrónico
                 </label>
-                <input
-                  id="notification-email-input"
-                  [formControl]="newEmailControl"
-                  type="email"
-                  placeholder="Buscar o agregar: ejemplo@dominio.com"
-                  (keydown.enter)="$event.preventDefault(); searchNotificationEmails()"
-                  class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+                <div class="relative">
+                  <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <span class="material-icons text-[18px] leading-none" aria-hidden="true">search</span>
+                  </span>
+                  <input
+                    id="notification-email-input"
+                    [formControl]="newEmailControl"
+                    type="email"
+                    placeholder="Buscar o agregar: ejemplo@dominio.com"
+                    (keydown.enter)="$event.preventDefault(); searchNotificationEmails()"
+                    class="w-full bg-gray-700 border border-gray-600 text-white rounded-md py-2 pl-10 pr-3 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
               </div>
               <div class="flex gap-2 shrink-0">
                 <button
@@ -536,25 +514,15 @@
                   (click)="createNotificationEmail()"
                   class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded transition-colors duration-200 flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
+                  <span class="material-icons text-[20px] leading-none" aria-hidden="true">mail</span>
                   Crear
                 </button>
                 <button
                   type="button"
                   (click)="searchNotificationEmails()"
-                  class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded border border-gray-600 transition-colors duration-200"
+                  class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded border border-gray-600 transition-colors duration-200 flex items-center gap-2"
                 >
+                  <span class="material-icons text-[20px] leading-none" aria-hidden="true">search</span>
                   Buscar
                 </button>
               </div>
@@ -1274,19 +1242,7 @@
               (click)="showRoleForm.set(true)"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center gap-2 shrink-0"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
+              <span class="material-icons text-[20px] leading-none" aria-hidden="true">lock</span>
               Nuevo Rol
             </button>
           </div>
@@ -1639,8 +1595,9 @@
                     type="button"
                     (click)="savePermissions()"
                     [disabled]="isSavingPermissions()"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
                   >
+                    <span class="material-icons text-[18px] leading-none" aria-hidden="true">save</span>
                     {{ isSavingPermissions() ? 'Guardando…' : 'Guardar cambios' }}
                   </button>
                 }
@@ -1652,8 +1609,9 @@
               <button
                 type="button"
                 (click)="showRoleForm.set(true)"
-                class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+                class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm font-medium inline-flex items-center gap-1"
               >
+                <span class="material-icons text-[18px] leading-none" aria-hidden="true">lock</span>
                 Crear el primer rol
               </button>
             </div>
@@ -1671,18 +1629,7 @@
               (click)="openAddPersonForm()"
               class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center gap-2"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
+              <span class="material-icons text-[20px] leading-none" aria-hidden="true">badge</span>
               Nueva Persona
             </button>
           </div>
@@ -1849,13 +1796,18 @@
             >
               <div class="shrink-0 border-b border-gray-700 p-3">
                 <label for="user-audit-search" class="sr-only">Filtrar usuarios</label>
-                <input
-                  id="user-audit-search"
-                  (input)="onUserAuditSearch($event)"
-                  type="text"
-                  placeholder="Buscar usuario o rol..."
-                  class="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white focus:ring-indigo-500"
-                />
+                <div class="relative">
+                  <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <span class="material-icons text-[18px] leading-none" aria-hidden="true">search</span>
+                  </span>
+                  <input
+                    id="user-audit-search"
+                    (input)="onUserAuditSearch($event)"
+                    type="text"
+                    placeholder="Buscar usuario o rol..."
+                    class="w-full rounded-md border border-gray-600 bg-gray-700 py-2 pl-10 pr-3 text-sm text-white focus:ring-indigo-500"
+                  />
+                </div>
               </div>
               <div class="min-h-0 flex-1 overflow-y-auto">
                 @for (u of filteredUsersAuditSummary(); track u.userId) {
@@ -2315,8 +2267,11 @@
               !operatorForm.getRawValue().agency ||
               !operatorForm.getRawValue().role
             "
-            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
           >
+            <span class="material-icons text-[20px] leading-none" aria-hidden="true">{{
+              isEditMode() ? 'save' : 'person_add'
+            }}</span>
             {{ isEditMode() ? 'Guardar Cambios' : 'Crear Usuario' }}
           </button>
         </div>

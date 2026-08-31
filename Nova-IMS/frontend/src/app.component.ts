@@ -32,6 +32,7 @@ import { ConfigurationService } from './services/configuration.service';
 import { PersonService } from './services/person.service';
 import { SocketService } from './services/socket.service';
 import { isCsjMedidasWorkflow } from './utils/medidas-permissions';
+import { phoneDigitsOnly } from './utils/ims-geo.constants';
 
 type View = 'dashboard' | 'incidents' | 'reports' | 'admin' | 'change-password';
 
@@ -112,6 +113,7 @@ export class AppComponent implements OnInit {
   isNotificationsOpen = signal(false);
   isDarkTheme = signal(true);
   phoneNumber = signal('');
+  quickLocationPhoneHint = signal(false);
   toastNotification = signal<{ title: string; message: string } | null>(null);
   private hadAuthenticatedSession = false;
 
@@ -300,9 +302,13 @@ export class AppComponent implements OnInit {
 
   onQuickLocationPhoneInput(event: Event): void {
     const el = event.target;
-    if (el instanceof HTMLInputElement) {
-      this.phoneNumber.set(el.value);
+    if (!(el instanceof HTMLInputElement)) return;
+    const digits = phoneDigitsOnly(el.value);
+    this.quickLocationPhoneHint.set(el.value !== digits);
+    if (el.value !== digits) {
+      el.value = digits;
     }
+    this.phoneNumber.set(digits);
   }
 
   async sendLocationRequest(): Promise<void> {
@@ -311,6 +317,7 @@ export class AppComponent implements OnInit {
     const ok = await this.locationRequestService.requestLocation(number);
     if (ok) {
       this.phoneNumber.set('');
+      this.quickLocationPhoneHint.set(false);
       if (this.authService.currentView() !== 'incidents') {
         this.setView('incidents');
       }
@@ -323,6 +330,7 @@ export class AppComponent implements OnInit {
     const ok = await this.locationRequestService.requestLocationViaSms(number);
     if (ok) {
       this.phoneNumber.set('');
+      this.quickLocationPhoneHint.set(false);
       if (this.authService.currentView() !== 'incidents') {
         this.setView('incidents');
       }

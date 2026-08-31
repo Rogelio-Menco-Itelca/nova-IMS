@@ -36,8 +36,6 @@ export const IMS_COLOMBIA_CENTER = {
   lat: (IMS_COLOMBIA_BOUNDS.north + IMS_COLOMBIA_BOUNDS.south) / 2,
   lng: (IMS_COLOMBIA_BOUNDS.east + IMS_COLOMBIA_BOUNDS.west) / 2,
 } as const;
-
-/** Encuadre continental (Guajira–Amazonas–Pacífico). San Andrés queda en el recuadro de restricción. */
 export const IMS_COLOMBIA_OVERVIEW_BOUNDS = {
   north: 12.58,
   south: -4.23,

@@ -12,33 +12,9 @@
       [title]="canCreate() ? '' : 'Sin permiso para crear incidentes'"
       class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
     >
-      @if (showNewIncidentTab()) {
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fill-rule="evenodd"
-            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-            clip-rule="evenodd"
-          />
-        </svg>
-      } @else {
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fill-rule="evenodd"
-            d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-            clip-rule="evenodd"
-          />
-        </svg>
-      }
+      <span class="material-icons text-[20px] leading-none" aria-hidden="true">{{
+        showNewIncidentTab() ? 'cancel' : 'post_add'
+      }}</span>
       <span>{{ showNewIncidentTab() ? 'Cancelar Registro' : 'Crear Incidente' }}</span>
     </button>
   </div>
@@ -130,7 +106,10 @@
           (ngSubmit)="onIncidentFormSubmit()"
         >
           <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-3">
-            <h3 class="text-xl font-bold text-white">
+            <h3 class="flex items-center gap-2 text-xl font-bold text-white">
+              <span class="material-icons ims-title-icon text-[22px] leading-none" aria-hidden="true">{{
+                activeTabId() === 'new' ? 'post_add' : 'assignment'
+              }}</span>
               {{
                 activeTabId() === 'new'
                   ? 'Registrar Nuevo Incidente'
@@ -262,18 +241,20 @@
             }
 
             <!-- Sección 1: Identificación y Clasificación -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="incident-top-fields">
               <div>
                 <label
                   for="event_id"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                  > Eventos <span class="text-red-400">*</span></label
+                  class="incident-label"
+                  >Eventos <span class="text-red-400">*</span></label
                 >
                 <select
                   id="event_id"
                   formControlName="event_id"
                   class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('event_id')"
+                  [class.border-red-500]="fieldRequiredError('event_id')"
+                  [title]="incidentForm.get('event_id')?.value || ''"
                   required
                 >
                   <option value="" disabled>Seleccione Tipo de Evento</option>
@@ -281,11 +262,14 @@
                     <option [value]="incidentType.name">{{ incidentType.name }}</option>
                   }
                 </select>
+                @if (fieldRequiredError('event_id')) {
+                  <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                }
               </div>
               <div>
                 <label
                   for="priority_id"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
+                  class="incident-label"
                   >Prioridad <span class="text-red-400">*</span></label
                 >
                 <select
@@ -293,6 +277,7 @@
                   formControlName="priority_id"
                   class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('priority_id')"
+                  [class.border-red-500]="fieldRequiredError('priority_id')"
                   required
                 >
                   <option value="" disabled>Seleccione Prioridad</option>
@@ -300,11 +285,14 @@
                     <option [value]="priority">{{ priority }}</option>
                   }
                 </select>
+                @if (fieldRequiredError('priority_id')) {
+                  <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                }
               </div>
               <div>
                 <label
                   for="status"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
+                  class="incident-label"
                   >Estado <span class="text-red-400">*</span></label
                 >
                 <select
@@ -312,6 +300,7 @@
                   formControlName="status"
                   class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('status')"
+                  [class.border-red-500]="fieldRequiredError('status')"
                   required
                 >
                   <option value="" disabled>Seleccione estado</option>
@@ -325,18 +314,17 @@
                     </option>
                   }
                 </select>
+                @if (fieldRequiredError('status')) {
+                  <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                }
                 @if (incidentStatusesLoaded() && incidentStatuses().length === 0) {
                   <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.statuses }}</p>
                 }
               </div>
-            </div>
-
-            <!-- Sección 2: Origen y Contacto -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label
                   for="origin"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
+                  class="incident-label"
                   >Origen <span class="text-red-400">*</span></label
                 >
                 <select
@@ -344,6 +332,7 @@
                   formControlName="origin"
                   class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('origin')"
+                  [class.border-red-500]="fieldRequiredError('origin')"
                   required
                 >
                   <option value="" disabled>Seleccione Origen</option>
@@ -351,6 +340,9 @@
                     <option [value]="o.name">{{ o.name }}</option>
                   }
                 </select>
+                @if (fieldRequiredError('origin')) {
+                  <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                }
                 @if (originsLoaded() && origins().length === 0) {
                   <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.origins }}</p>
                 }
@@ -358,29 +350,35 @@
               <div>
                 <label
                   for="phone"
-                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
+                  class="incident-label"
                   >Teléfono</label
                 >
                 <input
                   id="phone"
                   type="tel"
-                  inputmode="tel"
+                  inputmode="numeric"
+                  pattern="[0-9+ ]*"
                   autocomplete="tel"
                   formControlName="phone"
+                  (beforeinput)="onIncidentPhoneBeforeInput($event)"
+                  (input)="onIncidentPhoneInput($event)"
                   placeholder="Ej. 3001234567"
                   [class.border-red-500]="
-                    incidentForm.get('phone')?.invalid &&
-                    (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched)
+                    incidentPhoneDigitsHint() ||
+                    (incidentForm.get('phone')?.invalid &&
+                      (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched))
                   "
                   class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
-                @if (
+                @if (incidentPhoneDigitsHint()) {
+                  <p class="text-red-400 text-[11px] mt-1">Solo se aceptan números.</p>
+                } @else if (
                   incidentForm.get('phone')?.invalid &&
                   (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched)
                 ) {
                   <p class="text-red-400 text-[11px] mt-1">
                     @if (incidentForm.get('phone')?.hasError('phoneChars')) {
-                      Solo se permiten números, espacios y el signo +.
+                      Solo se aceptan números.
                     } @else if (incidentForm.get('phone')?.hasError('phoneFormat')) {
                       El teléfono debe tener 10 dígitos (ej. 3001234567).
                     } @else {
@@ -396,160 +394,186 @@
               class="rounded-lg border border-gray-700/60 bg-gray-800/25 p-4 sm:p-5 space-y-5"
             >
               <div>
-                <h4 class="text-sm font-semibold text-white">UBICACIÓN DEL INCIDENTE</h4>
+                <h4 class="incident-section-title">
+                  <span class="material-icons ims-title-icon text-[20px] leading-none" aria-hidden="true">location_on</span>
+                  Ubicación del incidente
+                </h4>
               </div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <div class="space-y-4 order-2 lg:order-1">
-                  <div>
-                    <label
-                      for="location"
-                      class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                      >Dirección de referencia <span class="text-red-400">*</span></label
-                    >
-                    <div class="relative">
-                      <input
-                        id="location"
-                        name="ims-incident-location"
-                        type="text"
-                        formControlName="location"
-                        autocomplete="off"
-                        autocapitalize="off"
-                        autocorrect="off"
-                        spellcheck="false"
-                        placeholder="Calle, Carrera, Barrio..."
-                        (keydown.enter)="onLocationEnter($event)"
-                        class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
-                        required
-                      />
-                      <svg
-                        class="absolute left-3 top-3 h-4 w-4 text-gray-500"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+              <div class="space-y-4">
+                <div>
+                  <label
+                    for="location"
+                    class="incident-label"
+                    >Dirección de referencia <span class="text-red-400">*</span></label
+                  >
+                  <div class="relative z-20">
+                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                      <span class="material-icons text-[18px] leading-none" aria-hidden="true">search</span>
+                    </span>
+                    <input
+                      id="location"
+                      name="ims-incident-location"
+                      type="text"
+                      formControlName="location"
+                      role="combobox"
+                      [attr.aria-expanded]="locationSuggestOpen()"
+                      aria-autocomplete="list"
+                      aria-controls="location-suggestions"
+                      [attr.aria-activedescendant]="
+                        locationSuggestActive() >= 0 ? 'location-suggest-' + locationSuggestActive() : null
+                      "
+                      autocomplete="off"
+                      autocapitalize="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      placeholder="Calle, Carrera, Barrio..."
+                      (focus)="onLocationFocus()"
+                      (blur)="onLocationBlur()"
+                      (keydown)="onLocationKeydown($event)"
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
+                      [class.border-red-500]="fieldRequiredError('location')"
+                      required
+                    />
+                    @if (locationSuggestOpen() && locationSuggestions().length) {
+                      <ul
+                        id="location-suggestions"
+                        role="listbox"
+                        class="location-suggest-list"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        for="lat"
-                        class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                        >Latitud <span class="text-red-400">*</span></label
-                      >
-                      <input
-                        id="lat"
-                        type="text"
-                        inputmode="decimal"
-                        autocomplete="off"
-                        formControlName="lat"
-                        class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label
-                        for="lng"
-                        class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                        >Longitud <span class="text-red-400">*</span></label
-                      >
-                      <input
-                        id="lng"
-                        type="text"
-                        inputmode="decimal"
-                        autocomplete="off"
-                        formControlName="lng"
-                        class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        for="departmentId"
-                        class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                        >Departamento</label
-                      >
-                      <select
-                        id="departmentId"
-                        formControlName="departmentId"
-                        class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
-                        [class.incident-select--placeholder]="selectShowsPlaceholder('departmentId')"
-                      >
-                        <option [ngValue]="null">Seleccione departamento…</option>
-                        @for (dept of departments(); track dept.id) {
-                          <option [ngValue]="dept.id">{{ dept.name }}</option>
+                        @for (item of locationSuggestions(); track item.placeId || item.primary + i; let i = $index) {
+                          <li
+                            role="option"
+                            [id]="'location-suggest-' + i"
+                            [attr.aria-selected]="locationSuggestActive() === i"
+                            class="location-suggest-item"
+                            [class.location-suggest-item--active]="locationSuggestActive() === i"
+                            (mousedown)="$event.preventDefault(); selectLocationSuggestion(item)"
+                          >
+                            <span class="material-icons location-suggest-pin" aria-hidden="true">place</span>
+                            <span class="min-w-0">
+                              <span class="location-suggest-primary">{{ item.primary }}</span>
+                              @if (item.secondary) {
+                                <span class="location-suggest-secondary">{{ item.secondary }}</span>
+                              }
+                            </span>
+                          </li>
                         }
-                      </select>
-                    </div>
-                    <div>
-                      <label
-                        for="municipalityId"
-                        class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5"
-                        >Ciudad/Municipio </label
-                      >
-                      <select
-                        id="municipalityId"
-                        formControlName="municipalityId"
-                        [disabled]="!incidentForm.get('departmentId')?.value"
-                        class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                        [class.incident-select--placeholder]="selectShowsPlaceholder('municipalityId')"
-                      >
-                        <option [ngValue]="null">
-                          @if (!incidentForm.get('departmentId')?.value) {
-                            Seleccione primero un departamento
-                          } @else {
-                            Seleccione municipio…
-                          }
-                        </option>
-                        @for (mun of incidentMunicipalities(); track mun.id) {
-                          <option [ngValue]="mun.id">{{ mun.name }}</option>
-                        }
-                      </select>
-                      @if (
-                        incidentMunicipalitiesLoaded() &&
-                        incidentForm.get('departmentId')?.value &&
-                        incidentMunicipalities().length === 0
-                      ) {
-                        <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
-                      }
-                    </div>
+                      </ul>
+                    }
                   </div>
-
-                  @if (incidentForm.get('locationPhoneNumber')?.value; as locPhone) {
-                    <div class="p-3 bg-blue-900/10 border border-blue-900/30 rounded-md">
-                      <span class="block text-[10px] font-bold text-blue-500 uppercase mb-1"
-                        >Ubicación por SMS/WhatsApp</span
-                      >
-                      <span class="text-xs text-blue-200">{{ locPhone }}</span>
-                    </div>
+                  @if (fieldRequiredError('location')) {
+                    <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
                   }
                 </div>
 
-                <div class="order-1 lg:order-2 space-y-2">
-                  <span class="block text-xs font-bold text-gray-500 uppercase tracking-wider"
-                    >Punto en mapa</span
-                  >
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label
+                      for="lat"
+                      class="incident-label"
+                      >Latitud <span class="text-red-400">*</span></label
+                    >
+                    <input
+                      id="lat"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      formControlName="lat"
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      [class.border-red-500]="fieldRequiredError('lat')"
+                      required
+                    />
+                    @if (fieldRequiredError('lat')) {
+                      <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                    }
+                  </div>
+                  <div>
+                    <label
+                      for="lng"
+                      class="incident-label"
+                      >Longitud <span class="text-red-400">*</span></label
+                    >
+                    <input
+                      id="lng"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      formControlName="lng"
+                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      [class.border-red-500]="fieldRequiredError('lng')"
+                      required
+                    />
+                    @if (fieldRequiredError('lng')) {
+                      <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                    }
+                  </div>
+                  <div>
+                    <label
+                      for="departmentId"
+                      class="incident-label"
+                      >Departamento</label
+                    >
+                    <select
+                      id="departmentId"
+                      formControlName="departmentId"
+                      class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                      [class.incident-select--placeholder]="selectShowsPlaceholder('departmentId')"
+                    >
+                      <option [ngValue]="null">Seleccione departamento…</option>
+                      @for (dept of departments(); track dept.id) {
+                        <option [ngValue]="dept.id">{{ dept.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      for="municipalityId"
+                      class="incident-label"
+                      >Ciudad/Municipio</label
+                    >
+                    <select
+                      id="municipalityId"
+                      formControlName="municipalityId"
+                      [disabled]="!incidentForm.get('departmentId')?.value"
+                      class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      [class.incident-select--placeholder]="selectShowsPlaceholder('municipalityId')"
+                    >
+                      <option [ngValue]="null">
+                        @if (!incidentForm.get('departmentId')?.value) {
+                          Seleccione primero un departamento
+                        } @else {
+                          Seleccione municipio…
+                        }
+                      </option>
+                      @for (mun of incidentMunicipalities(); track mun.id) {
+                        <option [ngValue]="mun.id">{{ mun.name }}</option>
+                      }
+                    </select>
+                    @if (
+                      incidentMunicipalitiesLoaded() &&
+                      incidentForm.get('departmentId')?.value &&
+                      incidentMunicipalities().length === 0
+                    ) {
+                      <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
+                    }
+                  </div>
+                </div>
+
+                @if (incidentForm.get('locationPhoneNumber')?.value; as locPhone) {
+                  <div class="p-3 bg-blue-900/10 border border-blue-900/30 rounded-md">
+                    <span class="block text-[10px] font-bold text-blue-500 uppercase mb-1"
+                      >Ubicación por SMS/WhatsApp</span
+                    >
+                    <span class="text-xs text-blue-200">{{ locPhone }}</span>
+                  </div>
+                }
+
+                <div class="space-y-2">
+                  <span class="incident-label">Punto en mapa</span>
                   <div
                     id="map"
-                    class="incident-form-map w-full h-[280px] sm:h-[340px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
+                    class="incident-form-map w-full h-[280px] sm:h-[360px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
                   >
                     @if (mapsError(); as mapErr) {
                       <div
@@ -575,7 +599,7 @@
                 <div class="flex items-center justify-between mb-1.5">
                   <label
                     for="agregarComentario"
-                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider"
+                    class="incident-label"
                   >
                     Agregar comentario
                     @if (activeTabId() === 'new' || requiresReiteracionCommentOnSave()) {
@@ -590,6 +614,7 @@
                   rows="4"
                   [placeholder]="commentFieldPlaceholder()"
                   class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  [class.border-red-500]="commentRequiredError()"
                 ></textarea>
                 @if (
                   requiresReiteracionCommentOnSave() &&
@@ -694,7 +719,8 @@
             <div class="pt-4 mt-4 border-t border-gray-700">
               <div class="flex justify-between items-center mb-3">
                 <div>
-                  <h4 class="text-lg font-semibold text-white">
+                  <h4 class="flex items-center gap-2 text-lg font-semibold text-white">
+                    <span class="material-icons ims-title-icon text-[20px] leading-none" aria-hidden="true">person</span>
                     Solicitante(s)
                     @if (activeTabId() === 'new') {
                       <span class="text-red-400" aria-hidden="true">*</span>
@@ -702,7 +728,7 @@
                   </h4>
                   <p class="text-sm text-gray-500 mt-0.5">
                     @if (activeTabId() === 'new') {
-                      Obligatorio: al menos un solicitante con nombre, apellido y rol.
+                      Obligatorio: al menos un solicitante. Solo segundo nombre y segundo apellido son opcionales.
                     } @else {
                       Si la cédula o teléfono está registrado, los datos aparecerán automáticamente.
                     }
@@ -714,16 +740,7 @@
                   [disabled]="involvedPeople.length >= 4"
                   class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z"
-                    ></path>
-                  </svg>
+                  <span class="material-icons text-[18px] leading-none" aria-hidden="true">person_add</span>
                   Añadir
                 </button>
               </div>
@@ -746,7 +763,7 @@
                     >
                       &times;
                     </button>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 pr-8">
                       <div>
                         <label
                           [attr.for]="'person-' + $index + '-primerNombre'"
@@ -759,8 +776,12 @@
                           type="text"
                           autocomplete="off"
                           placeholder="Ej.: Ana"
+                          [class.border-red-500]="personRequiredError($index, 'primerNombre')"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
+                        @if (personRequiredError($index, 'primerNombre')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
                       <div>
                         <label
@@ -788,8 +809,12 @@
                           type="text"
                           autocomplete="off"
                           placeholder="Ej.: Rodríguez"
+                          [class.border-red-500]="personRequiredError($index, 'primerApellido')"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
+                        @if (personRequiredError($index, 'primerApellido')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
                       <div>
                         <label
@@ -807,6 +832,73 @@
                       </div>
                       <div>
                         <label
+                          [attr.for]="'person-' + $index + '-documentType'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Tipo De Documento <span class="text-red-400">*</span></label
+                        >
+                        <select
+                          [id]="'person-' + $index + '-documentType'"
+                          formControlName="documentType"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'documentType')"
+                          [class.border-red-500]="personRequiredError($index, 'documentType')"
+                        >
+                          <option value="">Seleccione Tipo</option>
+                          @for (doc of documentTypes(); track doc.code) {
+                            <option [value]="doc.code">{{ doc.name }}</option>
+                          }
+                        </select>
+                        @if (personRequiredError($index, 'documentType')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                      </div>
+                      <div>
+                        <label
+                          [attr.for]="'person-' + $index + '-documentId'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Número De Documento <span class="text-red-400">*</span></label
+                        >
+                        <input
+                          [id]="'person-' + $index + '-documentId'"
+                          formControlName="documentId"
+                          type="text"
+                          inputmode="numeric"
+                          pattern="[0-9]*"
+                          autocomplete="off"
+                          placeholder="Número"
+                          (input)="onPersonDocumentInput($index)"
+                          (blur)="lookupInvolvedPerson($index, 'document')"
+                          [class.border-red-500]="personRequiredError($index, 'documentId')"
+                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                        />
+                        @if (personRequiredError($index, 'documentId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                      </div>
+                      <div>
+                        <label
+                          [attr.for]="'person-' + $index + '-genderId'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Género <span class="text-red-400">*</span></label
+                        >
+                        <select
+                          [id]="'person-' + $index + '-genderId'"
+                          formControlName="genderId"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'genderId')"
+                          [class.border-red-500]="personRequiredError($index, 'genderId')"
+                        >
+                          <option [ngValue]="null">Seleccione Género</option>
+                          @for (g of genders(); track g.id) {
+                            <option [ngValue]="g.id">{{ g.name }}</option>
+                          }
+                        </select>
+                        @if (personRequiredError($index, 'genderId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                      </div>
+                      <div>
+                        <label
                           [attr.for]="'person-' + $index + '-roleId'"
                           class="block text-xs font-medium text-gray-400 mb-1"
                           >Rol <span class="text-red-400">*</span></label
@@ -817,12 +909,16 @@
                           (change)="onPersonRoleChange($index)"
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'roleId')"
+                          [class.border-red-500]="personRequiredError($index, 'roleId')"
                         >
                           <option [ngValue]="null" disabled>Seleccione Rol</option>
                           @for (role of personRoles(); track role.id) {
                             <option [ngValue]="role.id">{{ role.name }}</option>
                           }
                         </select>
+                        @if (personRequiredError($index, 'roleId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
                       <!-- Select siempre en DOM (hidden si no es Juez): @if destruía el control y perdía cargoId. -->
                       <div [class.hidden]="!isPersonJudgeRole($index)">
@@ -836,73 +932,22 @@
                           formControlName="cargoId"
                           class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'cargoId')"
+                          [class.border-red-500]="personRequiredError($index, 'cargoId')"
                         >
                           <option [ngValue]="null" disabled>Seleccione Cargo</option>
                           @for (cargo of judgeCargos(); track cargo.id) {
                             <option [ngValue]="cargo.id">{{ cargo.name }}</option>
                           }
                         </select>
-                      </div>
-                      <div>
-                        <label
-                          [attr.for]="'person-' + $index + '-documentType'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Tipo De Documento</label
-                        >
-                        <select
-                          [id]="'person-' + $index + '-documentType'"
-                          formControlName="documentType"
-                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'documentType')"
-                        >
-                          <option value="">Seleccione Tipo</option>
-                          @for (doc of documentTypes(); track doc.code) {
-                            <option [value]="doc.code">{{ doc.name }}</option>
-                          }
-                        </select>
-                      </div>
-                      <div>
-                        <label
-                          [attr.for]="'person-' + $index + '-documentId'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Número De Documento</label
-                        >
-                        <input
-                          [id]="'person-' + $index + '-documentId'"
-                          formControlName="documentId"
-                          type="text"
-                          inputmode="numeric"
-                          pattern="[0-9]*"
-                          autocomplete="off"
-                          placeholder="Número"
-                          (input)="onPersonDocumentInput($index)"
-                          (blur)="lookupInvolvedPerson($index, 'document')"
-                          class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          [attr.for]="'person-' + $index + '-genderId'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Género</label
-                        >
-                        <select
-                          [id]="'person-' + $index + '-genderId'"
-                          formControlName="genderId"
-                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          [class.incident-select--placeholder]="involvedSelectEmpty($index, 'genderId')"
-                        >
-                          <option [ngValue]="null">Seleccione Género</option>
-                          @for (g of genders(); track g.id) {
-                            <option [ngValue]="g.id">{{ g.name }}</option>
-                          }
-                        </select>
+                        @if (personRequiredError($index, 'cargoId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
                       <div>
                         <label
                           [attr.for]="'person-' + $index + '-contact'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Contacto / Teléfono</label
+                          >Contacto / Teléfono <span class="text-red-400">*</span></label
                         >
                         <input
                           [id]="'person-' + $index + '-contact'"
@@ -914,14 +959,20 @@
                           placeholder="Teléfono"
                           (input)="onPersonContactInput($index)"
                           (blur)="lookupInvolvedPerson($index, 'contact')"
+                          [class.border-red-500]="personContactDigitsHint()[$index] || personRequiredError($index, 'contact')"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
                         />
+                        @if (personContactDigitsHint()[$index]) {
+                          <p class="text-red-400 text-[11px] mt-1">Solo se aceptan números.</p>
+                        } @else if (personRequiredError($index, 'contact')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
-                      <div class="sm:col-span-2">
+                      <div class="sm:col-span-2 lg:col-span-4">
                         <label
                           [attr.for]="'person-' + $index + '-comentarios'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Ubicación de expediente</label
+                          >Ubicación de expediente <span class="text-red-400">*</span></label
                         >
                         <textarea
                           [id]="'person-' + $index + '-comentarios'"
@@ -929,8 +980,12 @@
                           rows="2"
                           autocomplete="off"
                           placeholder="Ruta de SharePoint del expediente"
+                          [class.border-red-500]="personRequiredError($index, 'comentarios')"
                           class="incident-field w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[2.5rem]"
                         ></textarea>
+                        @if (personRequiredError($index, 'comentarios')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
                       </div>
                     </div>
                   </div>
@@ -939,30 +994,23 @@
             </div>
             <div class="pt-4 mt-4 border-t border-gray-700">
               <div class="flex justify-between items-center mb-3">
-                <h4 class="text-lg font-semibold text-white">
-                  Lugares Asociados
-                  @if (activeTabId() === 'new') {
-                    <span class="text-sm font-normal text-gray-500">(opcional)</span>
-                  }
-                </h4>
+                <div>
+                  <h4 class="flex items-center gap-2 text-lg font-semibold text-white">
+                    <span class="material-icons ims-title-icon text-[20px] leading-none" aria-hidden="true">place</span>
+                    Lugares Asociados
+                    <span class="text-red-400" aria-hidden="true">*</span>
+                  </h4>
+                  <p class="text-sm text-gray-500 mt-0.5">
+                    Obligatorio: al menos un lugar con rol, departamento y municipio. Nombre, dirección, contacto y comentarios son opcionales.
+                  </p>
+                </div>
                 <button
                   type="button"
                   (click)="addPlace()"
                   [disabled]="involvedPlaces.length >= 4"
                   class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
+                  <span class="material-icons text-[18px] leading-none" aria-hidden="true">add_location</span>
                   Añadir
                 </button>
               </div>
@@ -986,12 +1034,94 @@
                     >
                       &times;
                     </button>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 pr-8">
+                      <div>
+                        <label
+                          [attr.for]="'place-' + $index + '-roleId'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Rol / Tipo de Lugar <span class="text-red-400">*</span></label
+                        >
+                        <select
+                          [id]="'place-' + $index + '-roleId'"
+                          formControlName="roleId"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'roleId')"
+                          [class.border-red-500]="placeRequiredError($index, 'roleId')"
+                        >
+                          <option [ngValue]="null" disabled>Seleccione rol…</option>
+                          @for (role of placeRoles(); track role.id) {
+                            <option [ngValue]="role.id">
+                              {{ formatPlaceRoleLabel(role.name) }}
+                            </option>
+                          }
+                        </select>
+                        @if (placeRequiredError($index, 'roleId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                      </div>
+                      <div>
+                        <label
+                          [attr.for]="'place-' + $index + '-departmentId'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Departamento <span class="text-red-400">*</span></label
+                        >
+                        <select
+                          [id]="'place-' + $index + '-departmentId'"
+                          formControlName="departmentId"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'departmentId')"
+                          [class.border-red-500]="placeRequiredError($index, 'departmentId')"
+                        >
+                          <option [ngValue]="null">Seleccione departamento…</option>
+                          @for (dept of departments(); track dept.id) {
+                            <option [ngValue]="dept.id">{{ dept.name }}</option>
+                          }
+                        </select>
+                        @if (placeRequiredError($index, 'departmentId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                      </div>
+                      <div>
+                        <label
+                          [attr.for]="'place-' + $index + '-municipalityId'"
+                          class="block text-xs font-medium text-gray-400 mb-1"
+                          >Municipio <span class="text-red-400">*</span></label
+                        >
+                        <select
+                          [id]="'place-' + $index + '-municipalityId'"
+                          formControlName="municipalityId"
+                          [disabled]="!placeGroup.get('departmentId')?.value"
+                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50"
+                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'municipalityId')"
+                          [class.border-red-500]="placeRequiredError($index, 'municipalityId')"
+                        >
+                          <option [ngValue]="null">
+                            @if (!placeGroup.get('departmentId')?.value) {
+                              Seleccione primero un departamento
+                            } @else {
+                              Seleccione municipio…
+                            }
+                          </option>
+                          @for (mun of placeMunicipalitiesFor($index); track mun.id) {
+                            <option [ngValue]="mun.id">{{ mun.name }}</option>
+                          }
+                        </select>
+                        @if (placeRequiredError($index, 'municipalityId')) {
+                          <p class="text-red-400 text-[11px] mt-1">Este campo es obligatorio.</p>
+                        }
+                        @if (
+                          placeMunicipalitiesReady($index) &&
+                          placeGroup.get('departmentId')?.value &&
+                          placeMunicipalitiesFor($index).length === 0
+                        ) {
+                          <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
+                        }
+                      </div>
                       <div>
                         <label
                           [attr.for]="'place-' + $index + '-name'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Nombre Del Lugar <span class="text-red-400">*</span></label
+                          >Nombre Del Lugar</label
                         >
                         <input
                           [id]="'place-' + $index + '-name'"
@@ -1005,7 +1135,7 @@
                         <label
                           [attr.for]="'place-' + $index + '-address'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Dirección <span class="text-red-400">*</span></label
+                          >Dirección</label
                         >
                         <input
                           [id]="'place-' + $index + '-address'"
@@ -1017,76 +1147,6 @@
                       </div>
                       <div>
                         <label
-                          [attr.for]="'place-' + $index + '-departmentId'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Departamento</label
-                        >
-                        <select
-                          [id]="'place-' + $index + '-departmentId'"
-                          formControlName="departmentId"
-                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
-                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'departmentId')"
-                        >
-                          <option [ngValue]="null">Seleccione departamento…</option>
-                          @for (dept of departments(); track dept.id) {
-                            <option [ngValue]="dept.id">{{ dept.name }}</option>
-                          }
-                        </select>
-                      </div>
-                      <div>
-                        <label
-                          [attr.for]="'place-' + $index + '-municipalityId'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Municipio</label
-                        >
-                        <select
-                          [id]="'place-' + $index + '-municipalityId'"
-                          formControlName="municipalityId"
-                          [disabled]="!placeGroup.get('departmentId')?.value"
-                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 disabled:opacity-50"
-                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'municipalityId')"
-                        >
-                          <option [ngValue]="null">
-                            @if (!placeGroup.get('departmentId')?.value) {
-                              Seleccione primero un departamento
-                            } @else {
-                              Seleccione municipio…
-                            }
-                          </option>
-                          @for (mun of placeMunicipalitiesFor($index); track mun.id) {
-                            <option [ngValue]="mun.id">{{ mun.name }}</option>
-                          }
-                        </select>
-                        @if (
-                          placeMunicipalitiesReady($index) &&
-                          placeGroup.get('departmentId')?.value &&
-                          placeMunicipalitiesFor($index).length === 0
-                        ) {
-                          <p class="mt-1 text-xs text-amber-400">{{ catalogEmptyHints.municipalities }}</p>
-                        }
-                      </div>
-                      <div>
-                        <label
-                          [attr.for]="'place-' + $index + '-roleId'"
-                          class="block text-xs font-medium text-gray-400 mb-1"
-                          >Rol / Tipo de Lugar <span class="text-red-400">*</span></label
-                        >
-                        <select
-                          [id]="'place-' + $index + '-roleId'"
-                          formControlName="roleId"
-                          class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
-                          [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'roleId')"
-                        >
-                          <option [ngValue]="null" disabled>Seleccione rol…</option>
-                          @for (role of placeRoles(); track role.id) {
-                            <option [ngValue]="role.id">
-                              {{ formatPlaceRoleLabel(role.name) }}
-                            </option>
-                          }
-                        </select>
-                      </div>
-                      <div>
-                        <label
                           [attr.for]="'place-' + $index + '-contact'"
                           class="block text-xs font-medium text-gray-400 mb-1"
                           >Contacto</label
@@ -1094,12 +1154,20 @@
                         <input
                           [id]="'place-' + $index + '-contact'"
                           formControlName="contact"
-                          type="text"
-                          placeholder="Teléfono o Referencia"
+                          type="tel"
+                          inputmode="numeric"
+                          pattern="[0-9]*"
+                          autocomplete="tel"
+                          placeholder="Teléfono"
+                          (input)="onPlaceContactInput($index)"
+                          [class.border-red-500]="placeContactDigitsHint()[$index]"
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500"
                         />
+                        @if (placeContactDigitsHint()[$index]) {
+                          <p class="text-red-400 text-[11px] mt-1">Solo se aceptan números.</p>
+                        }
                       </div>
-                      <div class="sm:col-span-2">
+                      <div class="sm:col-span-2 lg:col-span-3">
                         <label
                           [attr.for]="'place-' + $index + '-comments'"
                           class="block text-xs font-medium text-gray-400 mb-1"
@@ -1120,11 +1188,9 @@
             </div>
             <div class="pt-4 mt-4 border-t border-gray-700">
               <div class="flex justify-between items-center mb-3">
-                <h4 class="text-lg font-semibold text-white">
+                <h4 class="flex items-center gap-2 text-lg font-semibold text-white">
+                  <span class="material-icons ims-title-icon text-[20px] leading-none" aria-hidden="true">directions_car</span>
                   Vehículos Asociados
-                  @if (activeTabId() === 'new') {
-                    <span class="text-sm font-normal text-gray-500">(opcional)</span>
-                  }
                 </h4>
                 <button
                   type="button"
@@ -1132,18 +1198,7 @@
                   [disabled]="involvedVehicles.length >= 4"
                   class="text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-1.5 px-3 rounded-md flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M10 2a.75.75 0 01.67.44l.416 1.247A1.75 1.75 0 0012.38 5.5h.04A1.75 1.75 0 0014 3.75V3a.75.75 0 01.75-.75h.5A.75.75 0 0116 3v.75a1.75 1.75 0 001.573 1.708l1.248.415A.75.75 0 0119.25 7.5v5a.75.75 0 01-1.07.707l-1.248-.415A1.75 1.75 0 0014.36 14.5h-.04A1.75 1.75 0 0013 16.25V17a.75.75 0 01-.75.75h-.5a.75.75 0 01-.75-.75v-.75a1.75 1.75 0 00-1.573-1.708l-1.248-.415A.75.75 0 017.75 12.5v-5A.75.75 0 018.82 6.793l1.248-.415A1.75 1.75 0 0011.64 4.5h.04A1.75 1.75 0 0013 2.75V2a.75.75 0 01.75-.75h.5A.75.75 0 0115 2v.75a1.75 1.75 0 001.573 1.708l1.248.415A.75.75 0 0118.25 6.5v.982a.75.75 0 01-1.29.518l-1.55-2.7A.75.75 0 0014.66 4.5H5.34a.75.75 0 00-.65.399l-1.55 2.7A.75.75 0 011.85 6.5V11a1 1 0 001 1h.5a.75.75 0 010 1.5H2a1 1 0 00-1 1v1a1 1 0 001 1h1a.75.75 0 010 1.5H2a2 2 0 00-2 2v1h18v-1a2 2 0 00-2-2h-1a.75.75 0 010-1.5h1a1 1 0 001-1v-1a1 1 0 00-1-1h-.5a.75.75 0 010-1.5h.5a1 1 0 001-1V7.482a.75.75 0 01.07-1.707zM5 14.5a1 1 0 100-2 1 1 0 000 2zM15 14.5a1 1 0 100-2 1 1 0 000 2z"
-                      clip-rule="evenodd"
-                    ></path>
-                  </svg>
+                  <span class="material-icons text-[18px] leading-none" aria-hidden="true">directions_car</span>
                   Añadir
                 </button>
               </div>
@@ -1257,14 +1312,13 @@
                         <label
                           [attr.for]="'vehicle-' + $index + '-details'"
                           class="block text-xs font-medium text-gray-400 mb-1"
-                          >Comentarios del Vehículo
-                          <span class="text-gray-500 font-normal">(opcional)</span></label
+                          >Comentarios del Vehículo</label
                         >
                         <textarea
                           [id]="'vehicle-' + $index + '-details'"
                           formControlName="details"
                           rows="2"
-                          placeholder="Daños, señas particulares, etc. (opcional)"
+                          placeholder="Daños, señas particulares, etc."
                           class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         ></textarea>
                       </div>
@@ -1504,17 +1558,7 @@
                 [title]="canNotify() ? 'El incidente debe estar guardado en el servidor' : 'Sin permiso para enviar correos'"
                 class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-700/50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-700/50"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"
-                  ></path>
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
-                </svg>
+                <span class="material-icons text-[20px] leading-none" aria-hidden="true">email</span>
                 <span>Enviar por Email</span>
               </button>
             }
@@ -1522,21 +1566,23 @@
             @if (activeTabId() === 'new') {
               <button
                 type="submit"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded"
               >
+                <span class="material-icons text-[20px] leading-none" aria-hidden="true">post_add</span>
                 Crear Incidente
               </button>
             } @else {
               <button
                 type="submit"
                 [disabled]="!hasPendingIncidentChanges()"
-                class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 disabled:text-indigo-200/50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 disabled:text-indigo-200/50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
                 [title]="
                   hasPendingIncidentChanges()
                     ? 'Guardar los cambios del incidente'
                     : 'No hay cambios pendientes por guardar'
                 "
               >
+                <span class="material-icons text-[20px] leading-none" aria-hidden="true">save</span>
                 Actualizar Incidente
               </button>
             }
@@ -1741,27 +1787,49 @@
     aria-labelledby="leave-confirm-title"
     aria-describedby="leave-confirm-desc"
   >
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-[2px]" aria-hidden="true"></div>
+    <div
+      class="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
+      aria-hidden="true"
+      (click)="cancelLeaveConfirm()"
+    ></div>
     <div
       class="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-gray-800 shadow-2xl shadow-black/30 animate-fadeInUp"
     >
       <div class="px-6 pt-6 pb-4">
         <div class="flex items-start gap-4">
           <div
-            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10"
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+            [class.bg-amber-500/15]="leaveConfirmForNewTab()"
+            [class.bg-indigo-500/10]="!leaveConfirmForNewTab()"
             aria-hidden="true"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
+            @if (leaveConfirmForNewTab()) {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3.1L2.4 19.75a1 1 0 00.86 1.5h17.48a1 1 0 00.86-1.5L12 3.1zm0 5.4a.9.9 0 01.9.9v5.2a.9.9 0 11-1.8 0V9.4a.9.9 0 01.9-.9zm0 9.3a1.05 1.05 0 110-2.1 1.05 1.05 0 010 2.1z" />
+              </svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+            }
           </div>
           <div class="min-w-0 flex-1 pt-0.5">
             <h2 id="leave-confirm-title" class="text-lg font-semibold text-white tracking-tight">
-              {{ leaveConfirmForNewTab() ? 'Borrador sin registrar' : '¿Guardar antes de salir?' }}
+              @if (leaveConfirmForNewTab()) {
+                {{
+                  leaveExitConfirmStep()
+                    ? '¿Salir sin crear el incidente?'
+                    : 'El incidente no se creará si sales ahora'
+                }}
+              } @else {
+                ¿Guardar antes de salir?
+              }
             </h2>
             <p id="leave-confirm-desc" class="mt-1.5 text-sm text-gray-400 leading-relaxed">
-              @if (leaveConfirmForNewTab()) {
-                Complete el registro o descarte el borrador para continuar.
+              @if (leaveConfirmForNewTab() && leaveExitConfirmStep()) {
+                Se perderá lo diligenciado. Esta acción no se puede deshacer.
+              } @else if (leaveConfirmForNewTab()) {
+                Está incompleto. Para que quede registrado, termínelo antes de salir.
               } @else {
                 El incidente
                 <span class="font-mono text-xs text-indigo-200/90 bg-indigo-500/10 px-1.5 py-0.5 rounded">{{ activeTabId() }}</span>
@@ -1772,7 +1840,7 @@
         </div>
       </div>
 
-      @if (leaveConfirmChanges().length) {
+      @if (!leaveConfirmForNewTab() && leaveConfirmChanges().length) {
         <div class="px-6 pb-5">
           <p class="mb-2 text-xs font-medium text-gray-500">Cambios detectados</p>
           <div class="overflow-hidden rounded-xl bg-gray-900/40">
@@ -1795,29 +1863,63 @@
       }
 
       <div class="bg-gray-900/15 px-6 py-4">
-        <div class="grid grid-cols-2 gap-2.5">
+        @if (leaveConfirmForNewTab() && leaveExitConfirmStep()) {
+          <div class="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              (click)="leaveExitConfirmStep.set(false)"
+              class="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            >
+              No, seguir creando
+            </button>
+            <button
+              type="button"
+              (click)="discardLeaveAndContinue()"
+              class="rounded-lg bg-gray-700/35 px-3 py-2.5 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/15 hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            >
+              Sí, salir
+            </button>
+          </div>
+        } @else if (leaveConfirmForNewTab()) {
           <button
             type="button"
             (click)="cancelLeaveConfirm()"
-            class="rounded-lg bg-gray-700/35 px-3 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-700/55 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            class="w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
           >
-            Seguir editando
+            Seguir creando
           </button>
           <button
             type="button"
-            (click)="saveAndLeave()"
-            class="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            (click)="askConfirmLeaveExit()"
+            class="mt-3 w-full py-1.5 text-center text-xs text-gray-500 transition-colors hover:text-rose-300/90 focus:outline-none focus-visible:underline"
           >
-            {{ leaveConfirmPrimaryActionLabel() }}
+            Salir sin crear el incidente
           </button>
-        </div>
-        <button
-          type="button"
-          (click)="discardLeaveAndContinue()"
-          class="mt-3 w-full py-1.5 text-center text-xs text-gray-500 transition-colors hover:text-rose-300/90 focus:outline-none focus-visible:underline"
-        >
-          Descartar cambios y salir
-        </button>
+        } @else {
+          <div class="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              (click)="cancelLeaveConfirm()"
+              class="rounded-lg bg-gray-700/35 px-3 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-700/55 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            >
+              Seguir editando
+            </button>
+            <button
+              type="button"
+              (click)="saveAndLeave()"
+              class="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800"
+            >
+              {{ leaveConfirmPrimaryActionLabel() }}
+            </button>
+          </div>
+          <button
+            type="button"
+            (click)="discardLeaveAndContinue()"
+            class="mt-3 w-full py-1.5 text-center text-xs text-gray-500 transition-colors hover:text-rose-300/90 focus:outline-none focus-visible:underline"
+          >
+            Descartar cambios y salir
+          </button>
+        }
       </div>
     </div>
   </dialog>

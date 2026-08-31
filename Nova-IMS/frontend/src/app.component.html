@@ -171,12 +171,20 @@
                 <input
                   id="phone-number"
                   type="tel"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  autocomplete="tel"
+                  maxlength="12"
                   [value]="phoneNumber()"
                   (input)="onQuickLocationPhoneInput($event)"
                   [disabled]="!permissionService.canModuleAction('Incidentes', 'create')"
                   placeholder="Ej: 573001234567"
+                  [class.border-red-500]="quickLocationPhoneHint()"
                   class="bg-gray-700 border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 w-full disabled:cursor-not-allowed disabled:opacity-70"
                 />
+                @if (quickLocationPhoneHint()) {
+                  <p class="mt-1 text-[11px] text-red-400">Solo se aceptan números.</p>
+                }
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <button

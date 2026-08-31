@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   signal,
+  WritableSignal,
   computed,
   inject,
   OnDestroy,
@@ -82,13 +83,19 @@ import { ProfilePhotoService } from '../../services/profile-photo.service';
 import { HttpClient } from '@angular/common/http';
 import { IncidentEmailModalComponent } from '../incident-email-modal/incident-email-modal.component';
 import { MedidasComponent } from '../medidas/medidas.component';
+import { createMapPin, isGoogleMapsLoaded, MapPin } from '../../utils/google-maps-legacy';
 import {
-  createMapPin,
-  createPlaceAutocomplete,
-  isGoogleMapsLoaded,
-  MapPin,
-  PlaceAutocompleteControl,
-} from '../../utils/google-maps-legacy';
+  LOCATION_SEARCH_MIN_CHARS,
+  LOCATION_SUGGEST_BLUR_MS,
+  LOCATION_SUGGEST_DEBOUNCE_MS,
+  PlacePredictionItem,
+  geocodeColombia,
+  newPlacesSessionToken,
+  pickColombiaGeocodeResult,
+  resolveLocationSuggestion,
+  searchColombiaPlaces,
+  suggestionFallbackQuery,
+} from '../../utils/incident-location-search';
 import { loadGoogleMaps } from '../../utils/google-maps-loader';
 import {
   displayCommentBody,
@@ -104,7 +111,6 @@ import {
 import { AuditLog } from '../../models/admin.model';
 import {
   IncidentLocationCoordSync,
-  buildGeocodeQuery,
   geoCatalogNamesLooselyEqual,
   hasValidIncidentCoords,
   parseIncidentCoords,
@@ -113,16 +119,11 @@ import {
 import {
   clampLatLngToColombia,
   clampMapZoomAfterCountryFit,
-  colombiaBoundsLiteral,
   colombiaMapViewportOptions,
   fitMapToColombia,
   IMS_COORD,
   IMS_COLOMBIA_OVERVIEW_CENTER,
-  IMS_GEO,
   IMS_MAP_ZOOM,
-  appendCountryToGeocodeQuery,
-  googleMapsCountryRestriction,
-  isLatLngWithinColombia,
   roundCoord,
   toLocalColombianPhone,
 } from '../../utils/ims-geo.constants';
@@ -244,6 +245,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   } as const;
 
   emailModalIncident = signal<Incident | null>(null);
+  incidentPhoneDigitsHint = signal(false);
+  personContactDigitsHint = signal<Record<number, boolean>>({});
+  placeContactDigitsHint = signal<Record<number, boolean>>({});
 
   canNotify(): boolean {
     return this.permissionService.canNotify();
@@ -260,6 +264,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   leaveConfirmOpen = signal(false);
   medidasPendingChanges = signal(false);
   leaveConfirmForNewTab = signal(false);
+  leaveExitConfirmStep = signal(false);
   leaveConfirmChanges = signal<LeaveConfirmChangeItem[]>([]);
   updateConfirmOpen = signal(false);
   private pendingLeaveAction: (() => void) | null = null;
@@ -271,9 +276,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private map: google.maps.Map | null = null;
   private marker: MapPin | null = null;
   private geocoder: google.maps.Geocoder | null = null;
-  private autocomplete: PlaceAutocompleteControl | null = null;
-  /** Solo sesga geocode/autocomplete a depto/ciudad si el usuario los eligió a mano. */
   private locationAreaPinnedByUser = false;
+  locationSuggestions = signal<PlacePredictionItem[]>([]);
+  locationSuggestOpen = signal(false);
+  locationSuggestActive = signal(-1);
+  private locationSuggestSub: Subscription | undefined;
+  private locationSuggestSeq = 0;
+  private placesSessionToken: google.maps.places.AutocompleteSessionToken | null = null;
+  private locationBlurTimer: ReturnType<typeof setTimeout> | null = null;
 
   private typeSub: Subscription | undefined;
   private phoneSub: Subscription | undefined;
@@ -882,199 +892,121 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       });
     });
 
-    this.initAutocomplete();
-    this.bindAutocompleteAreaBias();
     this.mapReady.set(true);
     this.cdr.markForCheck();
   }
 
-  private hasPinnedLocationArea(): boolean {
-    if (!this.locationAreaPinnedByUser) return false;
-    return (
-      this.incidentForm.get('departmentId')?.value != null ||
-      this.incidentForm.get('municipalityId')?.value != null
-    );
+  private ensurePlacesSessionToken(): google.maps.places.AutocompleteSessionToken | undefined {
+    this.placesSessionToken ??= newPlacesSessionToken() ?? null;
+    return this.placesSessionToken ?? undefined;
   }
 
-  private initAutocomplete(): void {
-    const locationInput = document.getElementById('location');
-    if (!(locationInput instanceof HTMLInputElement)) return;
+  private resetPlacesSessionToken(): void {
+    this.placesSessionToken = null;
+  }
 
-    this.autocomplete = createPlaceAutocomplete(locationInput, {
-      componentRestrictions: googleMapsCountryRestriction(),
-      fields: ['geometry', 'formatted_address', 'address_components', 'name'],
-      types: ['geocode'],
-      bounds: this.countryBiasBounds(),
-      strictBounds: false,
-    });
+  private clearLocationSuggestions(): void {
+    this.locationSuggestions.set([]);
+    this.locationSuggestOpen.set(false);
+    this.locationSuggestActive.set(-1);
+  }
 
-    this.autocomplete.addListener('place_changed', () => {
-      const place = this.autocomplete!.getPlace();
-      this.ngZone.run(() => {
-        this.locationFieldsEditedByUser = true;
-        const typedText = String(locationInput.value || place.formatted_address || '').trim();
-        const loc = place.geometry?.location;
-        if (!loc) {
-          if (typedText) void this.forwardGeocodeAddress(typedText);
-          return;
-        }
-        const lat = loc.lat();
-        const lng = loc.lng();
-        const hasArea = this.hasPinnedLocationArea();
-
-        if (hasArea && !this.placeMatchesSelectedArea(place)) {
-          this.notificationService.addNotification(
-            'Ubicación fuera del área',
-            this.selectedAreaHint(),
-          );
-          this.cdr.markForCheck();
-          return;
-        }
-
-        if (typedText) {
-          this.locationCoordSync.runPatch(() => {
-            this.incidentForm.patchValue({ location: typedText }, { emitEvent: false });
-          });
-        }
-        this.applyLocationFromGeocode(lat, lng, place).catch(() => void 0);
-      });
+  private patchLocationLabel(label: string): void {
+    const text = label.trim();
+    if (!text) return;
+    this.locationCoordSync.runPatch(() => {
+      this.incidentForm.patchValue({ location: text }, { emitEvent: false });
     });
   }
 
-  private selectedAreaHint(): string {
-    const deptId = this.incidentForm.get('departmentId')?.value;
-    const muniId = this.incidentForm.get('municipalityId')?.value;
-    const dept = this.departments().find((d) => d.id === deptId)?.name;
-    const muni = this.incidentMunicipalities().find((m) => m.id === muniId)?.name;
-    if (muni && dept) {
-      return `Esa sugerencia no está en ${muni}, ${dept}. Elija otra o marque el punto en el mapa.`;
-    }
-    if (dept) {
-      return `Esa sugerencia no está en ${dept}. Elija otra o marque el punto en el mapa.`;
-    }
-    return 'No se encontró esa dirección en el área elegida. Marque el punto en el mapa o cambie departamento/municipio.';
-  }
-
-  private countryBiasBounds(): google.maps.LatLngBoundsLiteral {
-    return colombiaBoundsLiteral();
-  }
-
-  private buildAutocompleteBiasBounds(): google.maps.LatLngBoundsLiteral {
-    return this.countryBiasBounds();
-  }
-
-  private bindAutocompleteAreaBias(): void {
-    const refresh = () => {
-      void this.refreshAutocompleteBias();
-    };
-    this.incidentForm.get('departmentId')?.valueChanges.subscribe(refresh);
-    this.incidentForm.get('municipalityId')?.valueChanges.subscribe(refresh);
-    void this.refreshAutocompleteBias();
-  }
-
-  private async refreshAutocompleteBias(): Promise<void> {
-    if (!this.autocomplete) return;
-    const pinned = this.hasPinnedLocationArea();
-    const snapshot = this.getLocationSnapshot();
-    const deptName =
-      pinned && snapshot.departmentId != null
-        ? String(this.departments().find((d) => d.id === snapshot.departmentId)?.name ?? '').trim()
-        : '';
-    const muniName =
-      pinned && snapshot.municipalityId != null
-        ? String(
-            this.incidentMunicipalities().find((m) => m.id === snapshot.municipalityId)?.name ?? '',
-          ).trim()
-        : '';
-
-    if (!deptName && !muniName) {
-      this.autocomplete.setBounds(this.buildAutocompleteBiasBounds());
-      this.autocomplete.setStrictBounds(false);
+  private async loadLocationSuggestions(query: string): Promise<void> {
+    const trimmed = query.trim();
+    if (trimmed.length < LOCATION_SEARCH_MIN_CHARS) {
+      this.clearLocationSuggestions();
       return;
     }
 
-    const geocoder = await this.ensureGeocoder();
-    if (!geocoder || !this.autocomplete) return;
-    const query = appendCountryToGeocodeQuery([muniName, deptName].filter(Boolean).join(', '));
-    geocoder.geocode(
-      {
-        address: query,
-        region: IMS_GEO.countryCode,
-        componentRestrictions: { country: IMS_GEO.countryCode.toUpperCase() },
-      },
-      (results, status) => {
-        if (status !== 'OK' || !results?.[0]?.geometry) {
-          this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
-          this.autocomplete?.setStrictBounds(false);
-          return;
-        }
-        const viewport = results[0].geometry.viewport;
-        if (viewport) {
-          this.autocomplete?.setBounds(viewport);
-          this.autocomplete?.setStrictBounds(true);
-          return;
-        }
-        const loc = results[0].geometry.location;
-        if (!loc) {
-          this.autocomplete?.setBounds(this.buildAutocompleteBiasBounds());
-          this.autocomplete?.setStrictBounds(false);
-          return;
-        }
-        const lat = loc.lat();
-        const lng = loc.lng();
-        const delta = 0.22;
-        this.autocomplete?.setBounds({
-          north: lat + delta,
-          south: lat - delta,
-          east: lng + delta,
-          west: lng - delta,
-        });
-        this.autocomplete?.setStrictBounds(true);
-      },
+    await this.waitForGoogleMaps();
+    const seq = ++this.locationSuggestSeq;
+    if (!this.geocoder) await this.ensureGeocoder();
+    const predictions = await searchColombiaPlaces(
+      trimmed,
+      this.ensurePlacesSessionToken(),
+      this.geocoder,
     );
+    if (seq !== this.locationSuggestSeq) return;
+
+    this.ngZone.run(() => {
+      this.locationSuggestions.set(predictions);
+      this.locationSuggestOpen.set(predictions.length > 0);
+      this.locationSuggestActive.set(predictions.length ? 0 : -1);
+      this.cdr.markForCheck();
+    });
   }
 
-  private placeMatchesSelectedArea(place: google.maps.places.PlaceResult): boolean {
-    const deptId = this.incidentForm.get('departmentId')?.value;
-    const muniId = this.incidentForm.get('municipalityId')?.value;
-    const hay = this.normalizeGeoName(
-      [
-        place.formatted_address,
-        ...(place.address_components ?? []).map((c) => c.long_name),
-      ]
-        .filter(Boolean)
-        .join(' '),
-    );
-
-    if (!this.hasPinnedLocationArea()) return true;
-
-    if (deptId != null) {
-      const deptName = this.normalizeGeoName(
-        String(this.departments().find((d) => d.id === deptId)?.name ?? ''),
-      );
-      if (deptName && !hay.includes(deptName) && !this.geoNamesLooselyMatch(hay, deptName)) {
-        return false;
-      }
+  onLocationFocus(): void {
+    if (this.locationSuggestions().length) {
+      this.locationSuggestOpen.set(true);
     }
-
-    if (muniId != null) {
-      const muniName = this.normalizeGeoName(
-        String(this.incidentMunicipalities().find((m) => m.id === muniId)?.name ?? ''),
-      );
-      if (muniName && !hay.includes(muniName) && !this.geoNamesLooselyMatch(hay, muniName)) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
-  private geoNamesLooselyMatch(haystack: string, name: string): boolean {
-    if (!name || !haystack) return false;
-    if (haystack.includes(name)) return true;
-    // Bogotá D.C. vs Bogota / Bogotá
-    if (name.includes('BOGOTA') && haystack.includes('BOGOTA')) return true;
-    return false;
+  onLocationBlur(): void {
+    if (this.locationBlurTimer) clearTimeout(this.locationBlurTimer);
+    this.locationBlurTimer = setTimeout(() => {
+      this.locationSuggestOpen.set(false);
+      this.cdr.markForCheck();
+    }, LOCATION_SUGGEST_BLUR_MS);
+  }
+
+  onLocationKeydown(event: KeyboardEvent): void {
+    const items = this.locationSuggestions();
+    const open = this.locationSuggestOpen() && items.length > 0;
+    if (event.key === 'Escape') {
+      if (open) {
+        event.preventDefault();
+        this.locationSuggestOpen.set(false);
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (!items.length) return;
+      event.preventDefault();
+      this.locationSuggestOpen.set(true);
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const next = (this.locationSuggestActive() + delta + items.length) % items.length;
+      this.locationSuggestActive.set(next);
+      return;
+    }
+    if (event.key !== 'Enter') return;
+    if (open) {
+      const chosen = items[this.locationSuggestActive()] ?? items[0];
+      if (chosen) {
+        event.preventDefault();
+        void this.selectLocationSuggestion(chosen).catch(() => void 0);
+        return;
+      }
+    }
+    event.preventDefault();
+    this.locationFieldsEditedByUser = true;
+    this.geocodeManualLocation();
+  }
+
+  async selectLocationSuggestion(item: PlacePredictionItem): Promise<void> {
+    try {
+      this.locationFieldsEditedByUser = true;
+      this.clearLocationSuggestions();
+      const resolved = await resolveLocationSuggestion(item);
+      this.resetPlacesSessionToken();
+      if (!resolved) {
+        const fallback = suggestionFallbackQuery(item);
+        if (fallback) await this.forwardGeocodeAddress(fallback);
+        return;
+      }
+      this.patchLocationLabel(resolved.label);
+      await this.applyLocationFromGeocode(resolved.lat, resolved.lng, resolved.place);
+    } catch {
+      this.resetPlacesSessionToken();
+    }
   }
 
   private async syncMapToCoords(lat: number, lng: number, zoom = 17): Promise<void> {
@@ -1095,20 +1027,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
         title: 'Ubicación del incidente',
       });
     }
-  }
-
-  private isPlacesSuggestionOpen(): boolean {
-    const pac = document.querySelector('.pac-container');
-    if (!(pac instanceof HTMLElement)) return false;
-    if (pac.style.display === 'none') return false;
-    return pac.offsetHeight > 0 && pac.childElementCount > 0;
-  }
-
-  onLocationEnter(event: Event): void {
-    if (this.isPlacesSuggestionOpen()) return;
-    event.preventDefault();
-    this.locationFieldsEditedByUser = true;
-    this.geocodeManualLocation();
   }
 
   geocodeManualLocation(): void {
@@ -1134,125 +1052,23 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const geocoder = await this.ensureGeocoder();
     if (epoch !== this.formSyncEpoch || !geocoder) return;
 
-    const snapshot = this.getLocationSnapshot();
-    const pinned = this.hasPinnedLocationArea();
-    const effectiveSnapshot = pinned
-      ? snapshot
-      : { ...snapshot, departmentId: null, municipalityId: null };
-
-    let query = buildGeocodeQuery(
-      effectiveSnapshot,
-      (id) => this.departments().find((d) => d.id === id)?.name,
-      (id) => this.incidentMunicipalities().find((m) => m.id === id)?.name,
-    );
-    if (!query) return;
-
-    const request: google.maps.GeocoderRequest = {
-      address: query,
-      region: IMS_GEO.countryCode,
-      componentRestrictions: { country: IMS_GEO.countryCode.toUpperCase() },
-    };
-
-    if (!pinned) {
-      const country = colombiaBoundsLiteral();
-      request.bounds = new google.maps.LatLngBounds(
-        { lat: country.south, lng: country.west },
-        { lat: country.north, lng: country.east },
-      );
-    }
-
-    const { results, status } = await new Promise<{
-      results: google.maps.GeocoderResult[] | null;
-      status: google.maps.GeocoderStatusString;
-    }>((resolve) => {
-      geocoder.geocode(request, (res, st) => {
-        resolve({ results: res ?? null, status: st });
-      });
-    });
-
+    const { results, status } = await geocodeColombia(geocoder, address);
     if (epoch !== this.formSyncEpoch) return;
 
-    await new Promise<void>((resolve) => {
+    const best = pickColombiaGeocodeResult(results, status);
+    if (!best?.geometry?.location) {
       this.ngZone.run(() => {
-        void (async () => {
-          try {
-            const best = this.pickBestGeocodeResult(results, status, effectiveSnapshot);
-            if (!best?.geometry?.location) {
-              this.notificationService.addNotification(
-                'Dirección no encontrada',
-                pinned
-                  ? 'No se ubicó esa dirección en la ciudad seleccionada. Revise el texto o marque el punto en el mapa.'
-                  : 'No se encontró esa dirección en Colombia. Revise el texto o marque el punto en el mapa.',
-              );
-              this.cdr.markForCheck();
-              return;
-            }
-            const loc = best.geometry.location;
-            if (!this.geocodeResultMatchesSelectedArea(best)) {
-              this.notificationService.addNotification(
-                'Ubicación fuera del área',
-                this.selectedAreaHint(),
-              );
-              this.cdr.markForCheck();
-              return;
-            }
-            await this.applyLocationFromGeocode(loc.lat(), loc.lng(), best);
-          } finally {
-            resolve();
-          }
-        })();
+        this.notificationService.addNotification(
+          'Dirección no encontrada',
+          'No se encontró esa dirección en Colombia. Revise el texto o marque el punto en el mapa.',
+        );
+        this.cdr.markForCheck();
       });
-    });
-  }
-
-  private geocodeResultMatchesSelectedArea(result: google.maps.GeocoderResult): boolean {
-    return this.placeMatchesSelectedArea({
-      formatted_address: result.formatted_address,
-      address_components: result.address_components,
-    });
-  }
-
-  private pickBestGeocodeResult(
-    results: google.maps.GeocoderResult[] | null,
-    status: google.maps.GeocoderStatusString,
-    snapshot: { departmentId: number | null; municipalityId: number | null },
-  ): google.maps.GeocoderResult | null {
-    if (status !== 'OK' || !results?.length) return null;
-
-    const deptName =
-      snapshot.departmentId != null
-        ? String(this.departments().find((d) => d.id === snapshot.departmentId)?.name ?? '')
-            .trim()
-            .toLowerCase()
-        : '';
-    const muniName =
-      snapshot.municipalityId != null
-        ? String(
-            this.incidentMunicipalities().find((m) => m.id === snapshot.municipalityId)?.name ?? '',
-          )
-            .trim()
-            .toLowerCase()
-        : '';
-
-    if (!deptName && !muniName) {
-      return (
-        results.find((r) => {
-          const loc = r.geometry?.location;
-          return !!loc && isLatLngWithinColombia(loc.lat(), loc.lng());
-        }) ?? results[0]
-      );
+      return;
     }
 
-    const scored = results.map((result) => {
-      const hay = String(result.formatted_address ?? '').toLowerCase();
-      let score = 0;
-      if (muniName && hay.includes(muniName)) score += 3;
-      if (deptName && hay.includes(deptName)) score += 2;
-      if (/bogot/i.test(hay) && /bogot/i.test(deptName + muniName)) score += 1;
-      return { result, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0]?.score > 0 ? scored[0].result : null;
+    const loc = best.geometry.location;
+    await this.ngZone.run(() => this.applyLocationFromGeocode(loc.lat(), loc.lng(), best));
   }
 
   private async applyLocationFromGeocode(
@@ -1278,6 +1094,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
     this.markLocationCoordsSynced();
     if (geocodeResult) {
+      this.locationAreaPinnedByUser = false;
       await this.applyDepartmentMunicipalityFromGeocode(geocodeResult);
       if (epoch !== this.formSyncEpoch) return;
       this.markLocationCoordsSynced();
@@ -1560,8 +1377,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.map = null;
       this.marker = null;
       this.geocoder = null;
-      this.autocomplete = null;
     }
+    this.clearLocationSuggestions();
+    this.resetPlacesSessionToken();
     this.mapReady.set(false);
   }
   activeIncident = computed(() => {
@@ -1891,17 +1709,17 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const roleId = this.normalizePositiveId(p?.roleId);
     const cargoId = this.normalizePositiveId(p?.cargoId);
     const group = this.fb.group({
-      primerNombre: [split.primerNombre ?? ''],
+      primerNombre: [split.primerNombre ?? '', Validators.required],
       segundoNombre: [split.segundoNombre ?? ''],
-      primerApellido: [split.primerApellido ?? ''],
+      primerApellido: [split.primerApellido ?? '', Validators.required],
       segundoApellido: [split.segundoApellido ?? ''],
-      roleId: [roleId],
+      roleId: [roleId, Validators.required],
       cargoId: [cargoId],
-      documentType: [p?.documentType ?? ''],
-      documentId: [p?.documentId ?? ''],
-      genderId: [p?.genderId ?? null],
-      contact: [p?.contact ?? p?.phone ?? ''],
-      comentarios: [String(p?.comentarios || p?.details || '')],
+      documentType: [p?.documentType ?? '', Validators.required],
+      documentId: [p?.documentId ?? '', Validators.required],
+      genderId: [p?.genderId ?? null, Validators.required],
+      contact: [p?.contact ?? p?.phone ?? '', Validators.required],
+      comentarios: [String(p?.comentarios || p?.details || ''), Validators.required],
     });
     (group as FormGroup & { rowKey?: number }).rowKey = ++this.personRowSeq;
     return group;
@@ -1941,6 +1759,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.personLookupTimers.delete(index);
     this.personLastLookupKey.delete(index);
     this.involvedPeople.removeAt(index);
+    this.personContactDigitsHint.set({});
     this.cdr.markForCheck();
   }
 
@@ -1950,19 +1769,75 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onPersonContactInput(index: number): void {
-    this.sanitizePersonDigitsControl(index, 'contact');
+    const stripped = this.sanitizeDigitsInArray(this.involvedPeople, index, 'contact');
+    this.setDigitsHint(this.personContactDigitsHint, index, stripped);
     this.scheduleInvolvedPersonLookup(index, 'contact');
   }
 
-  private sanitizePersonDigitsControl(index: number, controlName: 'documentId' | 'contact'): void {
-    const group = this.involvedPeople.at(index);
-    if (!(group instanceof FormGroup)) return;
-    const ctrl = group.get(controlName);
-    if (!ctrl) return;
-    const digits = String(ctrl.value ?? '').replace(/\D/g, '');
-    if (ctrl.value !== digits) {
-      ctrl.setValue(digits, { emitEvent: false });
+  onIncidentPhoneBeforeInput(event: Event): void {
+    if (!(event instanceof InputEvent)) return;
+    const incoming = event.data ?? '';
+    if (incoming && /\D/.test(incoming)) {
+      event.preventDefault();
+      this.incidentPhoneDigitsHint.set(true);
     }
+  }
+
+  onIncidentPhoneInput(event: Event): void {
+    const el = event.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    const digits = el.value.replace(/\D/g, '');
+    const hadLetters = el.value !== digits;
+    if (hadLetters) {
+      this.incidentPhoneDigitsHint.set(true);
+      el.value = digits;
+      const ctrl = this.incidentForm.get('phone');
+      if (ctrl && ctrl.value !== digits) {
+        ctrl.setValue(digits, { emitEvent: false });
+        ctrl.markAsDirty();
+        ctrl.updateValueAndValidity({ emitEvent: false });
+      }
+    } else {
+      this.incidentPhoneDigitsHint.set(false);
+    }
+  }
+
+  onPlaceContactInput(index: number): void {
+    const stripped = this.sanitizeDigitsInArray(this.involvedPlaces, index, 'contact');
+    this.setDigitsHint(this.placeContactDigitsHint, index, stripped);
+  }
+
+  private sanitizePersonDigitsControl(index: number, controlName: 'documentId' | 'contact'): void {
+    this.sanitizeDigitsInArray(this.involvedPeople, index, controlName);
+  }
+
+  private sanitizeDigitsInArray(
+    array: FormArray,
+    index: number,
+    controlName: string,
+  ): boolean {
+    const group = array.at(index);
+    if (!(group instanceof FormGroup)) return false;
+    const ctrl = group.get(controlName);
+    if (!ctrl) return false;
+    const digits = String(ctrl.value ?? '').replace(/\D/g, '');
+    if (ctrl.value === digits) return false;
+    ctrl.setValue(digits, { emitEvent: false });
+    return true;
+  }
+
+  private setDigitsHint(
+    store: WritableSignal<Record<number, boolean>>,
+    index: number,
+    show: boolean,
+  ): void {
+    store.update((current) => {
+      if (!!current[index] === show) return current;
+      const next = { ...current };
+      if (show) next[index] = true;
+      else delete next[index];
+      return next;
+    });
   }
 
   lookupInvolvedPerson(index: number, field: 'document' | 'contact'): void {
@@ -2127,9 +2002,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       String(v.primerApellido || '').trim() ||
       String(v.segundoNombre || '').trim() ||
       String(v.segundoApellido || '').trim() ||
+      String(v.documentType || '').trim() ||
       String(v.documentId || '').trim() ||
       String(v.contact || '').trim() ||
       String(v.comentarios || '').trim() ||
+      v.genderId != null ||
       this.normalizePositiveId(v.roleId) != null
     );
   }
@@ -2137,15 +2014,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   private isPersonRowSaveable(group: FormGroup): boolean {
     const v = group.getRawValue();
     const roleId = this.normalizePositiveId(v.roleId);
-    if (
-      !(
-        String(v.primerNombre || '').trim() &&
-        String(v.primerApellido || '').trim() &&
-        roleId != null
-      )
-    ) {
-      return false;
-    }
+    if (!String(v.primerNombre || '').trim()) return false;
+    if (!String(v.primerApellido || '').trim()) return false;
+    if (roleId == null) return false;
+    if (!String(v.documentType || '').trim()) return false;
+    if (!String(v.documentId || '').trim()) return false;
+    if (v.genderId == null || v.genderId === '') return false;
+    if (!String(v.contact || '').trim()) return false;
+    if (!String(v.comentarios || '').trim()) return false;
     if (this.isJudgeRoleId(roleId) && this.normalizePositiveId(v.cargoId) == null) return false;
     return true;
   }
@@ -2245,27 +2121,39 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return rows;
   }
 
-  private placeGroupToInvolvedPlace(group: FormGroup): InvolvedPlace | null {
+  private isPlaceRowPartiallyFilled(group: FormGroup): boolean {
     const v = group.getRawValue();
-    const name = String(v.name || '').trim();
-    const address = String(v.address || '').trim();
-    const contact = String(v.contact || '').trim();
-    const comments = String(v.comments || '').trim();
-    const departmentId = this.normalizePositiveId(v.departmentId);
-    const municipalityId = this.normalizePositiveId(v.municipalityId);
-    const roleId = this.normalizePositiveId(v.roleId);
-    if (!name && !address && !contact && !comments && departmentId == null && roleId == null) {
-      return null;
-    }
-    if (!name && !address) return null;
+    return !!(
+      String(v.name || '').trim() ||
+      String(v.address || '').trim() ||
+      String(v.contact || '').trim() ||
+      String(v.comments || '').trim() ||
+      this.normalizePositiveId(v.departmentId) != null ||
+      this.normalizePositiveId(v.municipalityId) != null ||
+      this.normalizePositiveId(v.roleId) != null
+    );
+  }
+
+  private isPlaceRowSaveable(group: FormGroup): boolean {
+    const v = group.getRawValue();
+    return (
+      this.normalizePositiveId(v.roleId) != null &&
+      this.normalizePositiveId(v.departmentId) != null &&
+      this.normalizePositiveId(v.municipalityId) != null
+    );
+  }
+
+  private placeGroupToInvolvedPlace(group: FormGroup): InvolvedPlace | null {
+    if (!this.isPlaceRowSaveable(group)) return null;
+    const v = group.getRawValue();
     return {
-      name,
-      address,
-      departmentId,
-      municipalityId,
-      contact,
-      roleId: roleId ?? undefined,
-      comments,
+      name: String(v.name || '').trim(),
+      address: String(v.address || '').trim(),
+      departmentId: this.normalizePositiveId(v.departmentId),
+      municipalityId: this.normalizePositiveId(v.municipalityId),
+      contact: String(v.contact || '').trim(),
+      roleId: this.normalizePositiveId(v.roleId) ?? undefined,
+      comments: String(v.comments || '').trim(),
     };
   }
 
@@ -2539,10 +2427,10 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private buildPlaceGroup(p?: Partial<InvolvedPlace>): FormGroup {
     return this.fb.group({
-      name: [p?.name ?? '', Validators.required],
-      address: [p?.address ?? '', Validators.required],
-      departmentId: [this.normalizePositiveId(p?.departmentId)],
-      municipalityId: [this.normalizePositiveId(p?.municipalityId)],
+      name: [p?.name ?? ''],
+      address: [p?.address ?? ''],
+      departmentId: [this.normalizePositiveId(p?.departmentId), Validators.required],
+      municipalityId: [this.normalizePositiveId(p?.municipalityId), Validators.required],
       contact: [p?.contact ?? ''],
       roleId: [this.normalizePositiveId(p?.roleId), Validators.required],
       comments: [p?.comments ?? ''],
@@ -2562,8 +2450,16 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   removePlace(index: number): void {
+    if (this.involvedPlaces.length <= 1) {
+      this.notificationService.addNotification(
+        'Lugar requerido',
+        'Cada incidente debe tener al menos un lugar asociado.',
+      );
+      return;
+    }
     const oldMap = this.placeMunicipalities();
     this.involvedPlaces.removeAt(index);
+    this.placeContactDigitsHint.set({});
     const next = new Map<number, ColombiaMunicipality[]>();
     for (let newIdx = 0; newIdx < this.involvedPlaces.length; newIdx++) {
       const oldIdx = newIdx < index ? newIdx : newIdx + 1;
@@ -2997,6 +2893,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.setupPhoneLookup();
     this.setupLocationTextGuard();
+    this.setupLocationSuggestions();
     this.setupStatusChangeHandler();
     this.formDirtySub = this.incidentForm.valueChanges.subscribe(() => this.cdr.markForCheck());
   }
@@ -3209,7 +3106,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
           this.locationFieldsEditedByUser = true;
           this.locationAreaPinnedByUser = false;
-          void this.refreshAutocompleteBias();
         }),
       );
     }
@@ -3219,7 +3115,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
           this.locationFieldsEditedByUser = true;
           this.locationAreaPinnedByUser = true;
-          void this.refreshAutocompleteBias();
           invalidateCoordsIfStale();
         }),
       );
@@ -3230,13 +3125,27 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
           if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) return;
           this.locationFieldsEditedByUser = true;
           this.locationAreaPinnedByUser = true;
-          void this.refreshAutocompleteBias();
           invalidateCoordsIfStale();
         }),
       );
     }
     this.locationTextSub = new Subscription();
     subs.forEach((s) => this.locationTextSub?.add(s));
+  }
+
+  private setupLocationSuggestions(): void {
+    this.locationSuggestSub?.unsubscribe();
+    const locationControl = this.incidentForm.get('location');
+    if (!locationControl) return;
+    this.locationSuggestSub = locationControl.valueChanges
+      .pipe(debounceTime(LOCATION_SUGGEST_DEBOUNCE_MS), distinctUntilChanged())
+      .subscribe((value) => {
+        if (this.hydratingIncidentForm || this.locationCoordSync.isPatching()) {
+          this.clearLocationSuggestions();
+          return;
+        }
+        void this.loadLocationSuggestions(String(value ?? '').trim());
+      });
   }
 
   private applyPersonLookupResult(person: Person | null): void {
@@ -3296,9 +3205,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     for (let i = this.involvedPlaces.length - 1; i >= 0; i--) {
       const group = this.involvedPlaces.at(i) as FormGroup;
-      const name = String(group.get('name')?.value || '').trim();
-      const address = String(group.get('address')?.value || '').trim();
-      if (!name && !address) this.involvedPlaces.removeAt(i);
+      if (!this.isPlaceRowPartiallyFilled(group)) this.involvedPlaces.removeAt(i);
     }
   }
 
@@ -3317,36 +3224,40 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const [key, label] of Object.entries(labels)) {
       if (this.incidentForm.get(key)?.invalid) missing.push(label);
     }
+    if (this.isCommentMissing()) missing.push('Agregar comentario');
     return missing;
   }
 
   private collectInvolvedPeopleErrors(): string[] {
-    if (this.activeTabId() === 'new' && this.involvedPeopleForSave().length === 0) {
-      return ['Al menos un solicitante (primer nombre, primer apellido y rol)'];
+    if (this.involvedPeopleForSave().length === 0) {
+      return [
+        'Al menos un solicitante con los datos obligatorios (excepto segundo nombre y segundo apellido)',
+      ];
     }
     for (const g of this.involvedPeople.controls) {
       const group = g as FormGroup;
       if (!this.isPersonRowPartiallyFilled(group)) continue;
       if (!this.isPersonRowSaveable(group)) {
-        return ['Solicitante (primer nombre, primer apellido y rol)'];
+        return [
+          'Solicitante: complete tipo y número de documento, género, rol, teléfono y ubicación de expediente',
+        ];
       }
     }
     return [];
   }
 
   private collectInvolvedPlacesErrors(): string[] {
-    const missing: string[] = [];
+    if (this.involvedPlacesForSave().length === 0) {
+      return ['Al menos un lugar asociado con rol, departamento y municipio'];
+    }
     for (const g of this.involvedPlaces.controls) {
-      const name = String(g.get('name')?.value || '').trim();
-      const address = String(g.get('address')?.value || '').trim();
-      if (!name && !address) continue;
-      if (!name) missing.push('Nombre del lugar involucrado');
-      if (!address) missing.push('Dirección del lugar involucrado');
-      if (g.get('roleId')?.value == null) {
-        missing.push('Rol/tipo del lugar involucrado');
+      const group = g as FormGroup;
+      if (!this.isPlaceRowPartiallyFilled(group)) continue;
+      if (!this.isPlaceRowSaveable(group)) {
+        return ['Lugar asociado: complete rol, departamento y municipio'];
       }
     }
-    return missing;
+    return [];
   }
 
   private collectInvolvedVehiclesErrors(): string[] {
@@ -3865,6 +3776,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.pendingLeaveAction = action;
     this.leaveConfirmForNewTab.set(this.activeTabId() === 'new');
+    this.leaveExitConfirmStep.set(false);
     this.leaveConfirmChanges.set(this.buildLeaveConfirmSummary());
     this.leaveConfirmOpen.set(true);
     this.cdr.markForCheck();
@@ -3875,7 +3787,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveExitConfirmStep.set(false);
     this.leaveConfirmChanges.set([]);
+    this.cdr.markForCheck();
+  }
+
+  askConfirmLeaveExit(): void {
+    this.leaveExitConfirmStep.set(true);
     this.cdr.markForCheck();
   }
 
@@ -3885,6 +3803,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveExitConfirmStep.set(false);
     this.leaveConfirmChanges.set([]);
     this.incidentForm.markAsPristine();
     this.medidasPanel?.discardPendingChanges();
@@ -3927,6 +3846,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.leaveAfterSave = false;
     this.leaveConfirmOpen.set(false);
     this.leaveConfirmForNewTab.set(false);
+    this.leaveExitConfirmStep.set(false);
     this.leaveConfirmChanges.set([]);
     const action = this.pendingLeaveAction;
     this.pendingLeaveAction = null;
@@ -4278,6 +4198,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.placeMunicipalities.set(new Map());
     this.placeMunicipalitiesLoaded.set(new Map());
     this.detachPlaceDepartmentWatchers();
+    if (!places.length) {
+      this.involvedPlaces.push(this.createPlaceGroup());
+      this.attachPlaceDepartmentWatcher(0);
+      this.involvedListsEpoch.update((n) => n + 1);
+      this.cdr.markForCheck();
+      return;
+    }
     places.forEach((pl, index) => {
       const group = this.buildPlaceGroup(pl);
       this.involvedPlaces.push(group);
@@ -4418,31 +4345,85 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private validateBeforeSave(options?: { requireSolicitante?: boolean }): boolean {
-    if (this.incidentForm.invalid) {
-      this.incidentForm.markAllAsTouched();
-      this.notificationService.addNotification('No se puede guardar', this.describeFormErrors());
-      this.cdr.markForCheck();
-      return false;
+  private isCommentRequired(): boolean {
+    return this.activeTabId() === 'new' || this.requiresReiteracionCommentOnSave();
+  }
+
+  private isCommentMissing(): boolean {
+    return this.isCommentRequired() && !String(this.incidentForm.get('agregarComentario')?.value ?? '').trim();
+  }
+
+  fieldRequiredError(controlName: string): boolean {
+    const ctrl = this.incidentForm.get(controlName);
+    return !!ctrl && ctrl.hasError('required') && (ctrl.touched || ctrl.dirty);
+  }
+
+  commentRequiredError(): boolean {
+    const ctrl = this.incidentForm.get('agregarComentario');
+    return this.isCommentMissing() && !!ctrl && (ctrl.touched || ctrl.dirty);
+  }
+
+  personRequiredError(index: number, field: string): boolean {
+    const group = this.involvedPeople.at(index);
+    if (!(group instanceof FormGroup)) return false;
+    const ctrl = group.get(field);
+    if (!ctrl || !(ctrl.touched || ctrl.dirty)) return false;
+    if (field === 'cargoId') {
+      return this.isPersonJudgeRole(index) && this.normalizePositiveId(ctrl.value) == null;
     }
-    for (const g of this.involvedPeople.controls) {
-      const group = g as FormGroup;
-      if (this.isPersonRowPartiallyFilled(group) && !this.isPersonRowSaveable(group)) {
-        this.involvedPeople.markAllAsTouched();
-        this.notificationService.addNotification('No se puede guardar', this.describeFormErrors());
-        this.cdr.markForCheck();
-        return false;
+    return ctrl.hasError('required') || (ctrl.invalid && (ctrl.value == null || ctrl.value === ''));
+  }
+
+  private scrollToFirstRequiredError(): void {
+    queueMicrotask(() => {
+      const el = document.querySelector('app-incident-list .border-red-500');
+      if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+    });
+  }
+
+  private validateBeforeSave(options?: {
+    requireSolicitante?: boolean;
+    requireLugar?: boolean;
+  }): boolean {
+    this.incidentForm.markAllAsTouched();
+    this.involvedPeople.markAllAsTouched();
+    this.involvedPlaces.markAllAsTouched();
+    if (this.isCommentMissing()) {
+      this.incidentForm.get('agregarComentario')?.markAsTouched();
     }
-    if (options?.requireSolicitante && this.involvedPeopleForSave().length === 0) {
-      if (this.involvedPeople.length === 0) {
-        this.involvedPeople.push(this.createPersonGroup());
-      }
+    if (options?.requireSolicitante && this.involvedPeople.length === 0) {
+      this.involvedPeople.push(this.createPersonGroup());
       this.involvedPeople.markAllAsTouched();
-      this.notificationService.addNotification(
-        'No se puede guardar',
-        'Complete al menos un solicitante (primer nombre, primer apellido y rol). Lugares y vehículos son opcionales.',
-      );
+    }
+    if (options?.requireLugar && this.involvedPlaces.length === 0) {
+      this.involvedPlaces.push(this.createPlaceGroup());
+      this.attachPlaceDepartmentWatcher(0);
+      this.involvedPlaces.markAllAsTouched();
+    }
+
+    const incompletePeople = this.involvedPeople.controls.some((g) => {
+      const group = g as FormGroup;
+      return this.isPersonRowPartiallyFilled(group) && !this.isPersonRowSaveable(group);
+    });
+    const incompletePlaces = this.involvedPlaces.controls.some((g) => {
+      const group = g as FormGroup;
+      return this.isPlaceRowPartiallyFilled(group) && !this.isPlaceRowSaveable(group);
+    });
+    const missingPeople = !!options?.requireSolicitante && this.involvedPeopleForSave().length === 0;
+    const missingPlaces = !!options?.requireLugar && this.involvedPlacesForSave().length === 0;
+
+    if (
+      this.incidentForm.invalid ||
+      this.isCommentMissing() ||
+      incompletePeople ||
+      incompletePlaces ||
+      missingPeople ||
+      missingPlaces
+    ) {
+      this.notificationService.addNotification('No se puede guardar', this.describeFormErrors());
+      this.scrollToFirstRequiredError();
       this.cdr.markForCheck();
       return false;
     }
@@ -4461,16 +4442,32 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildNewIncidentFromForm(): Incident | null {
-    if (!this.validateBeforeSave({ requireSolicitante: true })) {
+    if (!this.validateBeforeSave({ requireSolicitante: true, requireLugar: true })) {
       return null;
     }
 
     this.pruneEmptyInvolvedEntries();
     if (this.involvedPeopleForSave().length === 0) {
+      if (this.involvedPeople.length === 0) {
+        this.involvedPeople.push(this.createPersonGroup());
+      }
       this.involvedPeople.markAllAsTouched();
       this.notificationService.addNotification(
         'No se puede guardar',
-        'Complete al menos un solicitante (primer nombre, primer apellido y rol). Lugares y vehículos son opcionales.',
+        'Complete al menos un solicitante. Solo segundo nombre y segundo apellido son opcionales.',
+      );
+      this.cdr.markForCheck();
+      return null;
+    }
+    if (this.involvedPlacesForSave().length === 0) {
+      if (this.involvedPlaces.length === 0) {
+        this.involvedPlaces.push(this.createPlaceGroup());
+        this.attachPlaceDepartmentWatcher(0);
+      }
+      this.involvedPlaces.markAllAsTouched();
+      this.notificationService.addNotification(
+        'No se puede guardar',
+        'Complete al menos un lugar asociado (rol, departamento y municipio).',
       );
       this.cdr.markForCheck();
       return null;
@@ -4577,7 +4574,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    if (!this.validateBeforeSave()) {
+    if (!this.validateBeforeSave({ requireSolicitante: true, requireLugar: true })) {
       this.abortLeaveAfterSave();
       return;
     }
@@ -4854,12 +4851,14 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.commentsHistory.set([]);
     this.involvedPeople.clear();
     this.involvedPeople.push(this.createPersonGroup());
+    this.detachPlaceDepartmentWatchers();
     this.involvedPlaces.clear();
-    this.involvedVehicles.clear();
-    this.involvedListsEpoch.update((n) => n + 1);
     this.placeMunicipalities.set(new Map());
     this.placeMunicipalitiesLoaded.set(new Map());
-    this.detachPlaceDepartmentWatchers();
+    this.involvedPlaces.push(this.createPlaceGroup());
+    this.attachPlaceDepartmentWatcher(0);
+    this.involvedVehicles.clear();
+    this.involvedListsEpoch.update((n) => n + 1);
     this.incidentForm.enable({ emitEvent: false });
     this.incidentForm.get('locationPhoneNumber')?.disable({ emitEvent: false });
     this.syncLastValidStatus();
@@ -4872,7 +4871,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.trustedRelatedIncidentId = null;
     this.locationFieldsEditedByUser = false;
     this.locationAreaPinnedByUser = false;
-    void this.refreshAutocompleteBias();
   }
 
   private populateFormWithState(state: Partial<Incident>) {
@@ -5063,6 +5061,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     return value == null || value === '';
   }
 
+  placeRequiredError(index: number, field: 'roleId' | 'departmentId' | 'municipalityId'): boolean {
+    const group = this.involvedPlaces.at(index);
+    if (!(group instanceof FormGroup)) return false;
+    const ctrl = group.get(field);
+    return !!ctrl && ctrl.invalid && (ctrl.touched || ctrl.dirty);
+  }
+
   involvedVehicleSelectEmpty(index: number, field: string): boolean {
     const group = this.involvedVehicles.at(index);
     if (!(group instanceof FormGroup)) return true;
@@ -5156,6 +5161,11 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.formDirtySub?.unsubscribe();
     this.incidentDeptSub?.unsubscribe();
     this.locationTextSub?.unsubscribe();
+    this.locationSuggestSub?.unsubscribe();
+    if (this.locationBlurTimer) {
+      clearTimeout(this.locationBlurTimer);
+      this.locationBlurTimer = null;
+    }
     this.detachPlaceDepartmentWatchers();
   }
 }
