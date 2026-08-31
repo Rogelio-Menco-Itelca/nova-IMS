@@ -28,6 +28,16 @@ export function parseCerremDateOnly(value: string | null | undefined): Date | nu
   return null;
 }
 
+export function isFechaCerremAfterResolucion(
+  fechaCerrem: string | null | undefined,
+  fechaResolucion: string | null | undefined,
+): boolean {
+  const cerrem = parseCerremDateOnly(fechaCerrem);
+  const resolucion = parseCerremDateOnly(fechaResolucion);
+  if (!cerrem || !resolucion) return false;
+  return startOfCalendarDay(cerrem).getTime() > startOfCalendarDay(resolucion).getTime();
+}
+
 export function daysSinceCerremEnvio(options: {
   fechaCerrem?: string | null;
   cerremPhaseSince?: Date | null;

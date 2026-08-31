@@ -41,6 +41,7 @@ import {
   joinPersonName,
   type InvolvedPerson,
 } from '../../models/incident.model';
+import { isFechaCerremAfterResolucion } from '../../utils/cerrem-follow-up';
 
 interface TipoMedida {
   id: number;
@@ -215,18 +216,23 @@ interface ModuloMensaje {
         @if (permissions().showOsegBlock) {
           <div
             class="bg-gray-800 rounded-lg p-4 border border-orange-500/30"
-            [class.opacity-95]="osegGuardada()"
+            [class.opacity-95]="osegGuardada() && !osegEditMode()"
           >
-            <h3 class="text-orange-300 font-semibold flex items-center gap-2 text-sm uppercase tracking-wider mb-4">
-              <svg class="h-5 w-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              Gestión OSEG
+            <h3 class="text-orange-300 font-semibold flex items-center justify-between gap-2 text-sm uppercase tracking-wider mb-4">
+              <span class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                Gestión OSEG
+              </span>
+              @if (osegGuardada() && !osegEditMode()) {
+                <span class="text-xs font-normal normal-case tracking-normal text-orange-300/90">Guardado — no editable</span>
+              }
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               @if (fieldVisible('servidorJudicial')) {
@@ -254,9 +260,9 @@ interface ModuloMensaje {
                     type="text"
                     [ngModel]="form.codigo_oficio"
                     (ngModelChange)="form.codigo_oficio = $event; onDraftChange()"
-                    [readonly]="fieldAuto('oficioTramite') || !fieldEditable('oficioTramite')"
+                    [readonly]="fieldAuto('oficioTramite') || !osegFieldsOpen()"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
-                    [class.cursor-not-allowed]="fieldAuto('oficioTramite') || !fieldEditable('oficioTramite')"
+                    [class.cursor-not-allowed]="fieldAuto('oficioTramite') || !osegFieldsOpen()"
                     [class.opacity-80]="fieldAuto('oficioTramite')"
                     placeholder="Ingrese el código de oficio"
                   />
@@ -269,15 +275,17 @@ interface ModuloMensaje {
                     id="medidas-tramite-destino"
                     [(ngModel)]="form.tramite_destino"
                     (ngModelChange)="onDraftChange()"
-                    [disabled]="!isTramiteEditable()"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    [attr.disabled]="osegFieldsOpen() ? null : ''"
+                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+                    [class.cursor-not-allowed]="!osegFieldsOpen()"
+                    [class.opacity-70]="!osegFieldsOpen()"
                   >
                     <option value="">Seleccione...</option>
                     @for (opt of tramiteDestinoSelectOptions(); track opt) {
                       <option [value]="opt">{{ opt }}</option>
                     }
                   </select>
-                  @if (isTramiteEditable() && permissions().tramiteDestino === 'readonly') {
+                  @if (osegFieldsOpen() && permissions().tramiteDestino === 'readonly' && !osegGuardada()) {
                     <p class="mt-1 text-xs text-amber-400">
                       Complete este dato pendiente de la gestión OSEG.
                     </p>
@@ -285,7 +293,7 @@ interface ModuloMensaje {
                 </div>
               }
             </div>
-            @if (showModuleActions()) {
+            @if (showOsegAccion()) {
               <div class="mt-4 pt-4 border-t border-orange-500/20 flex items-center justify-end gap-3 flex-wrap">
                 @if (mensajeOseg(); as m) {
                   <span
@@ -293,15 +301,27 @@ interface ModuloMensaje {
                     [class.text-green-400]="m.tipo === 'ok'"
                     [class.text-red-400]="m.tipo === 'error'"
                   >{{ m.texto }}</span>
-                } @else if (osegGuardada()) {
-                  <span class="text-xs text-orange-300/90">Guardado — no editable</span>
+                } @else if (osegGuardada() && !osegEditMode()) {
+                  <span class="text-xs text-gray-400">Guardado. Pulse «Editar» si debe actualizar la gestión OSEG.</span>
                 }
-                @if (!osegGuardada()) {
-                  <button
-                    type="button"
-                    (click)="guardarGestionOseg()"
-                    class="group inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-md shadow-indigo-900/30 transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 active:scale-[0.98]"
-                  >
+                <button
+                  type="button"
+                  (click)="accionOseg()"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 active:scale-[0.98]"
+                  [class.bg-indigo-600]="osegBotonGuardar()"
+                  [class.hover:bg-indigo-500]="osegBotonGuardar()"
+                  [class.text-white]="osegBotonGuardar()"
+                  [class.shadow-md]="osegBotonGuardar()"
+                  [class.shadow-indigo-900/30]="osegBotonGuardar()"
+                  [class.focus:ring-indigo-400]="osegBotonGuardar()"
+                  [class.text-indigo-300]="!osegBotonGuardar()"
+                  [class.hover:text-indigo-200]="!osegBotonGuardar()"
+                  [class.hover:bg-indigo-500/10]="!osegBotonGuardar()"
+                  [class.border]="!osegBotonGuardar()"
+                  [class.border-indigo-500/40]="!osegBotonGuardar()"
+                  [class.focus:ring-indigo-500/50]="!osegBotonGuardar()"
+                >
+                  @if (osegBotonGuardar()) {
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
                         stroke-linecap="round"
@@ -310,9 +330,18 @@ interface ModuloMensaje {
                         d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
                       />
                     </svg>
-                    Guardar gestión OSEG
-                  </button>
-                }
+                  } @else {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  }
+                  {{ osegBotonGuardar() ? 'Guardar' : 'Editar' }}
+                </button>
               </div>
             }
           </div>
@@ -343,10 +372,18 @@ interface ModuloMensaje {
                     [(ngModel)]="form.fecha_cerrem"
                     (ngModelChange)="onDraftChange()"
                     type="date"
+                    [attr.max]="form.fecha_resolucion || null"
                     [readonly]="!isCerremFieldEditable('fechaCerrem')"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+                    class="mt-1 w-full bg-gray-900 border text-white rounded-md px-3 py-2 text-sm"
+                    [class.border-gray-600]="!cerremFechaOrdenInvalida()"
+                    [class.border-red-500]="cerremFechaOrdenInvalida()"
                     [class.cursor-not-allowed]="!isCerremFieldEditable('fechaCerrem')"
                   />
+                  @if (cerremFechaOrdenInvalida()) {
+                    <p class="mt-1 text-xs text-red-400">
+                      La fecha CERREM no puede ser posterior a la fecha de resolución.
+                    </p>
+                  }
                 </div>
               }
               @if (fieldVisible('resolucionCerrem')) {
@@ -372,8 +409,11 @@ interface ModuloMensaje {
                     [(ngModel)]="form.fecha_resolucion"
                     (ngModelChange)="onDraftChange()"
                     type="date"
+                    [attr.min]="form.fecha_cerrem || null"
                     [readonly]="!isCerremFieldEditable('fechaResolucion')"
-                    class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+                    class="mt-1 w-full bg-gray-900 border text-white rounded-md px-3 py-2 text-sm"
+                    [class.border-gray-600]="!cerremFechaOrdenInvalida()"
+                    [class.border-red-500]="cerremFechaOrdenInvalida()"
                     [class.cursor-not-allowed]="!isCerremFieldEditable('fechaResolucion')"
                   />
                 </div>
@@ -683,6 +723,14 @@ export class MedidasComponent implements OnInit, OnChanges {
     medidasPanelLockedMessage(this.workflowStatusSig(), this.agencySig()),
   );
   osegGuardada = signal(false);
+  osegEditMode = signal(false);
+  osegFieldsOpen = computed(() => {
+    if (isClosedWorkflowStatus(this.workflowStatusSig())) return false;
+    if (this.osegEditMode()) return true;
+    if (this.osegGuardada()) return false;
+    const p = this.permissions();
+    return p.showOsegBlock && (p.oficioTramite === 'editable' || p.tramiteDestino === 'editable' || p.canSaveGestion);
+  });
   cerremGuardada = signal(false);
   cerremEditMode = signal(false);
   medidasGuardadas = signal(false);
@@ -696,8 +744,8 @@ export class MedidasComponent implements OnInit, OnChanges {
   ];
   displayHint = computed(() => {
     const ui = catalogStatusToUiStatus(this.workflowStatusSig());
-    if (ui === 'En gestión OSEG' && this.osegGuardada()) {
-      return 'Gestión OSEG registrada. Los datos quedaron bloqueados; avance el flujo o cierre el caso en «Cerrado» (pestaña Detalle).';
+    if (ui === 'En gestión OSEG' && this.osegGuardada() && !this.osegEditMode()) {
+      return 'Gestión OSEG guardada. Pulse «Editar» al final del módulo para modificar.';
     }
     if (this.cerremGuardada() && !this.cerremEditMode() && this.permissions().showCerremBlock) {
       return 'Gestión UNP guardada. Pulse «Editar» al final del módulo para modificar.';
@@ -763,14 +811,8 @@ export class MedidasComponent implements OnInit, OnChanges {
   }
 
   fieldEditable(key: keyof MedidasPermissions): boolean {
-    if (this.osegGuardada() && (key === 'tramiteDestino' || key === 'oficioTramite')) {
-      return false;
-    }
+    if (this.isOsegKey(key)) return this.osegFieldsOpen();
     return (this.permissions()[key] as MedidasFieldMode) === 'editable';
-  }
-
-  showModuleActions(): boolean {
-    return !isClosedWorkflowStatus(this.workflowStatus);
   }
 
   hasPendingChanges(): boolean {
@@ -791,6 +833,7 @@ export class MedidasComponent implements OnInit, OnChanges {
 
   discardPendingChanges(): void {
     if (!this.draftBaseline) return;
+    this.form.codigo_oficio = this.draftBaseline.codigo_oficio;
     this.form.tramite_destino = this.draftBaseline.tramite_destino;
     this.form.fecha_cerrem = this.draftBaseline.fecha_cerrem;
     this.form.resolucion_cerrem = this.draftBaseline.resolucion_cerrem;
@@ -811,6 +854,7 @@ export class MedidasComponent implements OnInit, OnChanges {
         };
       }),
     );
+    this.osegEditMode.set(false);
     this.cerremEditMode.set(false);
     this.medidasEditMode.set(false);
     this.notifyPendingChanges();
@@ -824,6 +868,9 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.draftBaseline,
       this.pendingContext(),
     );
+    if (sections.includes('oseg')) {
+      this.osegEditMode.set(true);
+    }
     if (sections.includes('medidas')) {
       this.medidasEditMode.set(true);
     }
@@ -851,16 +898,17 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.showMensaje('oseg', 'Complete «Trámite / destino» antes de guardar.', 'error');
       return false;
     }
-    return this.postGestionAsync('oseg', 'Gestión OSEG guardada correctamente');
+    return this.postGestionAsync(
+      'oseg',
+      'Gestión OSEG guardada correctamente',
+      () => this.osegEditMode.set(false),
+    );
   }
 
   private async savePendingCerremSection(): Promise<boolean> {
-    if (!String(this.form.resolucion_cerrem || '').trim()) {
-      this.showMensaje('cerrem', 'Complete «Resolución CERREM» antes de guardar.', 'error');
-      return false;
-    }
-    if (!this.form.ID_riesgo) {
-      this.showMensaje('cerrem', 'Seleccione el «Nivel de riesgo» antes de guardar.', 'error');
+    const error = this.cerremGuardarError();
+    if (error) {
+      this.showMensaje('cerrem', error, 'error');
       return false;
     }
     return this.postGestionAsync(
@@ -884,6 +932,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     return {
       closed: isClosedWorkflowStatus(this.workflowStatus),
       osegGuardada: this.osegGuardada(),
+      osegEditMode: this.osegEditMode(),
       cerremGuardada: this.cerremGuardada(),
       cerremEditMode: this.cerremEditMode(),
       medidasGuardadas: this.medidasGuardadas(),
@@ -909,6 +958,13 @@ export class MedidasComponent implements OnInit, OnChanges {
     );
   }
 
+  showOsegAccion(): boolean {
+    if (isClosedWorkflowStatus(this.workflowStatus)) return false;
+    if (!this.permissions().showOsegBlock) return false;
+    if (this.osegGuardada()) return true;
+    return this.permissions().canSaveGestion;
+  }
+
   showCerremAccion(): boolean {
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (!this.permissions().showCerremBlock) return false;
@@ -923,12 +979,20 @@ export class MedidasComponent implements OnInit, OnChanges {
     return this.permissions().canSaveMedidas;
   }
 
+  osegBotonGuardar(): boolean {
+    return !this.osegGuardada() || this.osegEditMode();
+  }
+
   cerremBotonGuardar(): boolean {
     return !this.cerremGuardada() || this.cerremEditMode();
   }
 
   medidasBotonGuardar(): boolean {
     return !this.medidasGuardadas() || this.medidasEditMode();
+  }
+
+  private isOsegKey(key: keyof MedidasPermissions): boolean {
+    return key === 'oficioTramite' || key === 'tramiteDestino';
   }
 
   isCerremFieldEditable(key: keyof MedidasPermissions): boolean {
@@ -945,6 +1009,14 @@ export class MedidasComponent implements OnInit, OnChanges {
     if (this.medidasGuardadas() && !this.medidasEditMode()) return false;
     if (this.medidasEditMode()) return this.permissions().showMedidasBlock;
     return this.permissions().canSaveMedidas;
+  }
+
+  accionOseg(): void {
+    if (this.osegGuardada() && !this.osegEditMode()) {
+      this.osegEditMode.set(true);
+      return;
+    }
+    this.guardarGestionOseg();
   }
 
   accionCerrem(): void {
@@ -967,17 +1039,6 @@ export class MedidasComponent implements OnInit, OnChanges {
     return (this.permissions()[key] as MedidasFieldMode) === 'auto';
   }
 
-  isTramiteEditable(): boolean {
-    if (this.osegGuardada()) return false;
-    if (this.permissions().tramiteDestino === 'editable') return true;
-    return (
-      this.permissions().showOsegBlock &&
-      this.permissions().canSaveGestion &&
-      !String(this.form.tramite_destino || '').trim()
-    );
-  }
-
-  /** Opciones fijas + valor histórico si no está en la lista (casos previos con texto libre). */
   tramiteDestinoSelectOptions(): string[] {
     const current = String(this.form.tramite_destino || '').trim();
     if (current && !(this.tramiteDestinoOpciones as readonly string[]).includes(current)) {
@@ -1038,6 +1099,7 @@ export class MedidasComponent implements OnInit, OnChanges {
       observaciones: '',
     };
     this.osegGuardada.set(false);
+    this.osegEditMode.set(false);
     this.cerremGuardada.set(false);
   }
 
@@ -1082,6 +1144,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.medidasGuardadas.set(lista.length > 0);
     this.medidasEditMode.set(false);
     this.cerremEditMode.set(false);
+    this.osegEditMode.set(false);
     this.captureDraftBaseline();
   }
 
@@ -1142,7 +1205,8 @@ export class MedidasComponent implements OnInit, OnChanges {
   }
 
   guardarGestionOseg() {
-    if (this.osegGuardada() || isClosedWorkflowStatus(this.workflowStatus)) return;
+    if (isClosedWorkflowStatus(this.workflowStatus)) return;
+    if (this.osegGuardada() && !this.osegEditMode()) return;
     if (!String(this.form.codigo_oficio || '').trim()) {
       this.showMensaje('oseg', 'Complete «Oficio trámite» antes de guardar.', 'error');
       return;
@@ -1151,18 +1215,36 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.showMensaje('oseg', 'Complete «Trámite / destino» antes de guardar.', 'error');
       return;
     }
-    this.postGestion('oseg', 'Gestión OSEG guardada correctamente');
+    this.postGestion(
+      'oseg',
+      'Gestión OSEG guardada correctamente',
+      () => this.osegEditMode.set(false),
+    );
+  }
+
+  cerremFechaOrdenInvalida(): boolean {
+    return isFechaCerremAfterResolucion(this.form.fecha_cerrem, this.form.fecha_resolucion);
+  }
+
+  private cerremGuardarError(): string | null {
+    if (!String(this.form.resolucion_cerrem || '').trim()) {
+      return 'Complete «Resolución CERREM» antes de guardar.';
+    }
+    if (!this.form.ID_riesgo) {
+      return 'Seleccione el «Nivel de riesgo» antes de guardar.';
+    }
+    if (this.cerremFechaOrdenInvalida()) {
+      return 'La «Fecha CERREM» no puede ser posterior a la «Fecha resolución».';
+    }
+    return null;
   }
 
   guardarGestionCerrem() {
     if (isClosedWorkflowStatus(this.workflowStatus)) return;
     if (this.cerremGuardada() && !this.cerremEditMode()) return;
-    if (!String(this.form.resolucion_cerrem || '').trim()) {
-      this.showMensaje('cerrem', 'Complete «Resolución CERREM» antes de guardar.', 'error');
-      return;
-    }
-    if (!this.form.ID_riesgo) {
-      this.showMensaje('cerrem', 'Seleccione el «Nivel de riesgo» antes de guardar.', 'error');
+    const error = this.cerremGuardarError();
+    if (error) {
+      this.showMensaje('cerrem', error, 'error');
       return;
     }
     this.postGestion(

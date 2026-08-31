@@ -93,18 +93,15 @@ describe('isCsjStatusChoiceAllowed', () => {
     ).toBe(true);
   });
 
-  it('Extraordinario guardado: bloquea Cerrado directo desde CERREM', () => {
+  it('Extraordinario guardado: permite Cerrado y Ponal sin exigir secuencia', () => {
     expect(
       isCsjStatusChoiceAllowed('En gestión UNP', 'Cerrado', extraordinarioGuardado),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isCsjStatusChoiceAllowed('En gestión UNP', 'En gestión Ponal', extraordinarioGuardado),
     ).toBe(true);
-  });
-
-  it('Extraordinario guardado: bloquea Cerrado directo desde Reiteraciones', () => {
     expect(isCsjStatusChoiceAllowed('Reiteraciones', 'Cerrado', extraordinarioGuardado)).toBe(
-      false,
+      true,
     );
   });
 
@@ -114,12 +111,22 @@ describe('isCsjStatusChoiceAllowed', () => {
     ).toBe(false);
   });
 
-  it('Extraordinario guardado: permite Reiteraciones desde CERREM', () => {
+  it('permite Reiteraciones desde OSEG sin haber pasado por UNP', () => {
+    expect(isCsjStatusChoiceAllowed('En gestión OSEG', 'Reiteraciones', null)).toBe(true);
+  });
+
+  it('Extraordinario guardado: permite Reiteraciones desde cualquier estado del flujo', () => {
     expect(
       isCsjStatusChoiceAllowed('En gestión UNP', 'Reiteraciones', extraordinarioGuardado),
     ).toBe(true);
     expect(
       isCsjStatusChoiceAllowed('Reiteraciones', 'Reiteraciones', extraordinarioGuardado),
+    ).toBe(true);
+    expect(
+      isCsjStatusChoiceAllowed('Nuevo', 'Reiteraciones', extraordinarioGuardado),
+    ).toBe(true);
+    expect(
+      isCsjStatusChoiceAllowed('En gestión OSEG', 'Reiteraciones', extraordinarioGuardado),
     ).toBe(true);
   });
 });

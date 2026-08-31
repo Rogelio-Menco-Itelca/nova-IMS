@@ -11,6 +11,7 @@ import {
 const baseCtx: MedidasPendingContext = {
   closed: false,
   osegGuardada: false,
+  osegEditMode: false,
   cerremGuardada: false,
   cerremEditMode: false,
   medidasGuardadas: false,
@@ -38,6 +39,31 @@ describe('hasMedidasPanelPendingChanges', () => {
     const current = snapshotMedidasDraft({ tramite_destino: 'UNP' }, []);
     expect(
       hasMedidasPanelPendingChanges(current, baseline, { ...baseCtx, osegGuardada: true }),
+    ).toBe(false);
+  });
+
+  it('detecta edición OSEG en modo editar', () => {
+    const baseline = snapshotMedidasDraft(
+      { codigo_oficio: 'OF-1', tramite_destino: 'Policia' },
+      [],
+    );
+    const current = snapshotMedidasDraft(
+      { codigo_oficio: 'OF-2', tramite_destino: 'Unp' },
+      [],
+    );
+    expect(
+      hasMedidasPanelPendingChanges(current, baseline, {
+        ...baseCtx,
+        osegGuardada: true,
+        osegEditMode: true,
+      }),
+    ).toBe(true);
+    expect(
+      hasMedidasPanelPendingChanges(current, baseline, {
+        ...baseCtx,
+        osegGuardada: true,
+        osegEditMode: false,
+      }),
     ).toBe(false);
   });
 
@@ -151,13 +177,7 @@ describe('labelsForPendingMedidasSections', () => {
     const baseline = snapshotMedidasDraft({}, []);
     const current = snapshotMedidasDraft({ tramite_destino: 'UNP' }, []);
     const ctx: MedidasPendingContext = {
-      closed: false,
-      osegGuardada: false,
-      cerremGuardada: false,
-      cerremEditMode: false,
-      medidasGuardadas: false,
-      medidasEditMode: false,
-      showOsegBlock: true,
+      ...baseCtx,
       showCerremBlock: false,
       showMedidasBlock: false,
     };

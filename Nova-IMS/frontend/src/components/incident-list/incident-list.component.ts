@@ -45,9 +45,6 @@ import {
   catalogStatusToUiStatus,
   incidentIdSortKey,
   isForwardStatusTransition,
-  needsCerremGestionForTransition,
-  needsOsegGestionForTransition,
-  CSJ_STATUS_WORKFLOW_RANK,
 } from '../../models/incident.model';
 import {
   isCsjMedidasWorkflow,
@@ -3026,11 +3023,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const savedStatus = catalogStatusToUiStatus(
       String(this.activeIncident()?.status ?? '').trim(),
     );
-    const formRank = CSJ_STATUS_WORKFLOW_RANK[formStatus];
-    const savedRank = CSJ_STATUS_WORKFLOW_RANK[savedStatus];
-    if (formRank !== undefined && savedRank !== undefined) {
-      return formRank >= savedRank ? formStatus : savedStatus;
-    }
     return formStatus || savedStatus || 'Nuevo';
   }
 
@@ -4610,47 +4602,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.hasAssignedMedidas(incidentId).subscribe({
         next: ({ gestion, medidas }) => {
           const gestionRecord = gestion as GestionSnapshot | null;
-          if (needsOsegGestionForTransition(targetStatus)) {
-            if (
-              !gestionRecord?.codigo_oficio?.trim() ||
-              !String(gestionRecord?.tramite_destino ?? '').trim()
-            ) {
-              this.detailTab.set('medidas');
-              this.notificationService.addNotification(
-                'No se puede guardar',
-                'Complete la gestión OSEG en la pestaña Medidas (trámite/destino).',
-              );
-              this.abortLeaveAfterSave();
-              this.cdr.markForCheck();
-              return;
-            }
-          }
-          if (needsCerremGestionForTransition(targetStatus)) {
-            if (!gestionRecord?.resolucion_cerrem?.trim() || !gestionRecord?.ID_riesgo) {
-              this.detailTab.set('medidas');
-              this.notificationService.addNotification(
-                'No se puede guardar',
-                'Complete la gestión UNP en la pestaña Medidas (resolución y nivel de riesgo).',
-              );
-              this.abortLeaveAfterSave();
-              this.cdr.markForCheck();
-              return;
-            }
-          }
-          if (
-            (savedStatus === 'En gestión UNP' || savedStatus === 'Reiteraciones') &&
-            targetStatus === 'Cerrado' &&
-            !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)
-          ) {
-            this.detailTab.set('medidas');
-            this.notificationService.addNotification(
-              'No se puede guardar',
-              'Riesgo Extraordinario: pase a «En gestión Ponal» y asigne medidas antes de cerrar.',
-            );
-            this.abortLeaveAfterSave();
-            this.cdr.markForCheck();
-            return;
-          }
           if (
             targetStatus === 'En gestión Ponal' &&
             !isCsjStatusChoiceAllowed(savedStatus, targetStatus, gestionRecord)

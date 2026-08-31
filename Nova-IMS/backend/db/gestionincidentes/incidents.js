@@ -21,9 +21,8 @@ const {
 const { insertVehicleComment, deleteVehicleCommentsForIncident } = require('./vehicles');
 const { linkLocationToIncident, syncLinkedLocationCoords } = require('./location');
 const { isFinalState, requiresMedidas, isForwardStatusTransition, isTransitionAllowed, requiresComment } = require('./transitions');
-const { hasAssignedMedidas, getGestionByIncidente, validateGestionForStatus } = require('./medidas');
+const { hasAssignedMedidas, getGestionByIncidente } = require('./medidas');
 const {
-  isRiesgoExtraordinario,
   isRiesgoOrdinario,
   requiresMedidasForGestion,
 } = require('./riesgoNivel');
@@ -1077,14 +1076,6 @@ function assertIncidentStatusChange(currentStatus, newStatus, agencyCode) {
   }
 }
 
-async function assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId) {
-  if (String(agencyCode).toUpperCase() !== 'CSJ' || newStatus === 'Cerrado') return;
-  const statusToValidate = newStatus || currentStatus;
-  const gestion = await getGestionByIncidente(visibleId);
-  const gestionError = validateGestionForStatus(statusToValidate, gestion);
-  if (gestionError) throw new HttpError(409, gestionError);
-}
-
 function checkMedidasAsignadasNoRiesgoOrdinario(newStatus, cerremGuardado, gestion) {
   if (newStatus === STATUS_MEDIDAS_ASIGNADAS && cerremGuardado && isRiesgoOrdinario(gestion)) {
     throw new HttpError(
@@ -1109,37 +1100,11 @@ function checkMedidasAsignadasRequiereCerrem(newStatus, currentStatus, cerremGua
   }
 }
 
-function checkReiteracionesRules(newStatus, currentStatus, cerremGuardado, gestion) {
+function checkReiteracionesRules(newStatus, cerremGuardado, gestion) {
   if (newStatus !== STATUS_REITERACIONES) return;
 
   if (cerremGuardado && isRiesgoOrdinario(gestion)) {
     throw new HttpError(409, 'Riesgo Ordinario guardado: no aplica el estado «Reiteraciones».');
-  }
-  if (!cerremGuardado || !isRiesgoExtraordinario(gestion)) {
-    throw new HttpError(
-      409,
-      'Solo riesgo Extraordinario con CERREM guardado puede pasar a «Reiteraciones».',
-    );
-  }
-  if (currentStatus !== STATUS_EN_EVALUACION_CERREM && currentStatus !== STATUS_REITERACIONES) {
-    throw new HttpError(
-      409,
-      'Solo puede pasar a «Reiteraciones» desde «En gestión UNP» o repetir estando ya en «Reiteraciones».',
-    );
-  }
-}
-
-function checkCierreExtraordinarioRequiereMedidas(currentStatus, newStatus, cerremGuardado, gestion) {
-  if (
-    (currentStatus === STATUS_EN_EVALUACION_CERREM || currentStatus === STATUS_REITERACIONES) &&
-    newStatus === STATUS_CERRADO &&
-    cerremGuardado &&
-    isRiesgoExtraordinario(gestion)
-  ) {
-    throw new HttpError(
-      409,
-      'El nivel de riesgo Extraordinario requiere pasar por «En gestión Ponal» antes de cerrar.',
-    );
   }
 }
 
@@ -1154,8 +1119,7 @@ async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus,
 
   checkMedidasAsignadasNoRiesgoOrdinario(newStatus, cerremGuardado, gestion);
   checkMedidasAsignadasRequiereCerrem(newStatus, currentStatus, cerremGuardado);
-  checkReiteracionesRules(newStatus, currentStatus, cerremGuardado, gestion);
-  checkCierreExtraordinarioRequiereMedidas(currentStatus, newStatus, cerremGuardado, gestion);
+  checkReiteracionesRules(newStatus, cerremGuardado, gestion);
 }
 
 async function assertCommentIfRequired(currentStatus, newStatus, internalId, body) {
@@ -1266,7 +1230,6 @@ async function updateIncident(visibleId, body, user) {
   const newStatus = body.status;
 
   assertIncidentStatusChange(currentStatus, newStatus, agencyCode);
-  await assertCsjGestionIfNeeded(agencyCode, newStatus, currentStatus, visibleId);
   await assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId);
   await assertCommentIfRequired(currentStatus, newStatus, internalId, body);
   await assertMedidasIfRequired(newStatus, visibleId, agencyCode);

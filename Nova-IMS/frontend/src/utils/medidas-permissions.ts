@@ -338,33 +338,18 @@ export function isOrdinarioCerremGuardado(gestion?: GestionSnapshot | null): boo
   return hasCerremGestionData(gestion) && isRiesgoOrdinario(gestion);
 }
 
-export function isExtraordinarioCerremGuardado(gestion?: GestionSnapshot | null): boolean {
-  return hasCerremGestionData(gestion) && isRiesgoExtraordinario(gestion);
-}
-
 export function isCsjStatusChoiceAllowed(
-  fromStatus: string,
+  _fromStatus: string,
   toStatus: string,
   gestion?: GestionSnapshot | null,
 ): boolean {
   const to = catalogStatusToUiStatus(toStatus);
-  const from = catalogStatusToUiStatus(fromStatus);
 
   if (to === 'En gestión Ponal' && isOrdinarioCerremGuardado(gestion)) {
     return false;
   }
 
-  if (to === 'Reiteraciones') {
-    if (isOrdinarioCerremGuardado(gestion)) return false;
-    if (!isExtraordinarioCerremGuardado(gestion)) return false;
-    return from === 'En gestión UNP' || from === 'Reiteraciones';
-  }
-
-  if (
-    (from === 'En gestión UNP' || from === 'Reiteraciones') &&
-    to === 'Cerrado' &&
-    isExtraordinarioCerremGuardado(gestion)
-  ) {
+  if (to === 'Reiteraciones' && isOrdinarioCerremGuardado(gestion)) {
     return false;
   }
 
@@ -372,37 +357,18 @@ export function isCsjStatusChoiceAllowed(
 }
 
 export function getCsjStatusDisabledReason(
-  fromStatus: string,
+  _fromStatus: string,
   toStatus: string,
   gestion?: GestionSnapshot | null,
 ): string | null {
   const to = catalogStatusToUiStatus(toStatus);
-  const from = catalogStatusToUiStatus(fromStatus);
 
   if (to === 'En gestión Ponal' && isOrdinarioCerremGuardado(gestion)) {
     return 'Riesgo Ordinario guardado: no requiere medidas de seguridad. Cierre en «Cerrado».';
   }
 
-  if (to === 'Reiteraciones') {
-    if (isOrdinarioCerremGuardado(gestion)) {
-      return 'Riesgo Ordinario guardado: no aplica «Reiteraciones».';
-    }
-    if (!isExtraordinarioCerremGuardado(gestion)) {
-      return 'Registre CERREM con riesgo Extraordinario antes de reiterar.';
-    }
-    if (from !== 'En gestión UNP' && from !== 'Reiteraciones') {
-      return 'Solo desde «En gestión UNP» o repetir estando en «Reiteraciones».';
-    }
-  }
-
-  if (
-    (from === 'En gestión UNP' || from === 'Reiteraciones') &&
-    to === 'Cerrado' &&
-    isExtraordinarioCerremGuardado(gestion)
-  ) {
-    return from === 'Reiteraciones'
-      ? 'Riesgo Extraordinario: pase por «En gestión Ponal» antes de cerrar.'
-      : 'Riesgo Extraordinario: asigne medidas antes de cerrar.';
+  if (to === 'Reiteraciones' && isOrdinarioCerremGuardado(gestion)) {
+    return 'Riesgo Ordinario guardado: no aplica «Reiteraciones».';
   }
 
   return null;

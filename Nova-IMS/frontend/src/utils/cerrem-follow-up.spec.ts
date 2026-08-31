@@ -3,6 +3,7 @@ import {
   calendarDaysSince,
   parseCerremDateOnly,
   daysSinceCerremEnvio,
+  isFechaCerremAfterResolucion,
 } from './cerrem-follow-up';
 
 describe('parseCerremDateOnly', () => {
@@ -49,5 +50,24 @@ describe('daysSinceCerremEnvio', () => {
         asOf,
       }),
     ).toBe(2);
+  });
+});
+
+describe('isFechaCerremAfterResolucion', () => {
+  it('es inválida si CERREM es posterior a resolución', () => {
+    expect(isFechaCerremAfterResolucion('2024-12-05', '2024-05-12')).toBe(true);
+  });
+
+  it('permite el mismo día', () => {
+    expect(isFechaCerremAfterResolucion('2024-05-12', '2024-05-12')).toBe(false);
+  });
+
+  it('permite CERREM anterior a resolución', () => {
+    expect(isFechaCerremAfterResolucion('2024-02-12', '2024-05-12')).toBe(false);
+  });
+
+  it('no valida si falta alguna fecha', () => {
+    expect(isFechaCerremAfterResolucion('2024-12-05', '')).toBe(false);
+    expect(isFechaCerremAfterResolucion('', '2024-05-12')).toBe(false);
   });
 });

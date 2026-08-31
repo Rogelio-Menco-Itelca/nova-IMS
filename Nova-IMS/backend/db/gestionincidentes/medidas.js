@@ -1,6 +1,5 @@
 const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
-const { WORKFLOW_RANK_CSJ } = require('./transitions');
 
 function nullIfEmpty(value) {
   if (value === null || value === undefined) return null;
@@ -25,6 +24,27 @@ function pickInt(bodyVal, prevVal) {
     if (Number.isFinite(n)) return n;
   }
   return null;
+}
+
+function dateOnly(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const iso = String(value).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : null;
+}
+
+function assertCerremDatesOrder(fechaCerrem, fechaResolucion) {
+  const cerrem = dateOnly(fechaCerrem);
+  const resolucion = dateOnly(fechaResolucion);
+  if (!cerrem || !resolucion) return;
+  if (cerrem > resolucion) {
+    throw new HttpError(400, 'La fecha CERREM no puede ser posterior a la fecha de resolución.');
+  }
 }
 
 function composeServidorCargoLabel(roleName, judgeCargo) {
@@ -90,34 +110,6 @@ async function resolveServidorJudicial(incidenteId) {
     rol: p.rol ?? null,
     cargo: composeServidorCargoLabel(p.rol, p.cargo_juez),
   };
-}
-
-function validateGestionForStatus(status, gestion) {
-  const rank = WORKFLOW_RANK_CSJ[status];
-  if (rank === undefined || status === 'Cancelado' || status === 'Cerrado') return null;
-
-  if (rank >= WORKFLOW_RANK_CSJ['En gestión OSEG']) {
-    if (!gestion) {
-      return 'Complete la gestión OSEG en la pestaña Medidas antes de guardar este estado.';
-    }
-    if (!String(gestion.codigo_oficio || '').trim()) {
-      return 'Falta el código de oficio trámite. Guarde la gestión en la pestaña Medidas.';
-    }
-    if (!String(gestion.tramite_destino || '').trim()) {
-      return 'Complete «Trámite / destino» en la pestaña Medidas.';
-    }
-  }
-
-  if (rank >= WORKFLOW_RANK_CSJ['En gestión UNP']) {
-    if (!String(gestion?.resolucion_cerrem || '').trim()) {
-      return 'Complete «Resolución CERREM» en la pestaña Medidas.';
-    }
-    if (!gestion?.ID_riesgo) {
-      return 'Seleccione el «Nivel de riesgo» en la pestaña Medidas.';
-    }
-  }
-
-  return null;
 }
 
 async function getTiposMedida(agency) {
@@ -201,22 +193,12 @@ async function upsertGestion(visibleId, body, user) {
 
   const prev = existing[0] || null;
 
-  const osegBloqueada =
-    Boolean(String(prev?.codigo_oficio || '').trim()) &&
-    Boolean(String(prev?.tramite_destino || '').trim());
-
-  let codigoOficio = pickText(body.codigo_oficio, prev?.codigo_oficio);
-  if (osegBloqueada) {
-    codigoOficio = prev.codigo_oficio;
-  }
-
+  const codigoOficio = pickText(body.codigo_oficio, prev?.codigo_oficio);
   const servidorJudicial =
     solicitud?.servidor_judicial ?? body.servidor_judicial ?? prev?.servidor_judicial ?? null;
   const cedula = solicitud?.cedula ?? body.cedula ?? prev?.cedula ?? null;
   const cargo = solicitud?.cargo ?? body.cargo ?? prev?.cargo ?? null;
-  const tramiteDestino = osegBloqueada
-    ? prev.tramite_destino
-    : pickText(body.tramite_destino, prev?.tramite_destino);
+  const tramiteDestino = pickText(body.tramite_destino, prev?.tramite_destino);
 
   const fechaCerrem = pickText(body.fecha_cerrem, prev?.fecha_cerrem);
   const resolucionCerrem = pickText(body.resolucion_cerrem, prev?.resolucion_cerrem);
@@ -225,6 +207,8 @@ async function upsertGestion(visibleId, body, user) {
   const tipoEsquema = pickText(body.tipo_esquema, prev?.tipo_esquema);
   const compartidoCon = pickText(body.compartido_con, prev?.compartido_con);
   const observaciones = pickText(body.observaciones, prev?.observaciones);
+
+  assertCerremDatesOrder(fechaCerrem, fechaResolucion);
 
   if (prev) {
     await pool.query(
@@ -457,7 +441,6 @@ module.exports = {
   upsertGestion,
   asignarMedidas,
   hasAssignedMedidas,
-  validateGestionForStatus,
   buildMedidasAuditDetails,
   buildMedidasMetaAuditDetails,
   buildGestionAuditDetails,

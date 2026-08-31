@@ -18,6 +18,7 @@ export interface MedidasDraftSnapshot {
 export interface MedidasPendingContext {
   closed: boolean;
   osegGuardada: boolean;
+  osegEditMode: boolean;
   cerremGuardada: boolean;
   cerremEditMode: boolean;
   medidasGuardadas: boolean;
@@ -186,7 +187,7 @@ export function pendingMedidasSections(
 ): MedidasPendingSection[] {
   if (ctx.closed || !baseline) return [];
   const sections: MedidasPendingSection[] = [];
-  if (osegChanged(current, baseline) && ctx.showOsegBlock && !ctx.osegGuardada) {
+  if (osegChanged(current, baseline) && ctx.showOsegBlock && (!ctx.osegGuardada || ctx.osegEditMode)) {
     sections.push('oseg');
   }
   if (

@@ -1,26 +1,33 @@
 
 const TRANSITIONS = {
   Nuevo: {
-    next: ['En gestión OSEG', 'Cerrado', 'Cancelado'],
+    next: [
+      'En gestión OSEG',
+      'En gestión UNP',
+      'Reiteraciones',
+      'En gestión Ponal',
+      'Cerrado',
+      'Cancelado',
+    ],
     requiresMedidas: false,
   },
   'En gestión OSEG': {
-    next: ['En gestión UNP', 'Cerrado', 'Cancelado'],
+    next: ['En gestión UNP', 'Reiteraciones', 'En gestión Ponal', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
     requiredFields: ['codigo_oficio'],
   },
   'En gestión UNP': {
-    next: ['Reiteraciones', 'En gestión Ponal', 'Cerrado'],
+    next: ['En gestión OSEG', 'Reiteraciones', 'En gestión Ponal', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
     requiredFields: ['resolucion_cerrem', 'ID_riesgo'],
   },
   Reiteraciones: {
-    next: ['Reiteraciones', 'En gestión Ponal'],
+    next: ['Reiteraciones', 'En gestión OSEG', 'En gestión UNP', 'En gestión Ponal', 'Cerrado', 'Cancelado'],
     requiresMedidas: false,
     requiresComment: true,
   },
   'En gestión Ponal': {
-    next: ['Cerrado'],
+    next: ['En gestión OSEG', 'En gestión UNP', 'Reiteraciones', 'Cerrado', 'Cancelado'],
     requiresMedidas: true,
   },
   Cerrado: {
@@ -69,6 +76,15 @@ function statusWorkflowRank(status, agency) {
 
 function isForwardStatusTransition(fromStatus, toStatus, agency) {
   if (!toStatus || fromStatus === toStatus) return true;
+
+  const code = String(agency || 'CSJ')
+    .trim()
+    .toUpperCase();
+  if (code !== 'POL') {
+    if (isFinalState(fromStatus)) return false;
+    if (toStatus === 'Nuevo') return false;
+    return true;
+  }
 
   const fromRank = statusWorkflowRank(fromStatus, agency);
   const toRank = statusWorkflowRank(toStatus, agency);

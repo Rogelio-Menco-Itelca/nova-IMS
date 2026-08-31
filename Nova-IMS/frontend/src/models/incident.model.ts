@@ -94,27 +94,17 @@ export function isForwardStatusTransition(
   const toUi = catalogStatusToUiStatus(toStatus);
   if (!toUi || fromUi === toUi) return true;
 
+  if (String(agency).trim().toUpperCase() !== 'POL') {
+    if (fromUi === 'Cerrado' || fromUi === 'Cancelado') return false;
+    if (toUi === 'Nuevo') return false;
+    return true;
+  }
+
   const fromRank = statusWorkflowRank(fromUi, agency);
   const toRank = statusWorkflowRank(toUi, agency);
   if (fromRank === undefined || toRank === undefined) return true;
 
   return toRank > fromRank;
-}
-
-export function needsCerremGestionForTransition(targetStatus: string): boolean {
-  const target = catalogStatusToUiStatus(targetStatus);
-  if (target === 'Cerrado' || target === 'Cancelado') return false;
-  const targetRank = CSJ_STATUS_WORKFLOW_RANK[target];
-  if (targetRank === undefined) return false;
-  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En gestión UNP'];
-}
-
-export function needsOsegGestionForTransition(targetStatus: string): boolean {
-  const target = catalogStatusToUiStatus(targetStatus);
-  if (target === 'Cerrado' || target === 'Cancelado') return false;
-  const targetRank = CSJ_STATUS_WORKFLOW_RANK[target];
-  if (targetRank === undefined) return false;
-  return targetRank >= CSJ_STATUS_WORKFLOW_RANK['En gestión OSEG'];
 }
 
 export function incidentMatchesCatalogStatus(
