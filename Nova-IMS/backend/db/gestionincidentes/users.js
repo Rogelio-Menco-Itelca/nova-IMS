@@ -3,6 +3,7 @@ const { pool } = require('../../config/db');
 const HttpError = require('../../utils/HttpError');
 const ldapConfig = require('../../config/ldap');
 const { LDAP_ONLY_TOKEN } = require('../../utils/authUserType');
+const { hashPassword, isBcryptHash } = require('../../utils/passwordHash');
 const { fullUserName, normalizeAgencyCode } = require('./maps');
 const { loadAgencyMap, resolveAgency } = require('./agencies');
 
@@ -118,10 +119,20 @@ async function verifyPassword(stored, plain) {
 async function updateLastLogin() {
 }
 
-async function updatePasswordHash(userId, agencyCode, hash) {
+async function updatePasswordHash(userId, agencyCode, plain) {
   await pool.query(
     `UPDATE usuarios SET Contraseña = ?, Token_Contraseña = ? WHERE ID_Usuario = ? AND UPPER(ID_Agencia) = ?`,
-    [hash, CHANGED_TOKEN, userId, normalizeAgencyCode(agencyCode)],
+    [await hashPassword(plain), CHANGED_TOKEN, userId, normalizeAgencyCode(agencyCode)],
+  );
+}
+
+async function hashStoredPassword(userId, agencyCode, plain, stored) {
+  if (isBcryptHash(stored)) return;
+  await pool.query(
+    `UPDATE usuarios SET Contraseña = ?
+     WHERE ID_Usuario = ? AND UPPER(ID_Agencia) = ?
+       AND Token_Contraseña <> ?`,
+    [await hashPassword(plain), userId, normalizeAgencyCode(agencyCode), LDAP_ONLY_TOKEN],
   );
 }
 
@@ -220,7 +231,7 @@ async function createOperator({
       normalizeAgencyCode(agencyCode),
       email.trim().toLowerCase(),
       normalizeOptionalPhone(telefono),
-      passwordHash,
+      await hashPassword(passwordHash),
       status || 'Activo',
       MUST_CHANGE_TOKEN,
     ],
@@ -391,6 +402,7 @@ module.exports = {
   verifyPassword,
   updateLastLogin,
   updatePasswordHash,
+  hashStoredPassword,
   listOperators,
   findRoleIdByName,
   emailExists,

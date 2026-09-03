@@ -5,18 +5,18 @@
 | Qué | Dónde vive |
 |-----|------------|
 | Esquema de tablas | `01_schema.sql` (repo) |
-| Catálogos base (agencias, roles, eventos CSJ, permisos…) | `02_catalogos_referencia.sql` (repo) |
-| Geo, usuarios, correos, incidentes | **MySQL del cliente** (dump oficial, p. ej. `Dump20260612.sql`) |
+| Catálogos base (agencias, estados, eventos, origen, roles, cargos, DIVIPOLA…) | `02_catalogos_referencia.sql` (repo, alineado a Dump20260903) |
+| Usuarios, correos, incidentes | **MySQL del cliente** / módulo Administración |
 | Alta de operadores y correos en runtime | Módulo **Administración** (API) |
 
-La aplicación **no** embebe DIVIPOLA ni datos operativos en código ni en seeds del repo.
+El seed embebe DIVIPOLA CSJ (`departamentos` / `municipios`). No incluye datos operativos (usuarios, incidentes, correos).
 
 ## Archivos en este directorio
 
 | Archivo | Uso |
 |---------|-----|
 | `01_schema.sql` | `CREATE DATABASE` + tablas |
-| `02_catalogos_referencia.sql` | Catálogos de referencia iniciales (sin usuarios, correos ni geo) |
+| `02_catalogos_referencia.sql` | Catálogos de referencia + DIVIPOLA (sin usuarios, correos ni incidentes) |
 | `import-db.js` | Ejecuta esquema + catálogos base |
 
 ## Instalación
@@ -32,13 +32,13 @@ cd backend
 pnpm run db:import
 ```
 
-Luego importar en MySQL el dump del cliente para geo y datos operativos.
+Eso deja esquema, catálogos y DIVIPOLA. Los operadores se crean en Administración.
 
 ### Manual (Workbench)
 
 1. `01_schema.sql`
 2. `02_catalogos_referencia.sql`
-3. Dump del cliente (departamentos, municipios, usuarios existentes, etc.)
+3. (Opcional) Dump del cliente solo si hay que traer usuarios/incidentes ya existentes
 
 ## Configuración `.env`
 
@@ -46,12 +46,8 @@ Luego importar en MySQL el dump del cliente para geo y datos operativos.
 DB_NAME=gestionincidentes
 ```
 
-## Catálogos CSJ pendientes en seed
+## Catálogos en el seed
 
-El seed trae eventos y roles CSJ, pero **pueden faltar** filas para operar incidentes CSJ hasta alinear con el dump del cliente:
+`02_catalogos_referencia.sql` trae las listas actuales del dump CSJ/POL, incluyendo `departamentos` (33) y `municipios` (1122).
 
-- `origen` — en seed solo hay fila POL
-- `estadosincidentes` — en seed solo POL
-- `rolesvehiculo` / `tipovehiculo` — en seed solo POL
-
-La app valida contra el catálogo de la agencia en MySQL; no inventa valores.
+Siguen fuera del seed: usuarios, correos, incidentes y auditoría. No ejecutes `db:import` contra una BD que ya tenga datos del dump.

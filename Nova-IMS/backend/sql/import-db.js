@@ -23,7 +23,7 @@ async function run() {
   try {
     await runSqlFile(conn, path.join(sqlDir, "01_schema.sql"));
     await runSqlFile(conn, path.join(sqlDir, "02_catalogos_referencia.sql"));
-    console.log("[IMPORT] OK — catálogos base. Datos operativos: usar dump del cliente en MySQL.");
+    console.log("[IMPORT] OK — esquema + catálogos (incluye DIVIPOLA). Usuarios/incidentes no se importan.");
   } finally {
     await conn.end();
   }

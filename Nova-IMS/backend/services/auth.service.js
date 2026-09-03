@@ -161,6 +161,7 @@ async function verifyLocalPassword(user, password, agencyCode, rememberUser = fa
     await recordFailedLogin(user, agencyCode, 'Contraseña incorrecta', rememberUser);
     throw new HttpError(401, INVALID_MSG);
   }
+  await giUsers.hashStoredPassword(user.id, user.agency_code || agencyCode, password, user.password_hash);
 }
 
 async function rethrowInactiveLogin(err, user, agencyCode, rememberUser) {

@@ -28,7 +28,7 @@ Base **`gestionincidentes`**: en producción se usa el dump MySQL del cliente. P
 pnpm run db:import
 ```
 
-Ver `sql/README.md` (geo, usuarios y operación no van en el repo).
+Ver `sql/README.md` (usuarios e incidentes no van en el seed).
 
 ---
 

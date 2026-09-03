@@ -90,7 +90,7 @@ cd nova-IMS/Nova-IMS
 cd backend
 cp .env.example .env        # edita con tus credenciales MySQL
 pnpm install
-pnpm run db:import          # esquema + catálogos base (datos operativos: dump del cliente)
+pnpm run db:import          # esquema + catálogos (incluye departamentos/municipios)
 pnpm dev                    # http://localhost:3000
 ```
 
