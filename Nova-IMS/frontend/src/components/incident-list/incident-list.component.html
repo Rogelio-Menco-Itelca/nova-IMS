@@ -251,7 +251,7 @@
                 <select
                   id="event_id"
                   formControlName="event_id"
-                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('event_id')"
                   [class.border-red-500]="fieldRequiredError('event_id')"
                   [title]="incidentForm.get('event_id')?.value || ''"
@@ -275,7 +275,7 @@
                 <select
                   id="priority_id"
                   formControlName="priority_id"
-                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('priority_id')"
                   [class.border-red-500]="fieldRequiredError('priority_id')"
                   required
@@ -298,7 +298,7 @@
                 <select
                   id="status"
                   formControlName="status"
-                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
+                  class="incident-select bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full transition-all duration-200"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('status')"
                   [class.border-red-500]="fieldRequiredError('status')"
                   required
@@ -330,7 +330,7 @@
                 <select
                   id="origin"
                   formControlName="origin"
-                  class="incident-select bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  class="incident-select bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                   [class.incident-select--placeholder]="selectShowsPlaceholder('origin')"
                   [class.border-red-500]="fieldRequiredError('origin')"
                   required
@@ -368,7 +368,7 @@
                     (incidentForm.get('phone')?.invalid &&
                       (incidentForm.get('phone')?.dirty || incidentForm.get('phone')?.touched))
                   "
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
                 @if (incidentPhoneDigitsHint()) {
                   <p class="text-red-400 text-[11px] mt-1">Solo se aceptan números.</p>
@@ -391,7 +391,7 @@
 
             <!-- Sección 3: Ubicación del Incidente (dirección → mapa → depto/municipio) -->
             <section
-              class="rounded-lg border border-gray-700/60 bg-gray-800/25 p-4 sm:p-5 space-y-5"
+              class="rounded-lg border border-gray-600/50 bg-gray-700/50 p-4 sm:p-5 space-y-5"
             >
               <div>
                 <h4 class="incident-section-title">
@@ -431,7 +431,7 @@
                       (focus)="onLocationFocus()"
                       (blur)="onLocationBlur()"
                       (keydown)="onLocationKeydown($event)"
-                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
+                      class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2.5 w-full pl-10 focus:ring-2 focus:ring-indigo-500 transition-all"
                       [class.border-red-500]="fieldRequiredError('location')"
                       required
                     />
@@ -480,7 +480,7 @@
                       inputmode="decimal"
                       autocomplete="off"
                       formControlName="lat"
-                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                       [class.border-red-500]="fieldRequiredError('lat')"
                       required
                     />
@@ -500,7 +500,7 @@
                       inputmode="decimal"
                       autocomplete="off"
                       formControlName="lng"
-                      class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
+                      class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2.5 w-full font-mono text-sm"
                       [class.border-red-500]="fieldRequiredError('lng')"
                       required
                     />
@@ -517,7 +517,7 @@
                     <select
                       id="departmentId"
                       formControlName="departmentId"
-                      class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                      class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
                       [class.incident-select--placeholder]="selectShowsPlaceholder('departmentId')"
                     >
                       <option [ngValue]="null">Seleccione departamento…</option>
@@ -536,7 +536,7 @@
                       id="municipalityId"
                       formControlName="municipalityId"
                       [disabled]="!incidentForm.get('departmentId')?.value"
-                      class="incident-select w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       [class.incident-select--placeholder]="selectShowsPlaceholder('municipalityId')"
                     >
                       <option [ngValue]="null">
@@ -573,7 +573,7 @@
                   <span class="incident-label">Punto en mapa</span>
                   <div
                     id="map"
-                    class="incident-form-map w-full h-[280px] sm:h-[360px] rounded-lg bg-gray-900 z-0 border border-gray-700 shadow-inner relative overflow-hidden"
+                    class="incident-form-map w-full h-[280px] sm:h-[360px] rounded-lg bg-gray-700 z-0 border border-gray-600 shadow-inner relative overflow-hidden"
                   >
                     @if (mapsError(); as mapErr) {
                       <div
@@ -613,7 +613,7 @@
                   formControlName="agregarComentario"
                   rows="4"
                   [placeholder]="commentFieldPlaceholder()"
-                  class="bg-gray-900 border border-gray-700 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
+                  class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2.5 w-full focus:ring-2 focus:ring-indigo-500 transition-all"
                   [class.border-red-500]="commentRequiredError()"
                 ></textarea>
                 @if (
