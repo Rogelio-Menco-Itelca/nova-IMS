@@ -1,6 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, catchError, forkJoin, of } from 'rxjs';
+import { CatalogOption } from '../models/incident.model';
+import { IncidentType } from '../models/admin.model';
+import { AuthService } from './auth.service';
 
 export interface ReportSummary {
   kpis: {
@@ -42,9 +45,29 @@ export interface ReportFilters {
   operator?: string;
 }
 
+export interface ReportFilterCatalogs {
+  statuses: CatalogOption[];
+  priorities: CatalogOption[];
+  types: IncidentType[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportsService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+
+  getFilterCatalogs(): Observable<ReportFilterCatalogs> {
+    const agency = this.auth.currentUser()?.agency ?? 'CSJ';
+    return forkJoin({
+      statuses: this.http
+        .get<CatalogOption[]>('/api/incident-statuses', { params: { agency } })
+        .pipe(catchError(() => of([]))),
+      priorities: this.http
+        .get<CatalogOption[]>('/api/priorities')
+        .pipe(catchError(() => of([]))),
+      types: this.http.get<IncidentType[]>('/api/incident-types').pipe(catchError(() => of([]))),
+    });
+  }
 
   getSummary(filters: ReportFilters = {}): Observable<ReportSummary> {
     let params = new HttpParams();

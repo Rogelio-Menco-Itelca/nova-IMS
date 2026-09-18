@@ -12,6 +12,8 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ReportsService, ReportSummary } from '../../services/reports.service';
 import { PermissionService } from '../../services/permission.service';
 import { AuditClientService } from '../../services/audit-client.service';
+import { CatalogOption } from '../../models/incident.model';
+import { IncidentType } from '../../models/admin.model';
 import { environment } from '../../environments/environment';
 import { trustedPowerBiEmbedUrl } from '../../utils/trusted-embed-urls';
 
@@ -39,6 +41,9 @@ export class ReportsComponent implements OnInit {
   data = signal<ReportSummary | null>(null);
   error = signal<string | null>(null);
   searchText = signal('');
+  incidentStatuses = signal<CatalogOption[]>([]);
+  priorities = signal<CatalogOption[]>([]);
+  incidentTypes = signal<IncidentType[]>([]);
 
   filters = this.fb.group({
     from: [''],
@@ -50,10 +55,13 @@ export class ReportsComponent implements OnInit {
   });
 
   readonly priorityBreakdown = computed(() => {
-    const order = ['Crítica', 'Alta', 'Media', 'Baja'] as const;
     const rows = this.data()?.byPriority ?? [];
     const counts = new Map(rows.map((row) => [row.label, Number(row.value) || 0]));
-    return order.map((label) => ({ label, value: counts.get(label) ?? 0 }));
+    const catalog = this.priorities();
+    const labels = catalog.length ? catalog.map((row) => row.name) : rows.map((row) => row.label);
+    const seen = new Set(labels);
+    const extras = rows.filter((row) => !seen.has(row.label)).map((row) => row.label);
+    return [...labels, ...extras].map((label) => ({ label, value: counts.get(label) ?? 0 }));
   });
 
   filteredHistory = computed(() => {
@@ -71,8 +79,24 @@ export class ReportsComponent implements OnInit {
   });
 
   ngOnInit() {
+    this.loadCatalogs();
     this.load();
     this.pbiSafeUrl.set(trustedPowerBiEmbedUrl(this.sanitizer, environment.powerBiEmbedUrl));
+  }
+
+  private loadCatalogs(): void {
+    this.svc.getFilterCatalogs().subscribe({
+      next: ({ statuses, priorities, types }) => {
+        this.incidentStatuses.set(Array.isArray(statuses) ? statuses : []);
+        this.priorities.set(Array.isArray(priorities) ? priorities : []);
+        this.incidentTypes.set(Array.isArray(types) ? types : []);
+      },
+      error: () => {
+        this.incidentStatuses.set([]);
+        this.priorities.set([]);
+        this.incidentTypes.set([]);
+      },
+    });
   }
 
   setTab(tab: Tab): void {
@@ -109,7 +133,14 @@ export class ReportsComponent implements OnInit {
   }
 
   resetFilters(): void {
-    this.filters.reset();
+    this.filters.reset({
+      from: '',
+      to: '',
+      status: '',
+      type: '',
+      priority: '',
+      operator: '',
+    });
     this.searchText.set('');
     this.load();
   }
@@ -130,12 +161,15 @@ export class ReportsComponent implements OnInit {
   statusColor(s: string): string {
     const m: Record<string, string> = {
       Nuevo: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+      'En gestión OSEG': 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+      Reiteraciones: 'bg-red-500/20 text-red-300 border border-red-500/30',
+      'En gestión UNP': 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+      'En gestión Ponal': 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
       Asignado: 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30',
       'En camino': 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
-      'En situación': 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+      'En proceso': 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',
       Resuelto: 'bg-green-500/20 text-green-300 border border-green-500/30',
       Cerrado: 'bg-gray-500/20 text-gray-300 border border-gray-500/30',
-      'Cerrado con solución': 'bg-teal-500/20 text-teal-300 border border-teal-500/30',
       Cancelado: 'bg-red-500/20 text-red-300 border border-red-500/30',
     };
     return m[s] ?? 'bg-gray-600/20 text-gray-300';
@@ -168,12 +202,15 @@ export class ReportsComponent implements OnInit {
     return (
       {
         Nuevo: 'bg-blue-500',
+        'En gestión OSEG': 'bg-indigo-500',
+        Reiteraciones: 'bg-red-500',
+        'En gestión UNP': 'bg-purple-500',
+        'En gestión Ponal': 'bg-orange-500',
         Asignado: 'bg-yellow-500',
         'En camino': 'bg-orange-500',
-        'En situación': 'bg-purple-500',
+        'En proceso': 'bg-cyan-500',
         Resuelto: 'bg-green-500',
         Cerrado: 'bg-gray-500',
-        'Cerrado con solución': 'bg-teal-500',
         Cancelado: 'bg-red-500',
       }[s] ?? 'bg-gray-500'
     );
