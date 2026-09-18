@@ -66,3 +66,7 @@ exports.incidentStatuses = asyncHandler(async (req, res) => {
   const agency = requireAgencyCode(req, 'Query agency es requerido');
   res.json(await giIncidentCatalog.listIncidentStatuses(agency));
 });
+
+exports.priorities = asyncHandler(async (req, res) => {
+  res.json(await giIncidentCatalog.listPriorities());
+});

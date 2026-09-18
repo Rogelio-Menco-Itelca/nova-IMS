@@ -99,7 +99,11 @@
       <!-- Filtros -->
       <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
         <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Filtros</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" [formGroup]="filters">
+        <form
+          class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3"
+          [formGroup]="filters"
+          (ngSubmit)="load()"
+        >
           <div class="flex flex-col gap-1">
             <label for="report-filter-from" class="text-xs text-gray-400">Desde</label>
             <input
@@ -126,14 +130,22 @@
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               <option value="">Todos</option>
-              <option>Nuevo</option>
-              <option>Asignado</option>
-              <option>En camino</option>
-              <option>En situación</option>
-              <option>Resuelto</option>
-              <option>Cerrado</option>
-              <option>Cerrado con solución</option>
-              <option>Cancelado</option>
+              @for (st of incidentStatuses(); track st.id) {
+                <option [value]="st.name">{{ st.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="report-filter-type" class="text-xs text-gray-400">Tipo</label>
+            <select
+              id="report-filter-type"
+              formControlName="type"
+              class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="">Todos</option>
+              @for (t of incidentTypes(); track t.id) {
+                <option [value]="t.name">{{ t.name }}</option>
+              }
             </select>
           </div>
           <div class="flex flex-col gap-1">
@@ -144,10 +156,9 @@
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               <option value="">Todas</option>
-              <option>Crítica</option>
-              <option>Alta</option>
-              <option>Media</option>
-              <option>Baja</option>
+              @for (p of priorities(); track p.id) {
+                <option [value]="p.name">{{ p.name }}</option>
+              }
             </select>
           </div>
           <div class="flex flex-col gap-1">
@@ -156,19 +167,20 @@
               id="report-filter-operator"
               type="text"
               formControlName="operator"
-              placeholder="Nombre..."
+              placeholder="ID o nombre..."
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
           <div class="flex flex-col gap-1 justify-end">
             <div class="flex gap-2">
               <button
-                (click)="load()"
+                type="submit"
                 class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors"
               >
                 Aplicar
               </button>
               <button
+                type="button"
                 (click)="resetFilters()"
                 class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-3 rounded-lg text-sm transition-colors"
               >
@@ -176,7 +188,7 @@
               </button>
             </div>
           </div>
-        </div>
+        </form>
       </div>
 
       <!-- Loading -->
@@ -403,6 +415,7 @@
               id="reports-history-search"
               type="text"
               placeholder="Buscar por ID, tipo, ubicación, operador..."
+              [value]="searchText()"
               (input)="onSearchText($event)"
               class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-full sm:w-72"
             />

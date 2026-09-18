@@ -37,7 +37,23 @@ async function listIncidentStatuses(agencyCode) {
   return sortStatusesForAgency(rows, code);
 }
 
+async function listPriorities() {
+  const [rows] = await pool.query(
+    `SELECT ID_prioridad AS id, Prioridad AS name, Descripcion AS description
+     FROM prioridades
+     ORDER BY CASE Prioridad
+       WHEN 'Crítica' THEN 1
+       WHEN 'Alta' THEN 2
+       WHEN 'Media' THEN 3
+       WHEN 'Baja' THEN 4
+       ELSE 99
+     END, Prioridad`,
+  );
+  return rows;
+}
+
 module.exports = {
   listOrigins,
   listIncidentStatuses,
+  listPriorities,
 };
