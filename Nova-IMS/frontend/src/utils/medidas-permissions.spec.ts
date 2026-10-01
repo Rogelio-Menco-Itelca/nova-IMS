@@ -12,6 +12,7 @@ import {
   requiresMedidasBeforeClose,
   getCsjStatusDisabledReason,
   statusOptionLabel,
+  isEventoPonal,
   type MedidasPermissions,
 } from './medidas-permissions';
 
@@ -212,26 +213,64 @@ describe('getMedidasPermissions — flujo CSJ', () => {
     expect(p.canSaveMedidas).toBe(false);
   });
 
-  it('En gestión Ponal: solo Extraordinario habilita medidas físicas', () => {
+  it('En gestión Ponal: muestra observaciones y no el formulario de medidas', () => {
     const p = getMedidasPermissions('En gestión Ponal', 'CSJ', extraordinarioGuardado);
-    expect(p.showMedidasBlock).toBe(true);
-    expect(p.medidasFisicas).toBe('editable');
-    expect(p.tipoEsquema).toBe('editable');
-    expect(p.observaciones).toBe('editable');
-    expect(p.canSaveMedidas).toBe(true);
+    expect(p.showPanel).toBe(true);
+    expect(p.showMedidasBlock).toBe(false);
+    expect(p.showOsegBlock).toBe(false);
+    expect(p.showCerremBlock).toBe(false);
+    expect(p.observaciones).toBe('hidden');
+    expect(p.canSaveMedidas).toBe(false);
   });
 
   it('En gestión UNP: esquema y observaciones ocultos hasta medidas', () => {
     const p = getMedidasPermissions('En gestión UNP', 'CSJ');
     expect(p.tipoEsquema).toBe('hidden');
     expect(p.observaciones).toBe('hidden');
+    expect(p.showMedidasBlock).toBe(false);
     expect(p.resolucionCerrem).toBe('editable');
+  });
+
+  it('En gestión UNP: Extraordinario guardado muestra las medidas de seguridad', () => {
+    const p = getMedidasPermissions('En gestión UNP', 'CSJ', extraordinarioGuardado);
+    expect(p.showMedidasBlock).toBe(true);
+    expect(p.medidasFisicas).toBe('editable');
+    expect(p.tipoEsquema).toBe('editable');
+    expect(p.observaciones).toBe('editable');
+    expect(p.canSaveMedidas).toBe(true);
+    expect(p.nivelRiesgo).toBe('editable');
+  });
+
+  it('En gestión UNP: Ordinario mantiene ocultas las medidas', () => {
+    const p = getMedidasPermissions('En gestión UNP', 'CSJ', ordinarioGuardado);
+    expect(p.showMedidasBlock).toBe(false);
+    expect(p.canSaveMedidas).toBe(false);
+    expect(p.medidasFisicas).toBe('hidden');
+  });
+
+  it('Reiteraciones: no muestra el formulario de medidas', () => {
+    const p = getMedidasPermissions('Reiteraciones', 'CSJ', extraordinarioGuardado);
+    expect(p.showMedidasBlock).toBe(false);
+    expect(p.canSaveMedidas).toBe(false);
   });
 
   it('En gestión Ponal: Ordinario no habilita medidas físicas', () => {
     const p = getMedidasPermissions('En gestión Ponal', 'CSJ', ordinarioGuardado);
     expect(p.showMedidasBlock).toBe(false);
     expect(p.canSaveMedidas).toBe(false);
+  });
+});
+
+describe('isEventoPonal', () => {
+  it('acepta los dos eventos de medidas hacia Ponal', () => {
+    expect(isEventoPonal('Solicitud Medidas Seguridad Funcionarios')).toBe(true);
+    expect(isEventoPonal('Solicitud Medidas de Seguridad Sedes Judiciales')).toBe(true);
+  });
+
+  it('rechaza estudio de riesgo y reiteración', () => {
+    expect(isEventoPonal('Solicitud Estudio Nivel de Riesgo')).toBe(false);
+    expect(isEventoPonal('Reiteración Estudio Nivel de Riesgo')).toBe(false);
+    expect(isEventoPonal('')).toBe(false);
   });
 });
 

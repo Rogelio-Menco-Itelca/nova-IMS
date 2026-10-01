@@ -207,6 +207,7 @@ async function upsertGestion(visibleId, body, user) {
   const tipoEsquema = pickText(body.tipo_esquema, prev?.tipo_esquema);
   const compartidoCon = pickText(body.compartido_con, prev?.compartido_con);
   const observaciones = pickText(body.observaciones, prev?.observaciones);
+  const observacionesPonal = pickText(body.observaciones_ponal, prev?.observaciones_ponal)?.slice(0, 500) ?? null;
 
   assertCerremDatesOrder(fechaCerrem, fechaResolucion);
 
@@ -216,7 +217,8 @@ async function upsertGestion(visibleId, body, user) {
          servidor_judicial = ?, cedula = ?, cargo = ?,
          codigo_oficio = ?, tramite_destino = ?,
          fecha_cerrem = ?, resolucion_cerrem = ?, fecha_resolucion = ?,
-         ID_riesgo = ?, tipo_esquema = ?, compartido_con = ?, observaciones = ?
+         ID_riesgo = ?, tipo_esquema = ?, compartido_con = ?,
+         observaciones = ?, observaciones_ponal = ?
        WHERE ID_gestion = ?`,
       [
         servidorJudicial,
@@ -231,6 +233,7 @@ async function upsertGestion(visibleId, body, user) {
         tipoEsquema,
         compartidoCon,
         observaciones,
+        observacionesPonal,
         prev.ID_gestion,
       ],
     );
@@ -243,8 +246,8 @@ async function upsertGestion(visibleId, body, user) {
        (ID_incidente, ID_Agencia, servidor_judicial, cedula, cargo,
         codigo_oficio, tramite_destino, fecha_cerrem, resolucion_cerrem,
         fecha_resolucion, ID_riesgo, tipo_esquema, compartido_con,
-        observaciones, ID_usuario_registro)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        observaciones, observaciones_ponal, ID_usuario_registro)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       incidenteId,
       agency,
@@ -260,6 +263,7 @@ async function upsertGestion(visibleId, body, user) {
       tipoEsquema,
       compartidoCon,
       observaciones,
+      observacionesPonal,
       userId,
     ],
   );
@@ -421,6 +425,7 @@ function buildGestionAuditDetails(before, after) {
     ['nivel_riesgo', 'Nivel de riesgo'],
     ['fecha_cerrem', 'Fecha CERREM'],
     ['fecha_resolucion', 'Fecha resolución'],
+    ['observaciones_ponal', 'Observaciones Ponal'],
   ];
   const details = [];
   for (const [key, label] of fields) {

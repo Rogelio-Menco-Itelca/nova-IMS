@@ -99,6 +99,7 @@ interface IncidentHistoryGestion {
   fecha_cerrem?: string | null;
   fecha_resolucion?: string | null;
   observaciones?: string | null;
+  observaciones_ponal?: string | null;
   compartido_con?: string | null;
 }
 
@@ -1444,6 +1445,7 @@ export class AdminComponent implements OnInit, AfterViewInit, OnDestroy {
       gestion.fecha_cerrem,
       gestion.fecha_resolucion,
       gestion.observaciones,
+      gestion.observaciones_ponal,
       gestion.compartido_con,
     ].some((v) => String(v ?? '').trim());
   }

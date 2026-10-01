@@ -42,6 +42,7 @@ import {
   type InvolvedPerson,
 } from '../../models/incident.model';
 import { isFechaCerremAfterResolucion } from '../../utils/cerrem-follow-up';
+import { isRiesgoExtraordinario } from '../../utils/riesgo-nivel';
 
 interface TipoMedida {
   id: number;
@@ -72,6 +73,7 @@ interface Gestion {
   tipo_esquema: 'Individual' | 'Colectivo' | null;
   compartido_con: string;
   observaciones: string;
+  observaciones_ponal: string;
 }
 
 interface Solicitud {
@@ -424,7 +426,7 @@ interface ModuloMensaje {
                   <select
                     id="medidas-nivel-riesgo"
                     [(ngModel)]="form.ID_riesgo"
-                    (ngModelChange)="onDraftChange()"
+                    (ngModelChange)="onNivelRiesgoChange($event)"
                     [disabled]="!isCerremFieldEditable('nivelRiesgo')"
                     class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                   >
@@ -492,6 +494,7 @@ interface ModuloMensaje {
 
         @if (permissions().showMedidasBlock) {
           <div
+            id="medidas-asignadas-block"
             class="bg-gray-800 rounded-lg p-4 border border-gray-700"
             [class.opacity-95]="medidasGuardadas() && !medidasEditMode()"
           >
@@ -659,6 +662,41 @@ interface ModuloMensaje {
             }
           </div>
         }
+
+        @if (showPonalObservaciones()) {
+          <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h3 class="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider mb-4">
+              Observaciones
+            </h3>
+            <label for="ponal-observaciones" class="text-xs text-gray-400 uppercase tracking-wider">
+              Observaciones
+            </label>
+            <textarea
+              id="ponal-observaciones"
+              [(ngModel)]="form.observaciones_ponal"
+              (ngModelChange)="onDraftChange()"
+              rows="3"
+              maxlength="500"
+              class="mt-1 w-full bg-gray-900 border border-gray-600 text-white rounded-md px-3 py-2 text-sm"
+            ></textarea>
+            <div class="mt-4 pt-4 border-t border-gray-700 flex items-center justify-end gap-3 flex-wrap">
+              @if (mensajeMedidas(); as m) {
+                <span
+                  class="text-xs"
+                  [class.text-green-400]="m.tipo === 'ok'"
+                  [class.text-red-400]="m.tipo === 'error'"
+                >{{ m.texto }}</span>
+              }
+              <button
+                type="button"
+                (click)="guardarObservacionPonal()"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        }
       }
 
     </div>
@@ -695,6 +733,23 @@ export class MedidasComponent implements OnInit, OnChanges {
   solicitud = signal<Solicitud | null>(null);
 
   gestionSnapshot = signal<Partial<Gestion> | null>(null);
+  private readonly draftRiesgoId = signal<number | null>(null);
+  private revealMedidasAfterSave = false;
+
+  private readonly effectiveGestion = computed(() => {
+    const saved = this.gestionSnapshot();
+    const draftId = this.draftRiesgoId();
+    const riesgoId = draftId ?? saved?.ID_riesgo ?? null;
+    if (riesgoId == null && !saved) return null;
+    const catalogName = this.riesgos().find((r) => r.id === Number(riesgoId))?.nombre ?? null;
+    const savedId = saved?.ID_riesgo ?? null;
+    const draftDiffers = draftId != null && Number(draftId) !== Number(savedId);
+    return {
+      ...(saved ?? {}),
+      ID_riesgo: riesgoId,
+      nivel_riesgo: catalogName ?? (draftDiffers ? null : (saved?.nivel_riesgo ?? null)),
+    };
+  });
 
   permissions = computed(() => {
     const status = this.workflowStatusSig();
@@ -705,7 +760,7 @@ export class MedidasComponent implements OnInit, OnChanges {
         this.medidasSeleccionadas().length,
       );
     }
-    return getMedidasPermissions(status, agency, this.gestionSnapshot());
+    return getMedidasPermissions(status, agency, this.effectiveGestion());
   });
   closedReviewEmpty = computed(
     () =>
@@ -714,7 +769,10 @@ export class MedidasComponent implements OnInit, OnChanges {
       !this.permissions().showCerremBlock &&
       !this.permissions().showMedidasBlock,
   );
-  hint = computed(() => medidasTabHint(this.workflowStatusSig(), this.gestionSnapshot()));
+  hint = computed(() => medidasTabHint(this.workflowStatusSig(), this.effectiveGestion()));
+  showPonalObservaciones = computed(
+    () => catalogStatusToUiStatus(this.workflowStatusSig()) === 'En gestión Ponal',
+  );
   uiStatus = computed(() => catalogStatusToUiStatus(this.workflowStatusSig()));
   isNuevoLocked = computed(() =>
     isNuevoLockedMedidasPanel(this.workflowStatusSig(), this.agencySig()),
@@ -747,11 +805,17 @@ export class MedidasComponent implements OnInit, OnChanges {
     if (ui === 'En gestión OSEG' && this.osegGuardada() && !this.osegEditMode()) {
       return 'Gestión OSEG guardada. Pulse «Editar» al final del módulo para modificar.';
     }
+    if (this.permissions().showMedidasBlock) {
+      if (this.medidasEditMode()) {
+        return 'Ajuste las medidas de seguridad y pulse «Guardar».';
+      }
+      if (this.medidasGuardadas()) {
+        return 'Medidas de seguridad asignadas. Pulse «Editar» al final del módulo para agregar o cambiar medidas.';
+      }
+      return 'Asigne las medidas de seguridad y pulse «Guardar». También queda registrada la gestión UNP.';
+    }
     if (this.cerremGuardada() && !this.cerremEditMode() && this.permissions().showCerremBlock) {
       return 'Gestión UNP guardada. Pulse «Editar» al final del módulo para modificar.';
-    }
-    if (this.medidasGuardadas() && !this.medidasEditMode() && this.permissions().showMedidasBlock) {
-      return 'En gestión Ponal. Pulse «Editar» al final del módulo para agregar o cambiar medidas.';
     }
     if (isClosedWorkflowStatus(this.workflowStatus)) {
       const stages = describeClosedReviewStages(
@@ -775,6 +839,7 @@ export class MedidasComponent implements OnInit, OnChanges {
     tipo_esquema: null,
     compartido_con: '',
     observaciones: '',
+    observaciones_ponal: '',
   };
 
   readonly tramiteDestinoOpciones = ['Policia', 'Unp', 'Regimen Judicial'] as const;
@@ -839,9 +904,11 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.form.resolucion_cerrem = this.draftBaseline.resolucion_cerrem;
     this.form.fecha_resolucion = this.draftBaseline.fecha_resolucion;
     this.form.ID_riesgo = (this.draftBaseline.ID_riesgo ?? null) as unknown as number;
+    this.syncDraftRiesgo();
     this.form.tipo_esquema = this.draftBaseline.tipo_esquema as Gestion['tipo_esquema'];
     this.form.compartido_con = this.draftBaseline.compartido_con;
     this.form.observaciones = this.draftBaseline.observaciones;
+    this.form.observaciones_ponal = this.draftBaseline.observaciones_ponal;
     this.medidasSeleccionadas.set(
       this.draftBaseline.medidas.map((m) => {
         const tipo = this.tiposMedida().find((t) => t.id === m.ID_tipo_medida);
@@ -875,7 +942,12 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.medidasEditMode.set(true);
     }
 
-    for (const section of sections) {
+    const ordered = sections.filter(
+      (section) =>
+        !(section === 'cerrem' && this.unpMedidasUnificadas() && sections.includes('medidas')),
+    );
+
+    for (const section of ordered) {
       const ok = await this.savePendingSection(section);
       if (!ok) return false;
     }
@@ -883,9 +955,10 @@ export class MedidasComponent implements OnInit, OnChanges {
     return true;
   }
 
-  private async savePendingSection(section: 'oseg' | 'cerrem' | 'medidas'): Promise<boolean> {
+  private async savePendingSection(section: 'oseg' | 'cerrem' | 'medidas' | 'ponal'): Promise<boolean> {
     if (section === 'oseg') return this.savePendingOsegSection();
     if (section === 'cerrem') return this.savePendingCerremSection();
+    if (section === 'ponal') return this.guardarObservacionPonal();
     return this.guardarMedidasAsync();
   }
 
@@ -919,8 +992,36 @@ export class MedidasComponent implements OnInit, OnChanges {
     );
   }
 
+  onNivelRiesgoChange(id: number | null): void {
+    const wasVisible = this.permissions().showMedidasBlock;
+    this.form.ID_riesgo = (id ?? null) as unknown as number;
+    this.syncDraftRiesgo();
+    this.notifyPendingChanges();
+    if (!wasVisible && this.permissions().showMedidasBlock) {
+      setTimeout(() => {
+        document.getElementById('medidas-asignadas-block')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }, 0);
+    }
+  }
+
   onDraftChange(): void {
     this.notifyPendingChanges();
+  }
+
+  private syncDraftRiesgo(): void {
+    const raw = this.form.ID_riesgo as number | null | undefined;
+    const id = raw == null || Number(raw) === 0 || Number.isNaN(Number(raw)) ? null : Number(raw);
+    this.draftRiesgoId.set(id);
+  }
+
+  private unpMedidasUnificadas(): boolean {
+    return (
+      catalogStatusToUiStatus(this.workflowStatus) === 'En gestión UNP' &&
+      isRiesgoExtraordinario(this.effectiveGestion())
+    );
   }
 
   private notifyPendingChanges(): void {
@@ -934,12 +1035,14 @@ export class MedidasComponent implements OnInit, OnChanges {
       osegGuardada: this.osegGuardada(),
       osegEditMode: this.osegEditMode(),
       cerremGuardada: this.cerremGuardada(),
-      cerremEditMode: this.cerremEditMode(),
+      cerremEditMode:
+        this.cerremEditMode() || (this.unpMedidasUnificadas() && this.isMedidasEditable()),
       medidasGuardadas: this.medidasGuardadas(),
       medidasEditMode: this.medidasEditMode(),
       showOsegBlock: permissions.showOsegBlock,
       showCerremBlock: permissions.showCerremBlock,
       showMedidasBlock: permissions.showMedidasBlock,
+      showPonalObservaciones: this.showPonalObservaciones(),
     };
   }
 
@@ -966,6 +1069,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   }
 
   showCerremAccion(): boolean {
+    if (this.unpMedidasUnificadas()) return false;
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (!this.permissions().showCerremBlock) return false;
     if (this.cerremGuardada()) return true;
@@ -998,6 +1102,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   isCerremFieldEditable(key: keyof MedidasPermissions): boolean {
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (!this.cerremFieldKeys.includes(key)) return this.fieldEditable(key);
+    if (this.unpMedidasUnificadas()) return this.isMedidasEditable();
     if (this.cerremGuardada() && !this.cerremEditMode()) return false;
     if (this.cerremEditMode()) return true;
     if (this.permissions()[key] === 'editable') return true;
@@ -1030,6 +1135,7 @@ export class MedidasComponent implements OnInit, OnChanges {
   accionMedidas(): void {
     if (this.medidasGuardadas() && !this.medidasEditMode()) {
       this.medidasEditMode.set(true);
+      if (this.unpMedidasUnificadas()) this.cerremEditMode.set(true);
       return;
     }
     this.guardarMedidas();
@@ -1097,6 +1203,7 @@ export class MedidasComponent implements OnInit, OnChanges {
       tipo_esquema: null,
       compartido_con: '',
       observaciones: '',
+      observaciones_ponal: '',
     };
     this.osegGuardada.set(false);
     this.osegEditMode.set(false);
@@ -1107,6 +1214,28 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.form.servidor_judicial = solicitud.servidor_judicial;
     this.form.cedula = solicitud.cedula;
     this.form.cargo = solicitud.cargo;
+  }
+
+  private markMedidasRevealIfExtraordinarioGuardado(): void {
+    const nombre = this.riesgos().find((r) => r.id === Number(this.form.ID_riesgo))?.nombre ?? null;
+    this.revealMedidasAfterSave =
+      catalogStatusToUiStatus(this.workflowStatus) === 'En gestión UNP' &&
+      isRiesgoExtraordinario({
+        ID_riesgo: this.form.ID_riesgo,
+        nivel_riesgo: nombre,
+      });
+  }
+
+  private scrollMedidasIfJustSaved(): void {
+    if (!this.revealMedidasAfterSave) return;
+    this.revealMedidasAfterSave = false;
+    if (!this.permissions().showMedidasBlock) return;
+    setTimeout(() => {
+      document.getElementById('medidas-asignadas-block')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 0);
   }
 
   private applyLoadedGestion(
@@ -1122,6 +1251,8 @@ export class MedidasComponent implements OnInit, OnChanges {
         ...gestion,
         fecha_cerrem: this.toDateInput(gestion.fecha_cerrem),
         fecha_resolucion: this.toDateInput(gestion.fecha_resolucion),
+        observaciones: gestion.observaciones ?? '',
+        observaciones_ponal: gestion.observaciones_ponal ?? '',
       };
       this.osegGuardada.set(this.isOsegPersistida(gestion));
       this.cerremGuardada.set(this.isCerremPersistida(gestion));
@@ -1145,7 +1276,9 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.medidasEditMode.set(false);
     this.cerremEditMode.set(false);
     this.osegEditMode.set(false);
+    this.syncDraftRiesgo();
     this.captureDraftBaseline();
+    this.scrollMedidasIfJustSaved();
   }
 
   private toDateInput(value: string | null | undefined): string {
@@ -1269,19 +1402,26 @@ export class MedidasComponent implements OnInit, OnChanges {
     successMsg: string,
     afterSuccess?: () => void,
     soloCerrem = false,
+    reload = true,
+    soloPonal = false,
   ): Promise<boolean> {
-    const payload = soloCerrem
+    const payload = soloPonal
       ? {
-          fecha_cerrem: this.form.fecha_cerrem,
-          resolucion_cerrem: this.form.resolucion_cerrem,
-          fecha_resolucion: this.form.fecha_resolucion,
-          ID_riesgo: this.form.ID_riesgo,
+          observaciones_ponal: this.form.observaciones_ponal,
           workflowStatus: this.workflowStatus,
         }
-      : {
-          ...this.form,
-          workflowStatus: this.workflowStatus,
-        };
+      : soloCerrem
+        ? {
+            fecha_cerrem: this.form.fecha_cerrem,
+            resolucion_cerrem: this.form.resolucion_cerrem,
+            fecha_resolucion: this.form.fecha_resolucion,
+            ID_riesgo: this.form.ID_riesgo,
+            workflowStatus: this.workflowStatus,
+          }
+        : {
+            ...this.form,
+            workflowStatus: this.workflowStatus,
+          };
     try {
       await firstValueFrom(
         this.http.post(`/api/incidents/${this.incidentId}/gestion`, payload),
@@ -1289,11 +1429,13 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.osegGuardada.set(this.isOsegPersistida(this.form));
       this.cerremGuardada.set(this.isCerremPersistida(this.form));
       afterSuccess?.();
-      this.captureDraftBaseline();
-      this.showMensaje(modulo, successMsg, 'ok');
-      this.loadGestion();
       this.refreshAuditHistory();
       this.gestionUpdated.emit();
+      if (!reload) return true;
+      this.captureDraftBaseline();
+      if (successMsg) this.showMensaje(modulo, successMsg, 'ok');
+      if (soloCerrem) this.markMedidasRevealIfExtraordinarioGuardado();
+      this.loadGestion();
       return true;
     } catch (err: unknown) {
       const e = err as { error?: { error?: { message?: string }; message?: string } };
@@ -1323,9 +1465,37 @@ export class MedidasComponent implements OnInit, OnChanges {
     this.guardarMedidasAsync();
   }
 
+  guardarObservacionPonal(): Promise<boolean> {
+    return this.postGestionAsync(
+      'medidas',
+      this.form.observaciones_ponal?.trim()
+        ? 'Observaciones guardadas'
+        : 'Observaciones actualizadas',
+      undefined,
+      false,
+      true,
+      true,
+    );
+  }
+
   private async guardarMedidasAsync(): Promise<boolean> {
     if (isClosedWorkflowStatus(this.workflowStatus)) return false;
     if (this.medidasGuardadas() && !this.medidasEditMode()) return true;
+    if (this.unpMedidasUnificadas()) {
+      const error = this.cerremGuardarError();
+      if (error) {
+        this.showMensaje('medidas', error, 'error');
+        return false;
+      }
+      const gestionOk = await this.postGestionAsync(
+        'medidas',
+        '',
+        () => this.cerremEditMode.set(false),
+        true,
+        false,
+      );
+      if (!gestionOk) return false;
+    }
     try {
       await firstValueFrom(
         this.http.post(`/api/incidents/${this.incidentId}/medidas`, {
@@ -1343,13 +1513,16 @@ export class MedidasComponent implements OnInit, OnChanges {
       this.medidasGuardadas.set(this.medidasSeleccionadas().length > 0);
       const saveDelta = this.describeSavedMedidasDelta();
       this.captureDraftBaseline();
+      const unificada = this.unpMedidasUnificadas();
       this.showMensaje(
         'medidas',
         saveDelta
           ? `Medidas guardadas: ${saveDelta}`
-          : this.medidasGuardadas()
-            ? 'Medidas actualizadas correctamente'
-            : 'Medidas asignadas correctamente',
+          : unificada
+            ? 'Gestión UNP y medidas de seguridad guardadas correctamente'
+            : this.medidasGuardadas()
+              ? 'Medidas actualizadas correctamente'
+              : 'Medidas asignadas correctamente',
         'ok',
       );
       this.loadGestion();

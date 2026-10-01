@@ -467,6 +467,7 @@ function formatGestionCerremText(gestion) {
     }
   }
   if (gestion.observaciones) lines.push(`Observaciones: ${gestion.observaciones}`);
+  if (gestion.observaciones_ponal) lines.push(`Observaciones Ponal: ${gestion.observaciones_ponal}`);
   return lines.join('\n');
 }
 

@@ -163,7 +163,36 @@ export function getMedidasPermissions(
         canSaveMedidas: false,
       };
 
-    case 'En gestión UNP':
+    case 'En gestión UNP': {
+      const unp: MedidasPermissions = {
+        showPanel: true,
+        showOsegBlock: true,
+        showCerremBlock: true,
+        showMedidasBlock: false,
+        servidorJudicial: 'readonly',
+        oficioTramite: 'readonly',
+        tramiteDestino: 'readonly',
+        fechaCerrem: 'editable',
+        resolucionCerrem: 'editable',
+        fechaResolucion: 'editable',
+        nivelRiesgo: 'editable',
+        tipoEsquema: 'hidden',
+        observaciones: 'hidden',
+        medidasFisicas: 'hidden',
+        canSaveGestion: true,
+        canSaveMedidas: false,
+      };
+      if (!isRiesgoExtraordinario(gestion)) return unp;
+      return {
+        ...unp,
+        showMedidasBlock: true,
+        tipoEsquema: 'editable',
+        observaciones: 'editable',
+        medidasFisicas: 'editable',
+        canSaveMedidas: true,
+      };
+    }
+
     case 'Reiteraciones':
       return {
         showPanel: true,
@@ -185,43 +214,23 @@ export function getMedidasPermissions(
       };
 
     case 'En gestión Ponal':
-      if (!isRiesgoExtraordinario(gestion)) {
-        return {
-          showPanel: true,
-          showOsegBlock: true,
-          showCerremBlock: true,
-          showMedidasBlock: false,
-          servidorJudicial: 'readonly',
-          oficioTramite: 'readonly',
-          tramiteDestino: 'readonly',
-          fechaCerrem: 'readonly',
-          resolucionCerrem: 'readonly',
-          fechaResolucion: 'readonly',
-          nivelRiesgo: 'readonly',
-          tipoEsquema: 'hidden',
-          observaciones: 'hidden',
-          medidasFisicas: 'hidden',
-          canSaveGestion: false,
-          canSaveMedidas: false,
-        };
-      }
       return {
         showPanel: true,
-        showOsegBlock: true,
-        showCerremBlock: true,
-        showMedidasBlock: true,
-        servidorJudicial: 'readonly',
-        oficioTramite: 'readonly',
-        tramiteDestino: 'readonly',
-        fechaCerrem: 'readonly',
-        resolucionCerrem: 'readonly',
-        fechaResolucion: 'readonly',
-        nivelRiesgo: 'readonly',
-        tipoEsquema: 'editable',
-        observaciones: 'editable',
-        medidasFisicas: 'editable',
-        canSaveGestion: false,
-        canSaveMedidas: true,
+        showOsegBlock: false,
+        showCerremBlock: false,
+        showMedidasBlock: false,
+        servidorJudicial: 'hidden',
+        oficioTramite: 'hidden',
+        tramiteDestino: 'hidden',
+        fechaCerrem: 'hidden',
+        resolucionCerrem: 'hidden',
+        fechaResolucion: 'hidden',
+        nivelRiesgo: 'hidden',
+        tipoEsquema: 'hidden',
+        observaciones: 'hidden',
+        medidasFisicas: 'hidden',
+        canSaveGestion: true,
+        canSaveMedidas: false,
       };
 
     case 'Cerrado':
@@ -312,7 +321,7 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
       return 'Escriba el código de oficio trámite y seleccione el trámite/destino (Policía, UNP o Régimen Judicial).';
     case 'En gestión UNP':
       if (isRiesgoExtraordinario(gestion)) {
-        return 'Riesgo Extraordinario: registre la gestión UNP, pase a «En gestión Ponal» y asigne medidas antes de cerrar.';
+        return 'Extraordinario: asigne las medidas de seguridad y pulse «Guardar». Ese botón también registra la gestión UNP.';
       }
       if (isRiesgoOrdinario(gestion)) {
         return 'Riesgo Ordinario: registre la gestión UNP y cierre el incidente en «Cerrado» sin medidas de seguridad.';
@@ -321,7 +330,7 @@ export function medidasTabHint(status: string, gestion?: GestionSnapshot | null)
     case 'Reiteraciones':
       return 'Extraordinario en reiteración: redacte el comentario en «Agregar comentario» y pulse «Actualizar incidente» para guardar.';
     case 'En gestión Ponal':
-      return 'Asigne al menos una medida de seguridad y pulse «Guardar» en el módulo Medidas antes de actualizar el incidente.';
+      return 'Registre observaciones si lo considera.';
     case 'Cerrado':
     case 'Cancelado':
       return 'Historial del caso. Solo se muestran las etapas que quedaron registradas antes del cierre.';
@@ -403,4 +412,18 @@ export function medidasPanelLockedMessage(status: string, agency = 'CSJ'): strin
   }
 
   return `Estado «${ui}». Esta pestaña se habilita desde «En gestión OSEG» en adelante.`;
+}
+
+function normalizeEvento(value: string | null | undefined): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+export function isEventoPonal(eventName: string | null | undefined): boolean {
+  const name = normalizeEvento(eventName);
+  if (!name.includes('medidas')) return false;
+  return name.includes('funcionario') || name.includes('sede');
 }

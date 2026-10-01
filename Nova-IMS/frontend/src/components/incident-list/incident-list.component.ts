@@ -55,6 +55,7 @@ import {
   getCsjStatusDisabledReason,
   statusOptionLabel,
   isCsjLegacyEnviadoCerremStatus,
+  isEventoPonal,
   type GestionSnapshot,
 } from '../../utils/medidas-permissions';
 import { Subscription, of, firstValueFrom } from 'rxjs';
@@ -2242,6 +2243,8 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       this.statusNameForForm(String(this.activeIncident()?.status ?? '').trim());
     if (name === effectiveCurrent) return true;
 
+    if (this.ponalBlockedByEvent(name)) return false;
+
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
     if (
       isCsjMedidasWorkflow(agency) &&
@@ -2304,6 +2307,9 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   statusOptionLabel(catalogName: string): string {
+    if (this.ponalBlockedByEvent(catalogName)) {
+      return `${catalogStatusToUiStatus(catalogName)} (no aplica por tipo de evento)`;
+    }
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
     if (!isCsjMedidasWorkflow(agency) || this.activeTabId() === 'new') {
       return this.statusLabel(catalogName);
@@ -2317,6 +2323,13 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   statusDisabledReason(catalogName: string): string {
+    if (
+      this.ponalBlockedByEvent(catalogName) &&
+      catalogStatusToUiStatus(catalogName) !==
+        catalogStatusToUiStatus(String(this.incidentForm.get('status')?.value ?? '').trim())
+    ) {
+      return '«En gestión Ponal» solo está disponible para solicitudes de medidas de seguridad de funcionarios o de sedes judiciales.';
+    }
     const agency = this.authService.currentUser()?.agency ?? 'CSJ';
     if (!isCsjMedidasWorkflow(agency) || this.activeTabId() === 'new') return '';
     return (
@@ -2393,6 +2406,19 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     const list = this.incidentStatuses();
     if (list.some((s) => s.name === 'Nuevo')) return 'Nuevo';
     return list[0]?.name ?? '';
+  }
+
+  private currentEventName(): string {
+    return String(
+      this.incidentForm.get('event_id')?.value ?? this.activeIncident()?.type ?? '',
+    ).trim();
+  }
+
+  private ponalBlockedByEvent(catalogName: string): boolean {
+    if (catalogStatusToUiStatus(catalogName) !== 'En gestión Ponal') return false;
+    const agency = this.authService.currentUser()?.agency ?? 'CSJ';
+    if (!isCsjMedidasWorkflow(agency)) return false;
+    return !isEventoPonal(this.currentEventName());
   }
 
   private defaultStatusName(): string {
@@ -3882,7 +3908,6 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
     gestion?: GestionSnapshot | null,
   ): boolean {
     const ui = catalogStatusToUiStatus(String(statusValue ?? '').trim());
-    if (ui === 'En gestión Ponal') return true;
     if (ui === 'Cerrado') return requiresMedidasBeforeClose(gestion);
     return false;
   }
@@ -3917,63 +3942,15 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onMedidasAsignadasGuardadas(incidentId: string, saveDelta?: string): void {
     this.refreshWorkflowGestion(incidentId);
-    this.hasAssignedMedidas(incidentId).subscribe({
-      next: ({ medidas }) => {
-        if (!medidas?.length) return;
-
-        const savedStatus = catalogStatusToUiStatus(
-          String(this.activeIncident()?.status ?? '').trim(),
-        );
-
-        if (savedStatus === 'En gestión Ponal') {
-          this.notificationService.addNotification(
-            'Medidas guardadas',
-            this.medidasSavedNotificationMessage(
-              incidentId,
-              'Las medidas quedaron registradas. El incidente ya está en «En gestión Ponal».',
-              saveDelta,
-            ),
-          );
-          this.cdr.markForCheck();
-          return;
-        }
-
-        const targetName = this.statusNameForForm('En gestión Ponal');
-        if (!targetName || !this.isStatusAllowed(targetName)) {
-          this.notificationService.addNotification(
-            'Medidas guardadas',
-            this.medidasSavedNotificationMessage(
-              incidentId,
-              'Seleccione «En gestión Ponal» en Detalle y pulse «Actualizar incidente».',
-              saveDelta,
-            ),
-          );
-          this.cdr.markForCheck();
-          return;
-        }
-
-        this.incidentForm.get('status')?.setValue(targetName);
-        this.incidentForm.markAsDirty();
-        this.syncLastValidStatus();
-        this.detailTab.set('detalle');
-        this.notificationService.addNotification(
-          'Medidas guardadas',
-          this.medidasSavedNotificationMessage(
-            incidentId,
-            'Se preseleccionó «En gestión Ponal». Pulse «Actualizar incidente» para registrar el estado.',
-            saveDelta,
-          ),
-        );
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.notificationService.addNotification(
-          'Medidas guardadas',
-          'Revise el estado en Detalle y pulse «Actualizar incidente» si aún no está en «En gestión Ponal».',
-        );
-        this.cdr.markForCheck();
-      },
-    });
+    this.notificationService.addNotification(
+      'Medidas guardadas',
+      this.medidasSavedNotificationMessage(
+        incidentId,
+        'Las medidas de seguridad quedaron registradas en la gestión UNP.',
+        saveDelta,
+      ),
+    );
+    this.cdr.markForCheck();
   }
 
   private hasAssignedMedidas(incidentId: string) {
@@ -4598,6 +4575,17 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    if (isCsjMedidasWorkflow(agency) && targetStatus === 'En gestión Ponal' && !isEventoPonal(this.currentEventName())) {
+      this.detailTab.set('detalle');
+      this.notificationService.addNotification(
+        'Estado no permitido',
+        '«En gestión Ponal» solo está disponible para solicitudes de medidas de seguridad de funcionarios o de sedes judiciales.',
+      );
+      this.abortLeaveAfterSave();
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (isCsjMedidasWorkflow(agency)) {
       this.hasAssignedMedidas(incidentId).subscribe({
         next: ({ gestion, medidas }) => {
@@ -4621,7 +4609,7 @@ export class IncidentListComponent implements OnInit, AfterViewInit, OnDestroy {
               'No se puede guardar',
               targetStatus === 'Cerrado'
                 ? 'Riesgo Extraordinario: asigne al menos una medida de seguridad antes de cerrar.'
-                : 'Debe asignar al menos una medida de seguridad antes de actualizar el incidente.',
+                : 'Complete la información en la pestaña Medidas antes de actualizar el incidente.',
             );
             this.abortLeaveAfterSave();
             this.cdr.markForCheck();

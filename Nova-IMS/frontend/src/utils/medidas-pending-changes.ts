@@ -8,6 +8,7 @@ export interface MedidasDraftSnapshot {
   tipo_esquema: string | null;
   compartido_con: string;
   observaciones: string;
+  observaciones_ponal: string;
   medidas: {
     ID_tipo_medida: number;
     cantidad: number;
@@ -26,6 +27,7 @@ export interface MedidasPendingContext {
   showOsegBlock: boolean;
   showCerremBlock: boolean;
   showMedidasBlock: boolean;
+  showPonalObservaciones?: boolean;
 }
 
 function norm(value: unknown): string {
@@ -51,6 +53,7 @@ export function snapshotMedidasDraft(
     tipo_esquema?: string | null;
     compartido_con?: string | null;
     observaciones?: string | null;
+    observaciones_ponal?: string | null;
   },
   medidas: {
     ID_tipo_medida: number;
@@ -68,6 +71,7 @@ export function snapshotMedidasDraft(
     tipo_esquema: form.tipo_esquema ? String(form.tipo_esquema) : null,
     compartido_con: norm(form.compartido_con),
     observaciones: norm(form.observaciones),
+    observaciones_ponal: norm(form.observaciones_ponal),
     medidas: [...medidas]
       .map((m) => ({
         ID_tipo_medida: m.ID_tipo_medida,
@@ -114,12 +118,13 @@ export function hasMedidasPanelPendingChanges(
   return pendingMedidasSections(current, baseline, ctx).length > 0;
 }
 
-export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas';
+export type MedidasPendingSection = 'oseg' | 'cerrem' | 'medidas' | 'ponal';
 
 export const MEDIDAS_PENDING_SECTION_LABELS: Record<MedidasPendingSection, string> = {
   oseg: 'Gestión OSEG (oficio / trámite)',
   cerrem: 'En gestión UNP',
   medidas: 'Medidas de protección',
+  ponal: 'Observaciones',
 };
 
 type MedidaEntry = MedidasDraftSnapshot['medidas'][number];
@@ -200,6 +205,12 @@ export function pendingMedidasSections(
   const medidasChanged = medidasListChanged(current, baseline) || medidasMetaChanged(current, baseline);
   if (medidasChanged && ctx.showMedidasBlock) {
     sections.push('medidas');
+  }
+  if (
+    ctx.showPonalObservaciones &&
+    current.observaciones_ponal !== baseline.observaciones_ponal
+  ) {
+    sections.push('ponal');
   }
   return sections;
 }
