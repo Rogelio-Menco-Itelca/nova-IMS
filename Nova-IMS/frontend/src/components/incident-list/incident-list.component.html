@@ -104,6 +104,8 @@
         <form
           [formGroup]="incidentForm"
           (ngSubmit)="onIncidentFormSubmit()"
+          (input)="onIncidentFieldEdited($event)"
+          (change)="onIncidentFieldEdited($event)"
         >
           <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-3">
             <h3 class="flex items-center gap-2 text-xl font-bold text-white">
@@ -520,9 +522,9 @@
                       class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"
                       [class.incident-select--placeholder]="selectShowsPlaceholder('departmentId')"
                     >
-                      <option [ngValue]="null">Seleccione departamento…</option>
+                      <option value="">Seleccione departamento…</option>
                       @for (dept of departments(); track dept.id) {
-                        <option [ngValue]="dept.id">{{ dept.name }}</option>
+                        <option [value]="dept.id">{{ dept.name }}</option>
                       }
                     </select>
                   </div>
@@ -539,7 +541,7 @@
                       class="incident-select w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       [class.incident-select--placeholder]="selectShowsPlaceholder('municipalityId')"
                     >
-                      <option [ngValue]="null">
+                      <option value="">
                         @if (!incidentForm.get('departmentId')?.value) {
                           Seleccione primero un departamento
                         } @else {
@@ -547,7 +549,7 @@
                         }
                       </option>
                       @for (mun of incidentMunicipalities(); track mun.id) {
-                        <option [ngValue]="mun.id">{{ mun.name }}</option>
+                        <option [value]="mun.id">{{ mun.name }}</option>
                       }
                     </select>
                     @if (
@@ -888,9 +890,9 @@
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'genderId')"
                           [class.border-red-500]="personRequiredError($index, 'genderId')"
                         >
-                          <option [ngValue]="null">Seleccione Género</option>
+                          <option value="">Seleccione Género</option>
                           @for (g of genders(); track g.id) {
-                            <option [ngValue]="g.id">{{ g.name }}</option>
+                            <option [value]="g.id">{{ g.name }}</option>
                           }
                         </select>
                         @if (personRequiredError($index, 'genderId')) {
@@ -911,9 +913,9 @@
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'roleId')"
                           [class.border-red-500]="personRequiredError($index, 'roleId')"
                         >
-                          <option [ngValue]="null" disabled>Seleccione Rol</option>
+                          <option value="" disabled>Seleccione Rol</option>
                           @for (role of personRoles(); track role.id) {
-                            <option [ngValue]="role.id">{{ role.name }}</option>
+                            <option [value]="role.id">{{ role.name }}</option>
                           }
                         </select>
                         @if (personRequiredError($index, 'roleId')) {
@@ -934,9 +936,9 @@
                           [class.incident-select--placeholder]="involvedSelectEmpty($index, 'cargoId')"
                           [class.border-red-500]="personRequiredError($index, 'cargoId')"
                         >
-                          <option [ngValue]="null" disabled>Seleccione Cargo</option>
+                          <option value="" disabled>Seleccione Cargo</option>
                           @for (cargo of judgeCargos(); track cargo.id) {
-                            <option [ngValue]="cargo.id">{{ cargo.name }}</option>
+                            <option [value]="cargo.id">{{ cargo.name }}</option>
                           }
                         </select>
                         @if (personRequiredError($index, 'cargoId')) {
@@ -1048,9 +1050,9 @@
                           [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'roleId')"
                           [class.border-red-500]="placeRequiredError($index, 'roleId')"
                         >
-                          <option [ngValue]="null" disabled>Seleccione rol…</option>
+                          <option value="" disabled>Seleccione rol…</option>
                           @for (role of placeRoles(); track role.id) {
-                            <option [ngValue]="role.id">
+                            <option [value]="role.id">
                               {{ formatPlaceRoleLabel(role.name) }}
                             </option>
                           }
@@ -1072,9 +1074,9 @@
                           [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'departmentId')"
                           [class.border-red-500]="placeRequiredError($index, 'departmentId')"
                         >
-                          <option [ngValue]="null">Seleccione departamento…</option>
+                          <option value="">Seleccione departamento…</option>
                           @for (dept of departments(); track dept.id) {
-                            <option [ngValue]="dept.id">{{ dept.name }}</option>
+                            <option [value]="dept.id">{{ dept.name }}</option>
                           }
                         </select>
                         @if (placeRequiredError($index, 'departmentId')) {
@@ -1095,7 +1097,7 @@
                           [class.incident-select--placeholder]="involvedPlaceSelectEmpty($index, 'municipalityId')"
                           [class.border-red-500]="placeRequiredError($index, 'municipalityId')"
                         >
-                          <option [ngValue]="null">
+                          <option value="">
                             @if (!placeGroup.get('departmentId')?.value) {
                               Seleccione primero un departamento
                             } @else {
@@ -1103,7 +1105,7 @@
                             }
                           </option>
                           @for (mun of placeMunicipalitiesFor($index); track mun.id) {
-                            <option [ngValue]="mun.id">{{ mun.name }}</option>
+                            <option [value]="mun.id">{{ mun.name }}</option>
                           }
                         </select>
                         @if (placeRequiredError($index, 'municipalityId')) {

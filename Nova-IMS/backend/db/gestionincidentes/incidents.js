@@ -344,14 +344,9 @@ async function resolveCatalogIds(agencyCode, body) {
      LIMIT 1`,
     [statusName, agency, agency],
   );
-  let estadoId = est[0]?.ID_estado;
+  const estadoId = est[0]?.ID_estado;
   if (!estadoId) {
-    const [fb] = await pool.query(
-      `SELECT ID_estado FROM estadosincidentes
-       WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?)) ORDER BY ID_estado LIMIT 1`,
-      [agency, agency],
-    );
-    estadoId = fb[0]?.ID_estado;
+    throw new HttpError(400, `El estado «${statusName}» no existe para la agencia ${agency}.`);
   }
 
   const priorityInput = String(priority ?? priority_id ?? '').trim();
@@ -360,7 +355,10 @@ async function resolveCatalogIds(agencyCode, body) {
     `SELECT ID_prioridad FROM prioridades WHERE Prioridad = ? LIMIT 1`,
     [priorityName],
   );
-  const prioridadId = pri[0]?.ID_prioridad || 2;
+  const prioridadId = pri[0]?.ID_prioridad;
+  if (!prioridadId) {
+    throw new HttpError(400, `La prioridad «${priorityName}» no existe en el catálogo.`);
+  }
 
   const originName = String(origin || '').trim();
   let origenId = null;
@@ -374,12 +372,6 @@ async function resolveCatalogIds(agencyCode, body) {
     origenId = or[0]?.ID_Origen;
   }
 
-  if (!estadoId) {
-    throw new HttpError(
-      400,
-      `No hay estados de incidente configurados para la agencia ${agency}. Solicite al administrador cargar el catálogo en estadosincidentes.`,
-    );
-  }
   if (!origenId) {
     throw new HttpError(
       400,
@@ -714,6 +706,15 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
     const safeAddress = address.substring(0, 100);
 
     let roleId = toPositiveId(place.roleId ?? place.role_id);
+    if (roleId) {
+      const [ownRole] = await conn.query(
+        `SELECT ID_Rol_Lugar FROM roles_lugar
+         WHERE ID_Rol_Lugar = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+         LIMIT 1`,
+        [roleId, agencyCode, agencyCode],
+      );
+      roleId = ownRole[0]?.ID_Rol_Lugar;
+    }
     if (!roleId && place.roleName) {
       const [roles] = await conn.query(
         `SELECT ID_Rol_Lugar FROM roles_lugar
@@ -724,13 +725,7 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
       roleId = roles[0]?.ID_Rol_Lugar;
     }
     if (!roleId) {
-      const [fb] = await conn.query(
-        `SELECT ID_Rol_Lugar FROM roles_lugar
-         WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-         ORDER BY ID_Rol_Lugar LIMIT 1`,
-        [agencyCode, agencyCode],
-      );
-      roleId = fb[0]?.ID_Rol_Lugar || 1;
+      throw new HttpError(400, 'Seleccione un rol de lugar válido para la agencia.');
     }
 
     const deptId = toPositiveId(place.departmentId ?? place.department_id);
@@ -751,7 +746,7 @@ async function replaceInvolvedPlaces(conn, internalId, places, userCtx, agencyCo
       [result] = await insertLugar(deptId, muniId);
     } catch (err) {
       if (err?.code !== 'ER_NO_REFERENCED_ROW_2' && err?.code !== 'ER_NO_REFERENCED_ROW') throw err;
-      [result] = await insertLugar(null, null);
+      throw new HttpError(400, 'El departamento o el municipio del lugar no existe.');
     }
 
     const commentText = String(place.comments || place.comentario || '').trim();
@@ -819,21 +814,30 @@ function pickPersonNameFields(person) {
 }
 
 async function resolvePersonRoleId(conn, person, agencyCode) {
-  let rolP = person.roleId ?? person.role_id ?? null;
-  if (!rolP) {
+  const raw = person.roleId ?? person.role_id ?? null;
+  const roleId = Number(raw);
+  if (Number.isFinite(roleId) && roleId > 0) {
+    const [own] = await conn.query(
+      `SELECT ID_RolP FROM rolpersonas
+       WHERE ID_RolP = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+       LIMIT 1`,
+      [roleId, agencyCode, agencyCode],
+    );
+    if (own[0]?.ID_RolP) return own[0].ID_RolP;
+  }
+
+  const roleName = PERSON_ROLE_TO_GI[person.role] || person.role;
+  if (roleName) {
     const [roles] = await conn.query(
       `SELECT ID_RolP FROM rolpersonas
        WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
        LIMIT 1`,
-      [PERSON_ROLE_TO_GI[person.role] || person.role || 'Testigo', agencyCode, agencyCode],
+      [roleName, agencyCode, agencyCode],
     );
-    rolP = roles[0]?.ID_RolP;
+    if (roles[0]?.ID_RolP) return roles[0].ID_RolP;
   }
-  if (!rolP) {
-    const [fb] = await conn.query(`SELECT ID_RolP FROM rolpersonas ORDER BY ID_RolP LIMIT 1`);
-    rolP = fb[0]?.ID_RolP || 1;
-  }
-  return rolP;
+
+  throw new HttpError(400, 'Seleccione un rol de solicitante válido para la agencia.');
 }
 
 async function resolveJudgeCargoId(conn, person, roleId, agencyCode) {
@@ -934,22 +938,18 @@ function vehicleHasCatalogData(vehicle) {
 }
 
 async function resolveVehicleRoleId(conn, roleName, agencyCode) {
-  if (roleName) {
-    const [roles] = await conn.query(
-      `SELECT ID_RolVehiculo FROM rolesvehiculo
-       WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-       LIMIT 1`,
-      [roleName, agencyCode, agencyCode],
-    );
-    if (roles[0]?.ID_RolVehiculo) return roles[0].ID_RolVehiculo;
+  const name = String(roleName || '').trim();
+  if (!name) {
+    throw new HttpError(400, 'Seleccione el rol del vehículo.');
   }
-  const [fb] = await conn.query(
+  const [roles] = await conn.query(
     `SELECT ID_RolVehiculo FROM rolesvehiculo
-     WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
-     ORDER BY ID_RolVehiculo LIMIT 1`,
-    [agencyCode, agencyCode],
+     WHERE Nombre = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     LIMIT 1`,
+    [name, agencyCode, agencyCode],
   );
-  return fb[0]?.ID_RolVehiculo || 1;
+  if (roles[0]?.ID_RolVehiculo) return roles[0].ID_RolVehiculo;
+  throw new HttpError(400, `El rol del vehículo «${name}» no existe para la agencia.`);
 }
 
 async function insertInvolvedVehicle(conn, internalId, vehicle, userCtx, agencyCode) {

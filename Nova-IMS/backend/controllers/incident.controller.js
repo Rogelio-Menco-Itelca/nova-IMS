@@ -170,6 +170,68 @@ function summarizeVehicles(list) {
     .join(', ');
 }
 
+function placeAuditRef(place, index) {
+  const name = String(place?.name || '').trim();
+  const role = String(place?.roleName || '').trim();
+  return name || role || `lugar ${index + 1}`;
+}
+
+function placeAuditView(place) {
+  return {
+    role: String(place?.roleName || '').trim(),
+    department: String(place?.departmentName || '').trim(),
+    municipality: String(place?.municipalityName || '').trim(),
+    name: String(place?.name || '').trim(),
+    address: String(place?.address || '').trim(),
+    contact: String(place?.contact || '').trim(),
+  };
+}
+
+function appendPlaceAuditDetails(details, beforePlaces = [], afterPlaces = []) {
+  const before = beforePlaces || [];
+  const after = afterPlaces || [];
+  const count = Math.max(before.length, after.length);
+  const fields = [
+    ['role', 'Rol del lugar'],
+    ['department', 'Departamento del lugar'],
+    ['municipality', 'Municipio del lugar'],
+    ['name', 'Nombre del lugar'],
+    ['address', 'Dirección del lugar'],
+    ['contact', 'Contacto del lugar'],
+  ];
+  for (let i = 0; i < count; i++) {
+    const prev = before[i];
+    const next = after[i];
+    if (!prev && next) {
+      details.push({
+        field: `Lugar (${placeAuditRef(next, i)})`,
+        old: '(no existía)',
+        new: 'Agregado',
+      });
+      continue;
+    }
+    if (prev && !next) {
+      details.push({
+        field: `Lugar (${placeAuditRef(prev, i)})`,
+        old: 'Existente',
+        new: '(eliminado)',
+      });
+      continue;
+    }
+    const oldView = placeAuditView(prev);
+    const newView = placeAuditView(next);
+    const ref = placeAuditRef(next, i);
+    for (const [key, label] of fields) {
+      if (oldView[key] === newView[key]) continue;
+      details.push({
+        field: `${label} (${ref})`,
+        old: fmtAuditValue(oldView[key]),
+        new: fmtAuditValue(newView[key]),
+      });
+    }
+  }
+}
+
 function isValidPlate(plate) {
   const normalized = String(plate || '')
     .toUpperCase()
@@ -240,6 +302,7 @@ function buildAuditDetails(before, after) {
   if (peopleOld !== peopleNew) {
     details.push({ field: 'Personas involucradas', old: peopleOld, new: peopleNew });
   }
+  appendPlaceAuditDetails(details, before.involvedPlaces, after.involvedPlaces);
   appendVehicleAuditDetails(details, before.involvedVehicles, after.involvedVehicles);
   const vehFpBefore = vehiclesAuditFingerprint(before.involvedVehicles);
   const vehFpAfter = vehiclesAuditFingerprint(after.involvedVehicles);
