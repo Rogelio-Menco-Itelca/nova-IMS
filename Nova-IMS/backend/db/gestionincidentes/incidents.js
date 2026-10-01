@@ -989,6 +989,7 @@ async function createIncident(body, user) {
   const agencyCode = requireUserAgency(user);
   const userCtx = await resolveUserContext(user?.sub, agencyCode);
   const cats = await resolveCatalogIds(agencyCode, body);
+  await assertPonalEventAllowed(agencyCode, body.status, cats.eventoId);
 
   const conn = await pool.getConnection();
   try {
@@ -1108,6 +1109,40 @@ function checkReiteracionesRules(newStatus, cerremGuardado, gestion) {
   }
 }
 
+function normalizeEvento(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isEventoPonal(eventName) {
+  const name = normalizeEvento(eventName);
+  if (!name.includes('medidas')) return false;
+  return name.includes('funcionario') || name.includes('sede');
+}
+
+async function assertPonalEventAllowed(agencyCode, newStatus, eventoId) {
+  if (String(agencyCode || '').toUpperCase() !== 'CSJ') return;
+  if (mapStatusFromGi(newStatus) !== STATUS_MEDIDAS_ASIGNADAS && newStatus !== STATUS_MEDIDAS_ASIGNADAS) {
+    return;
+  }
+  const [rows] = await pool.query(
+    `SELECT TipoEvento, Descripcion FROM eventos WHERE ID_evento = ? LIMIT 1`,
+    [eventoId],
+  );
+  const evento = rows[0];
+  const allowed =
+    isEventoPonal(evento?.TipoEvento) || isEventoPonal(evento?.Descripcion);
+  if (!allowed) {
+    throw new HttpError(
+      409,
+      '«En gestión Ponal» solo aplica a solicitudes de medidas de seguridad de funcionarios o de sedes judiciales.',
+    );
+  }
+}
+
 async function assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId) {
   if (String(agencyCode).toUpperCase() !== 'CSJ' || !newStatus || newStatus === currentStatus) {
     return;
@@ -1164,7 +1199,7 @@ async function assertMedidasIfRequired(newStatus, visibleId, agencyCode) {
   if (!tieneMedidas) {
     throw new HttpError(
       409,
-      'Debe asignar al menos una medida de seguridad antes de guardar el estado «En gestión Ponal».',
+      'Debe asignar al menos una medida de seguridad en «En gestión UNP» antes de guardar el estado «En gestión Ponal».',
     );
   }
 }
@@ -1230,6 +1265,7 @@ async function updateIncident(visibleId, body, user) {
   const newStatus = body.status;
 
   assertIncidentStatusChange(currentStatus, newStatus, agencyCode);
+  await assertPonalEventAllowed(agencyCode, newStatus, cats.eventoId);
   await assertRiesgoTransitionRules(agencyCode, currentStatus, newStatus, visibleId);
   await assertCommentIfRequired(currentStatus, newStatus, internalId, body);
   await assertMedidasIfRequired(newStatus, visibleId, agencyCode);

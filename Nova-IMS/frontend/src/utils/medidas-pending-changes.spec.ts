@@ -170,6 +170,22 @@ describe('pendingMedidasSections', () => {
     };
     expect(pendingMedidasSections(current, baseline, ctx)).toEqual(['medidas']);
   });
+
+  it('detecta observaciones de Ponal en su propio campo', () => {
+    const baseline = snapshotMedidasDraft({ observaciones: 'Nota de medidas' }, []);
+    const current = snapshotMedidasDraft(
+      { observaciones: 'Nota de medidas', observaciones_ponal: 'Nota Ponal' },
+      [],
+    );
+    const ctx: MedidasPendingContext = {
+      ...baseCtx,
+      showOsegBlock: false,
+      showCerremBlock: false,
+      showMedidasBlock: false,
+      showPonalObservaciones: true,
+    };
+    expect(pendingMedidasSections(current, baseline, ctx)).toEqual(['ponal']);
+  });
 });
 
 describe('labelsForPendingMedidasSections', () => {

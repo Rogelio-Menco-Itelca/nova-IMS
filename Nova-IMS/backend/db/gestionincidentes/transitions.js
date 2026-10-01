@@ -28,7 +28,7 @@ const TRANSITIONS = {
   },
   'En gestión Ponal': {
     next: ['En gestión OSEG', 'En gestión UNP', 'Reiteraciones', 'Cerrado', 'Cancelado'],
-    requiresMedidas: true,
+    requiresMedidas: false,
   },
   Cerrado: {
     next: [],

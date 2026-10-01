@@ -969,6 +969,12 @@
                                     <p class="ih-gestion-obs-text">{{ gestion.observaciones }}</p>
                                   </div>
                                 }
+                                @if (gestion.observaciones_ponal?.trim()) {
+                                  <div class="ih-gestion-obs">
+                                    <span class="ih-gestion-obs-label">Observaciones Ponal</span>
+                                    <p class="ih-gestion-obs-text">{{ gestion.observaciones_ponal }}</p>
+                                  </div>
+                                }
                               </div>
                             </div>
 

@@ -727,6 +727,7 @@ CREATE TABLE `gestion_medidas` (
   `tipo_esquema` enum('Individual','Colectivo') DEFAULT NULL,
   `compartido_con` varchar(200) DEFAULT NULL,
   `observaciones` text,
+  `observaciones_ponal` varchar(500) DEFAULT NULL,
   `ID_usuario_registro` varchar(20) NOT NULL,
   `Fecha_registro` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `Fecha_actualizacion` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
