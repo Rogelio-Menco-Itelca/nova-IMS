@@ -279,25 +279,62 @@ function coordsForPersist(body) {
   return { lat, lng };
 }
 
-async function resolveCatalogIds(
-  agencyCode,
-  { status, priority, priority_id, origin, incidentTypeId, eventId },
-) {
-  const agency = normalizeAgencyCode(agencyCode);
+function parseEventoCatalogId(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  if (/^\d+$/.test(text)) return Number(text);
+  const prefixed = /^IT-(\d+)$/i.exec(text);
+  return prefixed ? Number(prefixed[1]) : null;
+}
 
-  let eventoId = null;
-  if (eventId && /^\d+$/.test(String(eventId))) {
-    eventoId = Number(eventId);
-  } else if (incidentTypeId) {
-    const m = /(\d+)/.exec(String(incidentTypeId));
-    if (m) eventoId = Number(m[1]);
+async function findEventoIdForAgency(agency, eventoId) {
+  if (!eventoId) return null;
+  const [rows] = await pool.query(
+    `SELECT ID_evento FROM eventos
+     WHERE ID_evento = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     LIMIT 1`,
+    [eventoId, agency, agency],
+  );
+  return rows[0]?.ID_evento ?? null;
+}
+
+async function findEventoIdByName(agency, name) {
+  const text = String(name ?? '').trim();
+  if (!text || parseEventoCatalogId(text) != null) return null;
+  const [rows] = await pool.query(
+    `SELECT ID_evento FROM eventos
+     WHERE TipoEvento = ? AND UPPER(ID_Agencia) IN (UPPER(?), LOWER(?))
+     LIMIT 1`,
+    [text, agency, agency],
+  );
+  return rows[0]?.ID_evento ?? null;
+}
+
+async function resolveCatalogIds(agencyCode, body) {
+  const { status, priority, priority_id, origin } = body || {};
+  const agency = normalizeAgencyCode(agencyCode);
+  const eventRaw = body?.eventId ?? body?.event_id;
+  const typeRaw = body?.incidentTypeId ?? body?.incident_type_id;
+  const nameRaw = body?.type;
+  const eventWasSent = [eventRaw, typeRaw, nameRaw].some((value) => String(value ?? '').trim());
+
+  let eventoId = await findEventoIdForAgency(
+    agency,
+    parseEventoCatalogId(eventRaw) ?? parseEventoCatalogId(typeRaw),
+  );
+  if (!eventoId) {
+    eventoId =
+      (await findEventoIdByName(agency, nameRaw)) ??
+      (await findEventoIdByName(agency, eventRaw)) ??
+      (await findEventoIdByName(agency, typeRaw));
   }
   if (!eventoId) {
-    const [ev] = await pool.query(
-      `SELECT ID_evento FROM eventos WHERE UPPER(ID_Agencia) IN (UPPER(?), LOWER(?)) ORDER BY ID_evento LIMIT 1`,
-      [agency, agency],
+    throw new HttpError(
+      400,
+      eventWasSent
+        ? `El tipo de evento no existe para la agencia ${agency}.`
+        : `Seleccione un tipo de evento.`,
     );
-    eventoId = ev[0]?.ID_evento;
   }
 
   const statusName = mapStatusToGi(status || 'Nuevo');
@@ -337,9 +374,6 @@ async function resolveCatalogIds(
     origenId = or[0]?.ID_Origen;
   }
 
-  if (!eventoId) {
-    throw new HttpError(400, `No hay tipos de evento configurados para la agencia ${agency}.`);
-  }
   if (!estadoId) {
     throw new HttpError(
       400,
